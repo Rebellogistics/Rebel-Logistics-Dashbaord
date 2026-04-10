@@ -1,0 +1,5 @@
+{
+  "name": "Rebel Logistics Ops Dashboard",
+  "description": "Freight dispatch and delivery management dashboard for owner-operators. Track truck runs, client notifications, and proof of delivery.",
+  "requestFramePermissions": []
+}
