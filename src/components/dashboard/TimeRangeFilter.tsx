@@ -15,7 +15,7 @@ export function TimeRangeFilter({ value, onChange }: TimeRangeFilterProps) {
   ];
 
   return (
-    <div className="flex items-center p-1 bg-slate-100 rounded-lg w-fit">
+    <div className="flex items-center p-1 bg-muted rounded-lg w-fit">
       {ranges.map((range) => (
         <Button
           key={range.value}
@@ -24,7 +24,7 @@ export function TimeRangeFilter({ value, onChange }: TimeRangeFilterProps) {
           onClick={() => onChange(range.value)}
           className={cn(
             "h-7 px-3 text-[10px] font-bold rounded-md transition-all",
-            value === range.value ? "bg-white text-teal-700 shadow-sm" : "text-muted-foreground hover:text-teal-600"
+            value === range.value ? "bg-card text-rebel-accent shadow-sm" : "text-muted-foreground hover:text-rebel-accent"
           )}
         >
           {range.label}

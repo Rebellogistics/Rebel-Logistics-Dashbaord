@@ -1,168 +1,327 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { KPIStatsCards } from '@/components/dashboard/KPIStats';
 import { JobsTable } from '@/components/dashboard/JobsTable';
-import { DeliveryChart } from '@/components/dashboard/DeliveryChart';
-import { MapPreview } from '@/components/dashboard/MapPreview';
-import { RightSidebar } from '@/components/dashboard/RightSidebar';
-import { TimeRangeFilter } from '@/components/dashboard/TimeRangeFilter';
-import { mockJobs, mockCustomers, mockMessages, getKPIsByRange, getChartDataByRange } from '@/lib/mockData';
-import { TimeRange } from '@/lib/types';
+import { DailyReviewPanel } from '@/components/dashboard/DailyReviewPanel';
+import { LiveTruckRuns } from '@/components/dashboard/LiveTruckRuns';
+import { RecentJobs } from '@/components/dashboard/RecentJobs';
+import { InsightChips } from '@/components/dashboard/InsightChips';
+import { TruckRunsView } from '@/components/truck-runs/TruckRunsView';
+import { CustomersView } from '@/components/customers/CustomersView';
+import { ReviewsView } from '@/components/reviews/ReviewsView';
+import { SmsLogView } from '@/components/sms/SmsLogView';
+import { SettingsView } from '@/components/settings/SettingsView';
+import { JobDetailDialog } from '@/components/jobs/JobDetailDialog';
+import { MarkCompleteDialog } from '@/components/jobs/MarkCompleteDialog';
+import { AcceptAssignDialog } from '@/components/jobs/AcceptAssignDialog';
+import { CustomerDetailDialog } from '@/components/customers/CustomerDetailDialog';
+import { useJobs, useCustomers, useDeleteCustomer } from '@/hooks/useSupabaseData';
+import { useSmsLog } from '@/hooks/useSms';
+import { useProfile } from '@/hooks/useProfile';
+import { useTeam } from '@/hooks/useTeam';
+import { signOut } from '@/hooks/useAuth';
+import { DriverShell } from '@/components/driver/DriverShell';
+import { Profile, Job, Customer } from '@/lib/types';
 import { Toaster } from '@/components/ui/sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Truck, LogOut, Clock, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { Alert } from '@/hooks/useAlerts';
+import { SearchResult } from '@/hooks/useSearch';
+import { SearchScope } from '@/components/layout/SearchBar';
+import { can } from '@/hooks/useCan';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('Shipping');
-  const [timeRange, setTimeRange] = useState<TimeRange>('30d');
+  const { data: profile, isLoading: profileLoading, error: profileError } = useProfile();
 
-  const stats = useMemo(() => getKPIsByRange(timeRange), [timeRange]);
-  const chartData = useMemo(() => getChartDataByRange(timeRange), [timeRange]);
+  if (profileLoading) {
+    return <CenteredLoader message="Loading your profile…" />;
+  }
+
+  if (profileError || !profile) {
+    return (
+      <StatusScreen
+        icon={AlertCircle}
+        iconClass="bg-red-100 text-red-700"
+        title="No profile found"
+        description="Your account exists but doesn't have a profile row yet. Contact the owner to get set up, or sign out and try a different account."
+      />
+    );
+  }
+
+  if (!profile.active) {
+    return (
+      <StatusScreen
+        icon={AlertCircle}
+        iconClass="bg-red-100 text-red-700"
+        title="Account deactivated"
+        description="Your account has been deactivated by the owner. Contact Yemen if you believe this is a mistake, or sign out and try a different account."
+      />
+    );
+  }
+
+  if (profile.role === 'pending') {
+    return (
+      <StatusScreen
+        icon={Clock}
+        iconClass="bg-amber-100 text-amber-700"
+        title="Waiting for approval"
+        description="Your account is active but the owner hasn't assigned you a role yet. Please wait — once approved, you'll land on your dashboard automatically."
+      />
+    );
+  }
+
+  if (profile.role === 'driver') {
+    return <DriverShell profile={profile} />;
+  }
+
+  return <OwnerShell profile={profile} />;
+}
+
+const SEARCH_SCOPE_BY_TAB: Record<string, SearchScope> = {
+  Dashboard: 'all',
+  'Truck Runs': 'jobs',
+  Jobs: 'jobs',
+  Customers: 'customers',
+  Reviews: 'jobs',
+  'SMS Log': 'sms',
+  Settings: 'none',
+};
+
+function OwnerShell({ profile }: { profile: Profile }) {
+  const [activeTab, setActiveTab] = useState('Dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const { data: jobs = [], isLoading: jobsLoading } = useJobs();
+  const { data: customers = [], isLoading: customersLoading } = useCustomers();
+  const { data: smsLog = [], isLoading: smsLogLoading } = useSmsLog();
+  const { data: team = [] } = useTeam();
+  const deleteCustomer = useDeleteCustomer();
+
+  const driverCount = team.filter((m) => m.role === 'driver' && m.active).length;
+
+  // Shell-level dialog state — these can be triggered from the bell, search, or any inner view.
+  const [viewJobTarget, setViewJobTarget] = useState<Job | null>(null);
+  const [markCompleteTarget, setMarkCompleteTarget] = useState<Job | null>(null);
+  const [assignTarget, setAssignTarget] = useState<Job | null>(null);
+  const [viewCustomerTarget, setViewCustomerTarget] = useState<Customer | null>(null);
+
+  const isLoading = jobsLoading || customersLoading;
+  const searchScope = SEARCH_SCOPE_BY_TAB[activeTab] ?? 'all';
+
+  const handleAlertAction = (alert: Alert) => {
+    if (alert.action === 'view_sms') {
+      setActiveTab('SMS Log');
+      return;
+    }
+    if (!alert.jobId) return;
+    const job = jobs.find((j) => j.id === alert.jobId);
+    if (!job) {
+      toast.error("Couldn't find that job");
+      return;
+    }
+    if (alert.action === 'mark_complete') setMarkCompleteTarget(job);
+    else if (alert.action === 'assign_truck') setAssignTarget(job);
+    else setViewJobTarget(job);
+  };
+
+  const handleSearchSelect = (result: SearchResult) => {
+    if (result.kind === 'customer' && result.customer) {
+      setActiveTab('Customers');
+      setViewCustomerTarget(result.customer);
+      return;
+    }
+    if (result.kind === 'job' && result.job) {
+      setViewJobTarget(result.job);
+      return;
+    }
+    if (result.kind === 'sms') {
+      setActiveTab('SMS Log');
+    }
+  };
+
+  const handleCustomerDelete = async (customer: Customer) => {
+    if (
+      !confirm(
+        `Delete ${customer.name}? Linked jobs will keep their info but lose the customer link.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await deleteCustomer.mutateAsync(customer.id);
+      toast.success('Customer deleted');
+      setViewCustomerTarget(null);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to delete customer');
+    }
+  };
 
   const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-10 w-10 border-2 border-rebel-border border-t-rebel-accent mx-auto mb-4" />
+            <p className="text-sm text-rebel-text-secondary">Loading data...</p>
+          </div>
+        </div>
+      );
+    }
+
     switch (activeTab) {
       case 'Dashboard':
         return (
           <div className="space-y-8">
-            <KPIStatsCards stats={stats} />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <DeliveryChart data={chartData} />
-              <MapPreview />
-            </div>
-            <JobsTable jobs={mockJobs.slice(0, 3)} />
+            <KPIStatsCards jobs={jobs} smsLog={smsLog} />
+            <InsightChips jobs={jobs} />
+            <LiveTruckRuns jobs={jobs} customers={customers} />
+            <RecentJobs jobs={jobs} onViewAll={() => setActiveTab('Jobs')} />
+            <DailyReviewPanel jobs={jobs} />
           </div>
         );
-      case 'Shipping':
+      case 'Truck Runs':
+        return <TruckRunsView jobs={jobs} />;
+      case 'Jobs':
         return (
           <div className="space-y-8">
-            <KPIStatsCards stats={stats} />
-            <JobsTable jobs={mockJobs} />
-          </div>
-        );
-      case 'Orders':
-        return (
-          <div className="space-y-8">
-            <Card className="border-none shadow-none bg-white">
-              <CardContent className="p-6">
-                <h3 className="font-bold text-lg mb-4">Recent Orders</h3>
-                <JobsTable jobs={mockJobs.filter(j => j.status === 'Accepted' || j.status === 'Scheduled')} />
-              </CardContent>
-            </Card>
-          </div>
-        );
-      case 'Tracking':
-        return (
-          <div className="space-y-8">
-            <MapPreview />
-            <Card className="border-none shadow-none bg-white">
-              <CardContent className="p-6">
-                <h3 className="font-bold text-lg mb-4">Live Tracking</h3>
-                <JobsTable jobs={mockJobs.filter(j => j.status === 'In Delivery')} />
-              </CardContent>
-            </Card>
+            <KPIStatsCards jobs={jobs} smsLog={smsLog} />
+            <JobsTable jobs={jobs} />
           </div>
         );
       case 'Customers':
-        return (
-          <div className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {mockCustomers.map(customer => (
-                <Card key={customer.id} className="border-none shadow-none bg-white">
-                  <CardContent className="p-6 flex flex-col items-center text-center">
-                    <img src={customer.avatar} alt={customer.name} className="w-16 h-16 rounded-full mb-4" />
-                    <h4 className="font-bold">{customer.name}</h4>
-                    <p className="text-xs text-muted-foreground mb-4">{customer.email}</p>
-                    <div className="grid grid-cols-2 gap-4 w-full pt-4 border-t">
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase">Jobs</p>
-                        <p className="text-sm font-bold">{customer.totalJobs}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase">Spent</p>
-                        <p className="text-sm font-bold">${customer.totalSpent}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+        return <CustomersView customers={customers} jobs={jobs} />;
+      case 'Reviews':
+        return <ReviewsView jobs={jobs} />;
+      case 'SMS Log':
+        return <SmsLogView entries={smsLog} isLoading={smsLogLoading} />;
+      case 'Settings':
+        if (!can(profile, 'view_settings')) {
+          return (
+            <div className="p-12 text-center text-rebel-text-secondary">
+              <p className="text-sm font-semibold">Settings is owner-only</p>
+              <p className="text-xs mt-1">Contact your owner if you need access.</p>
             </div>
-          </div>
-        );
-      case 'Message':
-        return (
-          <div className="space-y-4">
-            {mockMessages.map(msg => (
-              <Card key={msg.id} className="border-none shadow-none bg-white">
-                <CardContent className="p-4 flex gap-4 items-start">
-                  <img src={msg.avatar} alt={msg.sender} className="w-10 h-10 rounded-full" />
-                  <div className="flex-1">
-                    <div className="flex justify-between items-center mb-1">
-                      <h4 className="font-bold text-sm">{msg.sender}</h4>
-                      <span className="text-[10px] text-muted-foreground">{new Date(msg.timestamp).toLocaleTimeString()}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{msg.content}</p>
-                  </div>
-                  {msg.unread && <Badge className="bg-orange-500">New</Badge>}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        );
+          );
+        }
+        return <SettingsView />;
       default:
-        return <div className="p-8 text-center text-muted-foreground">View coming soon...</div>;
+        return <div className="p-8 text-center text-rebel-text-secondary">View coming soon...</div>;
     }
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-      
+    <div className="flex min-h-screen bg-rebel-canvas font-sans text-rebel-text">
+      <Sidebar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+
       <main className="flex-1 flex flex-col min-w-0">
-        <TopBar />
-        
-        <div className="flex-1 flex">
-          <div className="flex-1 p-8 space-y-8 overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-                className="space-y-2"
-              >
-                <h2 className="text-2xl font-bold tracking-tight">Hi, Orely Studio 👋</h2>
-                <p className="text-sm text-muted-foreground">
-                  {activeTab} Overview • {timeRange === '1d' ? 'Today' : timeRange === '7d' ? 'Last 7 Days' : 'Last 30 Days'}
-                </p>
-              </motion.div>
-              <TimeRangeFilter value={timeRange} onChange={setTimeRange} />
-            </div>
+        <TopBar
+          profile={profile}
+          activeTab={activeTab}
+          driverCount={driverCount}
+          customerCount={customers.length}
+          jobs={jobs}
+          customers={customers}
+          smsLog={smsLog}
+          searchScope={searchScope}
+          onAlertAction={handleAlertAction}
+          onSearchSelect={handleSearchSelect}
+          onMenuClick={() => setSidebarOpen(true)}
+        />
 
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab + timeRange}
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={{ duration: 0.2 }}
-              >
-                {renderContent()}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.4, delay: 0.4 }}
-          >
-            <RightSidebar />
-          </motion.div>
+        <div className="flex-1 p-4 lg:p-8 overflow-y-auto">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+            >
+              {renderContent()}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </main>
-      
+
+      {/* Shell-level dialogs — driven by bell, search, or any inner view */}
+      <JobDetailDialog job={viewJobTarget} onClose={() => setViewJobTarget(null)} />
+      <MarkCompleteDialog job={markCompleteTarget} onClose={() => setMarkCompleteTarget(null)} />
+      <AcceptAssignDialog job={assignTarget} onClose={() => setAssignTarget(null)} />
+      <CustomerDetailDialog
+        customer={viewCustomerTarget}
+        jobs={jobs}
+        onClose={() => setViewCustomerTarget(null)}
+        onEdit={() => {
+          /* edit handled within CustomersView */
+        }}
+        onDelete={handleCustomerDelete}
+      />
+
       <Toaster position="top-right" />
+    </div>
+  );
+}
+
+interface StatusScreenProps {
+  icon: typeof Truck;
+  iconClass: string;
+  title: string;
+  description: string;
+}
+
+function StatusScreen({ icon: Icon, iconClass, title, description }: StatusScreenProps) {
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate('/login', { replace: true });
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to sign out');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-rebel-canvas flex items-center justify-center px-4">
+      <Card className="w-full max-w-md border border-rebel-border bg-rebel-surface shadow-card rounded-2xl">
+        <CardContent className="p-8 text-center space-y-4">
+          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto ${iconClass}`}>
+            <Icon className="w-8 h-8" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-lg font-bold text-rebel-text">{title}</h2>
+            <p className="text-sm text-rebel-text-secondary">{description}</p>
+          </div>
+          <Button variant="outline" onClick={handleLogout} className="mt-2 gap-2">
+            <LogOut className="w-4 h-4" />
+            Sign out
+          </Button>
+        </CardContent>
+      </Card>
+      <Toaster position="top-right" />
+    </div>
+  );
+}
+
+function CenteredLoader({ message }: { message: string }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-rebel-canvas">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-2 border-rebel-border border-t-rebel-accent mx-auto mb-3" />
+        <p className="text-xs text-rebel-text-secondary">{message}</p>
+      </div>
     </div>
   );
 }

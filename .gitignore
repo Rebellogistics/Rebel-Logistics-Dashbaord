@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Local MCP server config contains database credentials
+mcp-config.json
+
+# Claude Code per-project local state
+.claude/

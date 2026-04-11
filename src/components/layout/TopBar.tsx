@@ -1,32 +1,110 @@
-import { Search, Bell, Plus, ChevronDown } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { Menu } from 'lucide-react';
+import { format } from 'date-fns';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { ProfileMenu } from '@/components/layout/ProfileMenu';
+import { NotificationsBell } from '@/components/layout/NotificationsBell';
+import { SearchBar, SearchScope } from '@/components/layout/SearchBar';
+import { Profile, Job, Customer, SmsLogEntry } from '@/lib/types';
+import { Alert } from '@/hooks/useAlerts';
+import { SearchResult } from '@/hooks/useSearch';
+import { motion } from 'motion/react';
 
-export function TopBar() {
+interface TopBarProps {
+  profile: Profile;
+  activeTab: string;
+  driverCount?: number;
+  customerCount?: number;
+  jobs: Job[];
+  customers: Customer[];
+  smsLog: SmsLogEntry[];
+  searchScope: SearchScope;
+  onAlertAction?: (alert: Alert) => void;
+  onSearchSelect?: (result: SearchResult) => void;
+  onMenuClick?: () => void;
+}
+
+const subtitleByTab: Record<string, string> = {
+  Dashboard: 'Operational overview',
+  'Truck Runs': 'Manage today and tomorrow',
+  Jobs: 'Quotes, scheduled, completed',
+  Customers: 'Your customer book',
+  Reviews: 'Feedback & ratings',
+  'SMS Log': 'Outbound message history',
+  Settings: 'Workspace configuration',
+};
+
+export function TopBar({
+  profile,
+  activeTab,
+  driverCount,
+  customerCount,
+  jobs,
+  customers,
+  smsLog,
+  searchScope,
+  onAlertAction,
+  onSearchSelect,
+  onMenuClick,
+}: TopBarProps) {
+  const today = format(new Date(), "EEEE · MMM d");
+
   return (
-    <header className="h-16 border-b bg-white flex items-center justify-between px-8 sticky top-0 z-10 backdrop-blur-sm bg-white/80">
-      <div className="flex-1 max-w-md relative group">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-teal-600 transition-colors" />
-        <Input 
-          placeholder="Input receipt number" 
-          className="pl-10 h-10 bg-slate-50 border-none rounded-xl text-xs focus-visible:ring-1 focus-visible:ring-teal-500"
-        />
-      </div>
+    <header className="sticky top-0 z-30 glass border-b border-rebel-border">
+      <div className="h-[72px] flex items-center justify-between px-4 lg:px-8 gap-4">
+        {/* Left: title + subtitle */}
+        <div className="flex items-center gap-3 min-w-0">
+          <button
+            type="button"
+            onClick={onMenuClick}
+            aria-label="Open navigation"
+            className="lg:hidden h-9 w-9 inline-flex items-center justify-center rounded-xl text-rebel-text-secondary hover:bg-rebel-surface-sunken hover:text-rebel-text transition-colors"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
 
-      <div className="flex items-center gap-6">
-        <div className="flex items-center gap-3 pl-6 border-l">
-          <div className="text-right">
-            <p className="text-xs font-bold leading-none">Orely Studio 👋</p>
-            <p className="text-[10px] text-muted-foreground mt-1">Admin</p>
-          </div>
-          <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden border-2 border-white shadow-sm">
-            <img 
-              src="https://api.dicebear.com/7.x/avataaars/svg?seed=Orely" 
-              alt="User" 
-              className="w-full h-full object-cover"
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            className="min-w-0"
+          >
+            <h1 className="font-display text-[20px] lg:text-[22px] font-bold tracking-tight text-rebel-text leading-none truncate">
+              {activeTab}
+            </h1>
+            <p className="mt-1.5 text-[11px] font-medium text-rebel-text-tertiary truncate">
+              <span className="text-rebel-text-secondary">{today}</span>
+              <span className="mx-1.5 text-rebel-text-tertiary">·</span>
+              {subtitleByTab[activeTab] ?? 'Workspace'}
+            </p>
+          </motion.div>
+        </div>
+
+        {/* Center: search (hidden when scope is 'none') */}
+        <div className="hidden md:flex flex-1 justify-center">
+          {searchScope !== 'none' && (
+            <SearchBar
+              jobs={jobs}
+              customers={customers}
+              smsLog={smsLog}
+              scope={searchScope}
+              onSelect={onSearchSelect}
+            />
+          )}
+        </div>
+
+        {/* Right cluster */}
+        <div className="flex items-center gap-2">
+          <ThemeToggle className="hidden sm:inline-flex" />
+          <NotificationsBell jobs={jobs} smsLog={smsLog} onAlertAction={onAlertAction} />
+
+          <div className="ml-1 pl-2 border-l border-rebel-border">
+            <ProfileMenu
+              profile={profile}
+              driverCount={driverCount}
+              customerCount={customerCount}
             />
           </div>
-          <ChevronDown className="w-4 h-4 text-muted-foreground" />
         </div>
       </div>
     </header>

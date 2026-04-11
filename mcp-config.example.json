@@ -1,0 +1,15 @@
+{
+  "_comment": "Template for mcp-config.json. Copy this file to mcp-config.json and replace the placeholder values. Never commit mcp-config.json — it is gitignored for a reason. The database URL contains your Postgres password and read/write access to the entire project.",
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-supabase"
+      ],
+      "env": {
+        "SUPABASE_DB_URL": "postgresql://postgres:YOUR_DATABASE_PASSWORD@db.YOUR_PROJECT_REF.supabase.co:5432/postgres"
+      }
+    }
+  }
+}
