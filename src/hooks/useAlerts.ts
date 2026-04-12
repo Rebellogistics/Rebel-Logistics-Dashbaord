@@ -8,7 +8,8 @@ export type AlertKind =
   | 'eta_overdue'
   | 'missing_proof'
   | 'unassigned_scheduled'
-  | 'day_prior_unsent';
+  | 'day_prior_unsent'
+  | 'delivery_completed';
 
 export interface Alert {
   id: string;
@@ -134,6 +135,26 @@ export function useAlerts(jobs: Job[], smsLog: SmsLogEntry[]): UseAlertsResult {
       });
     }
 
+    // 6. Recently completed deliveries — info (last 24h)
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    for (const job of jobs) {
+      if (job.status !== 'Completed' && job.status !== 'Invoiced') continue;
+      const completedTime = Date.parse(job.createdAt || '0');
+      if (completedTime < oneDayAgo) continue;
+      const hasProof = !!(job.proofPhoto || job.signature);
+      alerts.push({
+        id: `completed-${job.id}`,
+        kind: 'delivery_completed',
+        severity: 'info',
+        title: `${job.customerName} — delivered`,
+        description: `${job.assignedTruck ?? 'Driver'} completed delivery to ${job.deliveryAddress?.split(',')[0] ?? 'destination'}${hasProof ? ' · proof captured' : ''}`,
+        jobId: job.id,
+        action: 'view_job',
+        actionLabel: 'View',
+        weight: 300 + completedTime / 1e10,
+      });
+    }
+
     // Sort by weight desc, then severity rank
     const severityRank: Record<AlertSeverity, number> = { critical: 3, warning: 2, info: 1 };
     alerts.sort((a, b) => {
@@ -148,6 +169,7 @@ export function useAlerts(jobs: Job[], smsLog: SmsLogEntry[]): UseAlertsResult {
       missing_proof: [],
       unassigned_scheduled: [],
       day_prior_unsent: [],
+      delivery_completed: [],
     };
     for (const a of alerts) byKind[a.kind].push(a);
 
@@ -175,5 +197,7 @@ export function alertKindLabel(kind: AlertKind): string {
       return 'Unassigned';
     case 'day_prior_unsent':
       return 'Day-prior reminders';
+    case 'delivery_completed':
+      return 'Completed deliveries';
   }
 }
