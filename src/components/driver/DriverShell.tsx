@@ -6,6 +6,7 @@ import type { Profile } from '@/lib/types';
 import { MyRunToday } from './MyRunToday';
 import { MyRunWeek } from './MyRunWeek';
 import { DriverProfileTab } from './DriverProfileTab';
+import { Logo } from '@/components/ui/logo';
 import { cn } from '@/lib/utils';
 
 type DriverTab = 'today' | 'week' | 'profile';
@@ -28,19 +29,10 @@ export function DriverShell({ profile }: DriverShellProps) {
       {/* Top brand bar — minimal */}
       <header className="sticky top-0 z-30 glass border-b border-rebel-border">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rebel-accent to-rebel-accent-hover flex items-center justify-center text-white shrink-0 shadow-glow">
-              <Truck className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-rebel-text-tertiary">
-                Rebel Logistics
-              </p>
-              <p className="text-[15px] font-bold truncate leading-tight">
-                Hi, {profile.fullName?.split(' ')[0] ?? 'Driver'}
-              </p>
-            </div>
-          </div>
+          <Logo variant="full" height={36} className="max-h-[36px]" />
+          <p className="text-[13px] font-bold truncate text-rebel-text">
+            Hi, {profile.fullName?.split(' ')[0] ?? 'Driver'}
+          </p>
         </div>
       </header>
 

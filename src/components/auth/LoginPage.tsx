@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { Truck, LogIn, AlertCircle } from 'lucide-react';
+import { LogIn, AlertCircle } from 'lucide-react';
 import { useAuth, signInWithPassword } from '@/hooks/useAuth';
+import { Logo } from '@/components/ui/logo';
 
 export function LoginPage() {
   const { user, isLoading } = useAuth();
@@ -57,16 +58,11 @@ export function LoginPage() {
 
       <div className="relative w-full max-w-md">
         {/* Brand */}
-        <div className="flex items-center justify-center gap-3 mb-7">
-          <div className="relative w-12 h-12 rounded-2xl bg-gradient-to-br from-rebel-accent to-rebel-accent-hover flex items-center justify-center text-white shadow-glow">
-            <Truck className="w-5 h-5" />
-          </div>
-          <div className="leading-none">
-            <h1 className="font-display font-extrabold text-[20px] tracking-tight text-rebel-text">REBEL</h1>
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-rebel-text-tertiary mt-1">
-              Logistics ops
-            </p>
-          </div>
+        <div className="flex flex-col items-center gap-2 mb-8">
+          <Logo variant="full" height={56} />
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-rebel-text-tertiary">
+            Operations dashboard
+          </p>
         </div>
 
         <div className="rounded-3xl border border-rebel-border bg-card shadow-popover overflow-hidden">

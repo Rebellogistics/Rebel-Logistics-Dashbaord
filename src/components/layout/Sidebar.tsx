@@ -18,6 +18,7 @@ import { signOut } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { Logo } from '@/components/ui/logo';
 import { useCan } from '@/hooks/useCan';
 
 interface NavItem {
@@ -105,17 +106,7 @@ export function Sidebar({ activeTab, onTabChange, isOpen, onClose }: SidebarProp
       >
         {/* Brand block */}
         <div className="p-5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <BrandMark />
-            <div className="leading-none">
-              <h1 className="font-display font-extrabold text-[16px] tracking-tight text-rebel-text">
-                REBEL
-              </h1>
-              <p className="text-[10px] font-medium text-rebel-text-tertiary mt-1 tracking-wide uppercase">
-                logistics ops
-              </p>
-            </div>
-          </div>
+          <Logo variant="full" height={34} className="max-w-[170px] object-contain object-left" />
           <button
             type="button"
             onClick={onClose}
@@ -226,22 +217,3 @@ export function Sidebar({ activeTab, onTabChange, isOpen, onClose }: SidebarProp
   );
 }
 
-function BrandMark() {
-  return (
-    <div className="relative h-9 w-9 rounded-xl bg-gradient-to-br from-rebel-accent to-rebel-accent-hover flex items-center justify-center shadow-glow">
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        className="w-5 h-5 text-white"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M3 12h12l-2-3" stroke="currentColor" />
-        <path d="M15 9h3l3 4v3h-3" stroke="currentColor" />
-        <circle cx="7" cy="17" r="1.6" fill="currentColor" stroke="none" />
-        <circle cx="17" cy="17" r="1.6" fill="currentColor" stroke="none" />
-      </svg>
-    </div>
-  );
-}

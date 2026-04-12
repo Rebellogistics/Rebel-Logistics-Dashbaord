@@ -55,24 +55,19 @@ export function PrintReceipt({ job }: PrintReceiptProps) {
           style={{
             display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'flex-start',
+            alignItems: 'center',
             paddingBottom: '14px',
             borderBottom: '2px solid #0D1220',
             marginBottom: '20px',
           }}
         >
           <div>
-            <h1
-              style={{
-                fontSize: '22px',
-                fontWeight: 800,
-                letterSpacing: '-0.02em',
-                margin: 0,
-              }}
-            >
-              REBEL LOGISTICS
-            </h1>
-            <p style={{ fontSize: '10px', color: '#5B6477', margin: '4px 0 0 0', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            <img
+              src="/logo.png"
+              alt="Rebel Logistics"
+              style={{ height: '48px', width: 'auto', display: 'block' }}
+            />
+            <p style={{ fontSize: '10px', color: '#5B6477', margin: '6px 0 0 0', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               Delivery Receipt
             </p>
           </div>

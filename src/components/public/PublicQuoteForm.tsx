@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle2, Truck, Phone, Mail, MapPin, Package, Sparkles } from 'lucide-react';
+import { CheckCircle2, Phone, Mail, MapPin, Package, Sparkles } from 'lucide-react';
+import { Logo } from '@/components/ui/logo';
 import { format } from 'date-fns';
 import { useRepeatCustomerLookup, type RepeatCustomerInfo } from '@/hooks/useRepeatCustomer';
 
@@ -271,11 +272,8 @@ function Header() {
   return (
     <header className="relative glass border-b border-rebel-border z-10">
       <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
-        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-rebel-accent to-rebel-accent-hover flex items-center justify-center text-white shadow-glow">
-          <Truck className="w-5 h-5" />
-        </div>
-        <div className="leading-none">
-          <h1 className="font-display font-extrabold text-[18px] tracking-tight text-rebel-text">REBEL LOGISTICS</h1>
+        <Logo variant="full" height={44} className="max-h-[44px]" />
+        <div className="leading-none ml-1">
           <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-rebel-text-tertiary mt-1">
             Melbourne · Deliveries · Moves · White-glove
           </p>
