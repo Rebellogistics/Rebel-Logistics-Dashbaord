@@ -1,6 +1,7 @@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ChevronDown, User, HelpCircle, LogOut } from 'lucide-react';
+import { ChevronDown, Settings, LogOut } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { Logo } from '@/components/ui/logo';
 import { signOut } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -10,9 +11,10 @@ interface ProfileMenuProps {
   profile: Profile;
   driverCount?: number;
   customerCount?: number;
+  onNavigate?: (tab: string) => void;
 }
 
-export function ProfileMenu({ profile, driverCount = 0, customerCount = 0 }: ProfileMenuProps) {
+export function ProfileMenu({ profile, driverCount = 0, customerCount = 0, onNavigate }: ProfileMenuProps) {
   const navigate = useNavigate();
   const displayName = profile.fullName ?? 'User';
   const initials = displayName
@@ -53,43 +55,62 @@ export function ProfileMenu({ profile, driverCount = 0, customerCount = 0 }: Pro
         sideOffset={10}
         className="w-[280px] p-0 bg-rebel-surface-raised border-0 ring-0 shadow-popover rounded-2xl overflow-hidden"
       >
-        {/* Identity block */}
-        <div className="p-4 flex items-center gap-3">
-          <div className="h-11 w-11 rounded-full bg-gradient-to-br from-rebel-accent to-rebel-accent-hover flex items-center justify-center text-white text-[13px] font-bold">
-            {initials || 'Y'}
-          </div>
-          <div className="min-w-0">
-            <p className="text-[14px] font-bold text-rebel-text truncate">{displayName}</p>
-            <p className="text-[11px] text-rebel-text-tertiary font-mono truncate">
-              {profile.email ?? '—'}
-            </p>
+        {/* Logo + identity block */}
+        <div className="p-4 space-y-3">
+          <Logo variant="full" height={28} className="opacity-60" />
+          <div className="flex items-center gap-3">
+            <div className="h-11 w-11 rounded-full bg-gradient-to-br from-rebel-accent to-rebel-accent-hover flex items-center justify-center text-white text-[13px] font-bold shrink-0">
+              {initials || 'Y'}
+            </div>
+            <div className="min-w-0">
+              <p className="text-[14px] font-bold text-rebel-text truncate">{displayName}</p>
+              <p className="text-[11px] text-rebel-text-tertiary truncate">
+                {profile.email ?? '—'}
+                <span className="mx-1">·</span>
+                <span className="capitalize">{profile.role}</span>
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Stats strip — mirrors LUVAL's Following / Followers */}
+        {/* Stats */}
         <div className="mx-4 grid grid-cols-2 gap-3 py-4 border-y border-rebel-border">
-          <div className="text-center">
+          <button
+            type="button"
+            onClick={() => onNavigate?.('Settings')}
+            className="text-center hover:opacity-80 transition-opacity"
+          >
             <p className="text-[26px] font-bold leading-none text-rebel-text tabular-nums tracking-tight">
               {driverCount}
             </p>
             <p className="mt-1.5 text-[10px] uppercase tracking-wider font-bold text-rebel-text-tertiary">
               Drivers
             </p>
-          </div>
-          <div className="text-center border-l border-rebel-border">
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate?.('Customers')}
+            className="text-center border-l border-rebel-border hover:opacity-80 transition-opacity"
+          >
             <p className="text-[26px] font-bold leading-none text-rebel-text tabular-nums tracking-tight">
               {customerCount}
             </p>
             <p className="mt-1.5 text-[10px] uppercase tracking-wider font-bold text-rebel-text-tertiary">
               Customers
             </p>
-          </div>
+          </button>
         </div>
 
         {/* Menu items */}
         <div className="p-2">
-          <MenuItem icon={User} label="Profile" />
-          <MenuItem icon={HelpCircle} label="Help Center" />
+          <button
+            type="button"
+            onClick={() => onNavigate?.('Settings')}
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-[13px] font-medium text-rebel-text-secondary hover:bg-rebel-surface-sunken hover:text-rebel-text transition-colors"
+          >
+            <Settings className="w-4 h-4" />
+            Settings
+          </button>
           <ThemeToggle variant="switch" />
         </div>
 
@@ -106,17 +127,5 @@ export function ProfileMenu({ profile, driverCount = 0, customerCount = 0 }: Pro
         </div>
       </PopoverContent>
     </Popover>
-  );
-}
-
-function MenuItem({ icon: Icon, label }: { icon: typeof User; label: string }) {
-  return (
-    <button
-      type="button"
-      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-[13px] font-medium text-rebel-text-secondary hover:bg-rebel-surface-sunken hover:text-rebel-text transition-colors"
-    >
-      <Icon className="w-4 h-4" />
-      {label}
-    </button>
   );
 }

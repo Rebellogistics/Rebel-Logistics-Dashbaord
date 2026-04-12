@@ -95,6 +95,7 @@ const SEARCH_SCOPE_BY_TAB: Record<string, SearchScope> = {
 function OwnerShell({ profile }: { profile: Profile }) {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const { data: jobs = [], isLoading: jobsLoading } = useJobs();
   const { data: customers = [], isLoading: customersLoading } = useCustomers();
@@ -222,6 +223,8 @@ function OwnerShell({ profile }: { profile: Profile }) {
         onTabChange={setActiveTab}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
       />
 
       <main className="flex-1 flex flex-col min-w-0">
@@ -237,6 +240,7 @@ function OwnerShell({ profile }: { profile: Profile }) {
           onAlertAction={handleAlertAction}
           onSearchSelect={handleSearchSelect}
           onMenuClick={() => setSidebarOpen(true)}
+          onNavigate={setActiveTab}
         />
 
         <div className="flex-1 p-4 lg:p-8 overflow-y-auto">

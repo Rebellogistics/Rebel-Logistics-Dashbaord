@@ -8,9 +8,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Job, Customer } from '@/lib/types';
-import { Send, Sparkles, MessageSquareText, Eye, AlertTriangle } from 'lucide-react';
+import { Send, Sparkles, MessageSquareText, Eye, AlertTriangle, Search, X } from 'lucide-react';
 import { useSendCustomSms } from '@/hooks/useSms';
+import { useCustomers } from '@/hooks/useSupabaseData';
 import { useSmsTemplates, SmsTemplate } from '@/hooks/useSmsTemplates';
 import { useProfile } from '@/hooks/useProfile';
 import { renderTemplate, computeSmsSegments } from '@/lib/sms';
@@ -32,13 +34,45 @@ const CUSTOM_KEY = '__custom__';
 export function SendSmsDialog({ open, onClose, job, customer, defaultTemplateKey }: SendSmsDialogProps) {
   const { data: templates = [] } = useSmsTemplates();
   const { data: profile } = useProfile();
+  const { data: allCustomers = [] } = useCustomers();
   const sendCustom = useSendCustomSms();
 
-  // The recipient: customer takes precedence, otherwise pull from job
+  // When opened without a customer or job, the user picks one from a search.
+  const [pickedCustomer, setPickedCustomer] = useState<Customer | null>(null);
+  const [customerSearch, setCustomerSearch] = useState('');
+
+  // Reset pick when dialog opens/closes
+  useEffect(() => {
+    if (!open) {
+      setPickedCustomer(null);
+      setCustomerSearch('');
+    }
+  }, [open]);
+
+  const needsPicker = !customer && !job;
+  const activeCustomer = customer ?? pickedCustomer;
+
+  // Customer search results (top 6)
+  const searchResults = useMemo(() => {
+    if (!needsPicker || !customerSearch.trim()) return [];
+    const q = customerSearch.toLowerCase();
+    return allCustomers
+      .filter((c) => {
+        const hay = [c.name, c.companyName, c.phone, c.email]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return hay.includes(q);
+      })
+      .filter((c) => c.phone?.trim())
+      .slice(0, 6);
+  }, [needsPicker, customerSearch, allCustomers]);
+
+  // The recipient: activeCustomer takes precedence, otherwise pull from job
   const recipientName =
-    customer?.companyName || customer?.name || job?.customerName || '';
-  const recipientPhone = customer?.phone || job?.customerPhone || '';
-  const fallbackCustomer = customer ?? (job ? makeCustomerFromJob(job) : null);
+    activeCustomer?.companyName || activeCustomer?.name || job?.customerName || '';
+  const recipientPhone = activeCustomer?.phone || job?.customerPhone || '';
+  const fallbackCustomer = activeCustomer ?? (job ? makeCustomerFromJob(job) : null);
 
   const [selectedKey, setSelectedKey] = useState<string>(defaultTemplateKey ?? CUSTOM_KEY);
   const [body, setBody] = useState<string>('');
@@ -121,7 +155,54 @@ export function SendSmsDialog({ open, onClose, job, customer, defaultTemplateKey
         </DialogHeader>
 
         <div className="grid gap-4 py-2 max-h-[65vh] overflow-y-auto pr-1">
-          {/* Recipient strip */}
+          {/* Customer picker — only when opened without a pre-selected recipient */}
+          {needsPicker && !pickedCustomer && (
+            <div className="space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-rebel-text-tertiary">
+                Select customer
+              </p>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-rebel-text-tertiary" />
+                <Input
+                  value={customerSearch}
+                  onChange={(e) => setCustomerSearch(e.target.value)}
+                  placeholder="Search by name, phone, email…"
+                  className="h-10 pl-10 text-[12.5px]"
+                  autoFocus
+                />
+              </div>
+              {searchResults.length > 0 && (
+                <div className="rounded-xl border border-rebel-border overflow-hidden bg-card">
+                  {searchResults.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        setPickedCustomer(c);
+                        setCustomerSearch('');
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-muted transition-colors border-b border-rebel-border last:border-0"
+                    >
+                      <CustomerAvatar customer={c} size="sm" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[12px] font-semibold truncate">{c.companyName || c.name}</p>
+                        <p className="text-[10.5px] font-mono text-muted-foreground truncate">
+                          {c.phone}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {customerSearch.trim() && searchResults.length === 0 && (
+                <p className="text-[11px] text-muted-foreground text-center py-3">
+                  No customers with a phone number match "{customerSearch}".
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Recipient strip — shows once a customer is selected */}
           {fallbackCustomer && (
             <div className="flex items-center gap-3 rounded-xl bg-muted px-3 py-2.5">
               <CustomerAvatar customer={fallbackCustomer} size="sm" />
@@ -131,6 +212,16 @@ export function SendSmsDialog({ open, onClose, job, customer, defaultTemplateKey
                   {recipientPhone || 'no phone on file'}
                 </p>
               </div>
+              {needsPicker && pickedCustomer && (
+                <button
+                  type="button"
+                  onClick={() => setPickedCustomer(null)}
+                  aria-label="Change customer"
+                  className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-rebel-text-tertiary hover:text-rebel-text hover:bg-rebel-surface-sunken transition-colors shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           )}
 
@@ -193,7 +284,7 @@ export function SendSmsDialog({ open, onClose, job, customer, defaultTemplateKey
             </div>
           )}
 
-          {!recipientPhone && (
+          {!recipientPhone && !needsPicker && (
             <div className="flex items-start gap-2 rounded-xl bg-rebel-warning-surface px-3 py-2.5 text-[11.5px] text-rebel-warning ring-1 ring-rebel-warning/20">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>No phone number on file for this recipient. Add one before sending.</span>

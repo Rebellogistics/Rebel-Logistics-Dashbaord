@@ -21,6 +21,7 @@ interface TopBarProps {
   onAlertAction?: (alert: Alert) => void;
   onSearchSelect?: (result: SearchResult) => void;
   onMenuClick?: () => void;
+  onNavigate?: (tab: string) => void;
 }
 
 const subtitleByTab: Record<string, string> = {
@@ -45,6 +46,7 @@ export function TopBar({
   onAlertAction,
   onSearchSelect,
   onMenuClick,
+  onNavigate,
 }: TopBarProps) {
   const today = format(new Date(), "EEEE · MMM d");
 
@@ -103,6 +105,7 @@ export function TopBar({
               profile={profile}
               driverCount={driverCount}
               customerCount={customerCount}
+              onNavigate={onNavigate}
             />
           </div>
         </div>
