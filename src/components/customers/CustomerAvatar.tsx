@@ -71,7 +71,7 @@ function diceBearUrl(customer: CustomerLike): string {
       ? customer.companyName
       : customer.name;
   const seed = encodeURIComponent(source.trim() || 'guest');
-  return `https://api.dicebear.com/7.x/lorelei-neutral/svg?seed=${seed}&backgroundColor=transparent`;
+  return `https://api.dicebear.com/7.x/pixel-art/svg?seed=${seed}&backgroundColor=transparent`;
 }
 
 export function CustomerAvatar({
