@@ -53,10 +53,6 @@ function generateCustomerId(): string {
   }
 }
 
-function generateAvatar(name: string): string {
-  const seed = name.replace(/[^A-Za-z0-9]/g, '') || 'guest';
-  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`;
-}
 
 export function CustomerDialog({ open, onOpenChange, customer }: CustomerDialogProps) {
   const [form, setForm] = useState(initial);
@@ -109,7 +105,6 @@ export function CustomerDialog({ open, onOpenChange, customer }: CustomerDialogP
         await createCustomer.mutateAsync({
           id: generateCustomerId(),
           ...base,
-          avatar: generateAvatar(form.name),
         } as any);
         toast.success('Customer created');
       }

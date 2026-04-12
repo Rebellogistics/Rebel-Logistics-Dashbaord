@@ -26,7 +26,6 @@ const SIZE_CLASSES: Record<NonNullable<CustomerAvatarProps['size']>, { box: stri
   xl: { box: 'w-20 h-20', text: 'text-[24px]', star: 'w-4 h-4 -top-0 -right-0', ring: 'ring-2' },
 };
 
-// Curated set of accessible gradient pairs that read on both light and dark
 const GRADIENTS = [
   ['#2D5BFF', '#7B5CFF'],
   ['#0E9F6E', '#10B981'],
@@ -66,6 +65,15 @@ function initialsOf(customer: CustomerLike): string {
     .toUpperCase() || '?';
 }
 
+function diceBearUrl(customer: CustomerLike): string {
+  const source =
+    customer.type === 'company' && customer.companyName
+      ? customer.companyName
+      : customer.name;
+  const seed = encodeURIComponent(source.trim() || 'guest');
+  return `https://api.dicebear.com/7.x/lorelei-neutral/svg?seed=${seed}&backgroundColor=transparent`;
+}
+
 export function CustomerAvatar({
   customer,
   size = 'md',
@@ -74,9 +82,9 @@ export function CustomerAvatar({
 }: CustomerAvatarProps) {
   const [imgFailed, setImgFailed] = useState(false);
   const sz = SIZE_CLASSES[size];
-  const showImage = customer.avatar && !imgFailed;
   const [from, to] = gradientFor(customer);
   const initials = initialsOf(customer);
+  const avatarUrl = diceBearUrl(customer);
 
   return (
     <div
@@ -86,18 +94,25 @@ export function CustomerAvatar({
         className,
       )}
     >
-      {showImage ? (
-        <img
-          src={customer.avatar}
-          alt={customer.name}
-          referrerPolicy="no-referrer"
-          onError={() => setImgFailed(true)}
+      {!imgFailed ? (
+        <div
           className={cn(
-            'h-full w-full rounded-full object-cover bg-muted',
+            'h-full w-full rounded-full overflow-hidden',
             sz.ring,
             'ring-rebel-border',
           )}
-        />
+          style={{
+            background: `linear-gradient(135deg, ${from}22 0%, ${to}22 100%)`,
+          }}
+        >
+          <img
+            src={avatarUrl}
+            alt={customer.name}
+            referrerPolicy="no-referrer"
+            onError={() => setImgFailed(true)}
+            className="h-full w-full object-cover"
+          />
+        </div>
       ) : (
         <div
           className={cn(
