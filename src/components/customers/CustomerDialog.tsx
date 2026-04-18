@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { useCreateCustomer, useUpdateCustomer } from '@/hooks/useSupabaseData';
 import { Customer, CustomerType } from '@/lib/types';
 import { toast } from 'sonner';
+import { Info } from 'lucide-react';
 
 interface CustomerDialogProps {
   open: boolean;
@@ -191,7 +192,10 @@ export function CustomerDialog({ open, onOpenChange, customer }: CustomerDialogP
             </Field>
           </div>
 
-          <Field label="Source">
+          <Field
+            label="Source"
+            hint="How this customer found Rebel Logistics. Used for reporting so you can see which channels bring in the most work."
+          >
             <select
               value={form.source}
               onChange={(e) => update('source', e.target.value)}
@@ -213,12 +217,24 @@ export function CustomerDialog({ open, onOpenChange, customer }: CustomerDialogP
               onChange={(e) => update('vip', e.target.checked)}
               className="w-4 h-4 rounded border-input"
             />
-            <Label htmlFor="vip-toggle" className="cursor-pointer">
+            <Label htmlFor="vip-toggle" className="cursor-pointer inline-flex items-center gap-1">
               Mark as VIP customer
+              <span
+                tabIndex={0}
+                role="img"
+                aria-label="VIP customers show a gold star across the app — jobs table, truck runs, driver cards — so they get the white-glove treatment."
+                title="VIP customers show a gold star across the app — jobs table, truck runs, driver cards — so they get the white-glove treatment."
+                className="inline-flex items-center justify-center text-muted-foreground/70 hover:text-rebel-accent cursor-help"
+              >
+                <Info className="w-3 h-3" />
+              </span>
             </Label>
           </div>
 
-          <Field label="Notes">
+          <Field
+            label="Notes"
+            hint="Internal notes only. Not shown to drivers. Use for billing preferences, payment terms, gate codes, anything you want to remember about this customer."
+          >
             <textarea
               value={form.notes}
               onChange={(e) => update('notes', e.target.value)}
@@ -253,17 +269,30 @@ export function CustomerDialog({ open, onOpenChange, customer }: CustomerDialogP
 function Field({
   label,
   required,
+  hint,
   children,
 }: {
   label: string;
   required?: boolean;
+  hint?: string;
   children: ReactNode;
 }) {
   return (
     <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground font-medium">
+      <Label className="text-xs text-muted-foreground font-medium inline-flex items-center gap-1">
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}
+        {hint && (
+          <span
+            tabIndex={0}
+            role="img"
+            aria-label={hint}
+            title={hint}
+            className="inline-flex items-center justify-center text-muted-foreground/70 hover:text-rebel-accent cursor-help"
+          >
+            <Info className="w-3 h-3" />
+          </span>
+        )}
       </Label>
       {children}
     </div>

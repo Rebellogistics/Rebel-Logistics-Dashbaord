@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Job, Customer } from '@/lib/types';
-import { Send, Sparkles, MessageSquareText, Eye, AlertTriangle, Search, X } from 'lucide-react';
+import { Send, Sparkles, MessageSquareText, Eye, AlertTriangle, Search, X, Star } from 'lucide-react';
 import { useSendCustomSms } from '@/hooks/useSms';
 import { useCustomers } from '@/hooks/useSupabaseData';
 import { useSmsTemplates, SmsTemplate } from '@/hooks/useSmsTemplates';
@@ -73,6 +73,8 @@ export function SendSmsDialog({ open, onClose, job, customer, defaultTemplateKey
     activeCustomer?.companyName || activeCustomer?.name || job?.customerName || '';
   const recipientPhone = activeCustomer?.phone || job?.customerPhone || '';
   const fallbackCustomer = activeCustomer ?? (job ? makeCustomerFromJob(job) : null);
+  const recipientIsVip =
+    !!activeCustomer?.vip || (!!fallbackCustomer && 'vip' in fallbackCustomer && !!fallbackCustomer.vip);
 
   const [selectedKey, setSelectedKey] = useState<string>(defaultTemplateKey ?? CUSTOM_KEY);
   const [body, setBody] = useState<string>('');
@@ -204,10 +206,28 @@ export function SendSmsDialog({ open, onClose, job, customer, defaultTemplateKey
 
           {/* Recipient strip — shows once a customer is selected */}
           {fallbackCustomer && (
-            <div className="flex items-center gap-3 rounded-xl bg-muted px-3 py-2.5">
+            <div
+              className={cn(
+                'flex items-center gap-3 rounded-xl px-3 py-2.5',
+                recipientIsVip
+                  ? 'bg-amber-50 ring-1 ring-amber-300/70'
+                  : 'bg-muted',
+              )}
+            >
               <CustomerAvatar customer={fallbackCustomer} size="sm" />
               <div className="min-w-0 flex-1">
-                <p className="text-[12px] font-semibold truncate">{recipientName}</p>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <p className="text-[12px] font-semibold truncate">{recipientName}</p>
+                  {recipientIsVip && (
+                    <span
+                      className="shrink-0 inline-flex items-center gap-0.5 h-4 px-1.5 rounded-full bg-amber-400 text-white text-[9px] font-bold uppercase tracking-wider"
+                      title="VIP customer"
+                    >
+                      <Star className="w-2.5 h-2.5 fill-white" />
+                      VIP
+                    </span>
+                  )}
+                </div>
                 <p className="text-[10.5px] font-mono text-muted-foreground truncate">
                   {recipientPhone || 'no phone on file'}
                 </p>
@@ -222,6 +242,15 @@ export function SendSmsDialog({ open, onClose, job, customer, defaultTemplateKey
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
+            </div>
+          )}
+
+          {recipientIsVip && (
+            <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-[11.5px] text-amber-900">
+              <Star className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-600 fill-amber-400" />
+              <span>
+                <strong>VIP customer.</strong> Double-check tone and make sure the timing is right before sending.
+              </span>
             </div>
           )}
 

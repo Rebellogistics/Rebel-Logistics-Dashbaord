@@ -25,11 +25,20 @@ const initial = {
   notes: '',
 };
 
+function useIsEmbed(): boolean {
+  const [embed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('embed') === '1';
+  });
+  return embed;
+}
+
 export function PublicQuoteForm() {
   const [form, setForm] = useState(initial);
   const [state, setState] = useState<SubmitState>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [nameTouched, setNameTouched] = useState(false);
+  const isEmbed = useIsEmbed();
 
   const { info: repeatInfo } = useRepeatCustomerLookup(form.customerPhone);
 
@@ -111,6 +120,7 @@ export function PublicQuoteForm() {
         onReset={() => {
           setState('idle');
         }}
+        isEmbed={isEmbed}
       />
     );
   }
@@ -122,7 +132,7 @@ export function PublicQuoteForm() {
         className="pointer-events-none absolute -top-32 -right-24 h-[28rem] w-[28rem] rounded-full blur-3xl opacity-40"
         style={{ background: 'radial-gradient(circle, rgba(45,91,255,0.35), transparent 65%)' }}
       />
-      <Header />
+      {!isEmbed && <Header />}
 
       <main className="relative flex-1 w-full max-w-2xl mx-auto px-4 py-8 sm:py-12">
         <div className="mb-7">
@@ -263,7 +273,7 @@ export function PublicQuoteForm() {
         </form>
       </main>
 
-      <Footer />
+      {!isEmbed && <Footer />}
     </div>
   );
 }
@@ -301,10 +311,10 @@ function Footer() {
   );
 }
 
-function SuccessScreen({ onReset }: { onReset: () => void }) {
+function SuccessScreen({ onReset, isEmbed }: { onReset: () => void; isEmbed?: boolean }) {
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Header />
+      {!isEmbed && <Header />}
       <main className="flex-1 flex items-center justify-center px-4">
         <Card className="w-full max-w-md border-border shadow-none bg-card">
           <CardContent className="p-8 text-center space-y-4">
@@ -326,7 +336,7 @@ function SuccessScreen({ onReset }: { onReset: () => void }) {
           </CardContent>
         </Card>
       </main>
-      <Footer />
+      {!isEmbed && <Footer />}
     </div>
   );
 }

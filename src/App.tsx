@@ -12,9 +12,10 @@ import { CustomersView } from '@/components/customers/CustomersView';
 import { ReviewsView } from '@/components/reviews/ReviewsView';
 import { SmsLogView } from '@/components/sms/SmsLogView';
 import { SettingsView } from '@/components/settings/SettingsView';
+import { BoardView } from '@/components/board/BoardView';
 import { JobDetailDialog } from '@/components/jobs/JobDetailDialog';
 import { MarkCompleteDialog } from '@/components/jobs/MarkCompleteDialog';
-import { AcceptAssignDialog } from '@/components/jobs/AcceptAssignDialog';
+import { AssignTruckDialog } from '@/components/jobs/AssignTruckDialog';
 import { CustomerDetailDialog } from '@/components/customers/CustomerDetailDialog';
 import { useJobs, useCustomers, useDeleteCustomer } from '@/hooks/useSupabaseData';
 import { useSmsLog } from '@/hooks/useSms';
@@ -186,6 +187,8 @@ function OwnerShell({ profile }: { profile: Profile }) {
             <DailyReviewPanel jobs={jobs} />
           </div>
         );
+      case 'Board':
+        return <BoardView jobs={jobs} customers={customers} />;
       case 'Truck Runs':
         return <TruckRunsView jobs={jobs} />;
       case 'Jobs':
@@ -261,7 +264,7 @@ function OwnerShell({ profile }: { profile: Profile }) {
       {/* Shell-level dialogs — driven by bell, search, or any inner view */}
       <JobDetailDialog job={viewJobTarget} onClose={() => setViewJobTarget(null)} />
       <MarkCompleteDialog job={markCompleteTarget} onClose={() => setMarkCompleteTarget(null)} />
-      <AcceptAssignDialog job={assignTarget} onClose={() => setAssignTarget(null)} />
+      <AssignTruckDialog job={assignTarget} onClose={() => setAssignTarget(null)} />
       <CustomerDetailDialog
         customer={viewCustomerTarget}
         jobs={jobs}

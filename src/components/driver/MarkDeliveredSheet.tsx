@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useUpdateJob } from '@/hooks/useSupabaseData';
 import { useProfile } from '@/hooks/useProfile';
+import { useDriverToday } from '@/hooks/useDriverToday';
 import { Job } from '@/lib/types';
 import { toast } from 'sonner';
 import { PenLine, PackageCheck, Camera } from 'lucide-react';
@@ -33,6 +34,7 @@ export function MarkDeliveredSheet({ job, onClose }: MarkDeliveredSheetProps) {
   const sigPadRef = useRef<SignaturePadHandle>(null);
   const updateJob = useUpdateJob();
   const { data: profile } = useProfile();
+  const { name: pickedDriverName } = useDriverToday();
 
   useEffect(() => {
     if (job) {
@@ -61,7 +63,8 @@ export function MarkDeliveredSheet({ job, onClose }: MarkDeliveredSheetProps) {
         }
       }
 
-      const updatedNotes = appendCompletionNote(job.notes, newNote, profile?.fullName);
+      const author = pickedDriverName ?? profile?.fullName;
+      const updatedNotes = appendCompletionNote(job.notes, newNote, author);
       await updateJob.mutateAsync({
         id: job.id,
         status: 'Completed',

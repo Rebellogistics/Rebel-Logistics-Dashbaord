@@ -8,8 +8,10 @@ import {
   XCircle,
   AlertTriangle,
   FileSpreadsheet,
+  HardDrive,
 } from 'lucide-react';
 import { useCreateCustomer } from '@/hooks/useSupabaseData';
+import { useStorageUsage } from '@/hooks/useStorageUsage';
 import { Customer } from '@/lib/types';
 import { parseCsv, csvToRecords } from '@/lib/csv';
 import { toast } from 'sonner';
@@ -25,6 +27,72 @@ const SAMPLE_CSV = `name,phone,email,company,type,source,vip,notes
 Sarah Chen,0412 345 678,sarah@example.com,,individual,referral,true,Garage code 4421
 Acme Removals,0298 765 432,ops@acme.au,Acme Removals,company,b2b,false,Net-30 invoicing
 `;
+
+function StorageUsageCard() {
+  const { data, isLoading, error } = useStorageUsage();
+
+  if (error) {
+    return (
+      <Card className="border-rebel-border bg-card shadow-card">
+        <CardContent className="p-5 flex items-start gap-3 text-xs text-muted-foreground">
+          <HardDrive className="w-4 h-4 mt-0.5 shrink-0" />
+          <p>Couldn't estimate storage usage — check your connection and try again.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const pct = data?.pct ?? 0;
+  const warning = pct >= 80;
+  const critical = pct >= 95;
+  const barColor = critical
+    ? 'bg-rebel-danger'
+    : warning
+      ? 'bg-rebel-warning'
+      : 'bg-rebel-accent';
+
+  return (
+    <Card className="border-rebel-border bg-card shadow-card">
+      <CardContent className="p-5 space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-rebel-accent-surface flex items-center justify-center shrink-0">
+            <HardDrive className="w-5 h-5 text-rebel-accent" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-sm text-rebel-text">Photo storage</h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Estimated usage on the Supabase free tier (500 MB). Rough: ~1.5 MB per photo.
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <p className="text-[13px] font-bold tabular-nums text-rebel-text">
+              {isLoading ? '…' : `${(data?.estimatedMb ?? 0).toFixed(0)} / ${data?.quotaMb ?? 500} MB`}
+            </p>
+            <p className="text-[10px] text-muted-foreground tabular-nums">
+              {isLoading ? '' : `${data?.photoCount ?? 0} photos · ${data?.signatureCount ?? 0} sigs`}
+            </p>
+          </div>
+        </div>
+        <div className="h-2 rounded-full bg-muted overflow-hidden">
+          <div
+            className={cn('h-full transition-all', barColor)}
+            style={{ width: `${Math.max(2, pct)}%` }}
+          />
+        </div>
+        {warning && (
+          <div className="flex items-start gap-2 rounded-xl bg-rebel-warning-surface px-3 py-2 text-[11px] text-rebel-warning ring-1 ring-rebel-warning/20">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <span>
+              {critical
+                ? 'Storage almost full — new photos may fail. Back up and clear old proofs.'
+                : 'Over 80% of the free-tier quota used. Consider exporting and cleaning up older job photos.'}
+            </span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export function CustomerImportSection() {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -136,6 +204,7 @@ export function CustomerImportSection() {
 
   return (
     <div className="space-y-4">
+      <StorageUsageCard />
       <Card className="border-rebel-border bg-card shadow-card">
         <CardContent className="p-5 space-y-4">
           <div className="flex items-center gap-3">
@@ -186,7 +255,7 @@ export function CustomerImportSection() {
         </CardContent>
       </Card>
 
-      {parsed && (
+{parsed && (
         <Card className="border-rebel-border bg-card shadow-card">
           <CardContent className="p-5 space-y-4">
             <div className="flex items-center justify-between gap-2">

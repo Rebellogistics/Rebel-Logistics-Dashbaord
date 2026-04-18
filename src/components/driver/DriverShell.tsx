@@ -1,15 +1,16 @@
-import { useState } from 'react';
-import { Truck, Calendar, User, type LucideIcon } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Truck, User, type LucideIcon } from 'lucide-react';
 import { Toaster } from '@/components/ui/sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Profile } from '@/lib/types';
 import { MyRunToday } from './MyRunToday';
-import { MyRunWeek } from './MyRunWeek';
 import { DriverProfileTab } from './DriverProfileTab';
+import { WhoDrivingDialog } from './WhoDrivingDialog';
 import { Logo } from '@/components/ui/logo';
 import { cn } from '@/lib/utils';
+import { useDriverToday } from '@/hooks/useDriverToday';
 
-type DriverTab = 'today' | 'week' | 'profile';
+type DriverTab = 'today' | 'profile';
 
 interface DriverShellProps {
   profile: Profile;
@@ -17,12 +18,20 @@ interface DriverShellProps {
 
 const TABS: { id: DriverTab; label: string; icon: LucideIcon }[] = [
   { id: 'today', label: 'Today', icon: Truck },
-  { id: 'week', label: 'Week', icon: Calendar },
   { id: 'profile', label: 'Profile', icon: User },
 ];
 
 export function DriverShell({ profile }: DriverShellProps) {
   const [tab, setTab] = useState<DriverTab>('today');
+  const truckLabel = profile.assignedTruck?.trim();
+  const { name: driverName, needsPick, setName: setDriverName } = useDriverToday();
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  useEffect(() => {
+    if (needsPick) setPickerOpen(true);
+  }, [needsPick]);
+
+  const greeting = driverName ?? profile.fullName?.split(' ')[0] ?? 'Driver';
 
   return (
     <div className="min-h-screen bg-background flex flex-col font-sans text-rebel-text">
@@ -30,9 +39,25 @@ export function DriverShell({ profile }: DriverShellProps) {
       <header className="sticky top-0 z-30 glass border-b border-rebel-border">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <Logo variant="full" height={36} className="max-h-[36px]" />
-          <p className="text-[13px] font-bold truncate text-rebel-text">
-            Hi, {profile.fullName?.split(' ')[0] ?? 'Driver'}
-          </p>
+          <div className="flex items-center gap-2 min-w-0">
+            {truckLabel && (
+              <span
+                className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-rebel-accent-surface text-rebel-accent text-[10.5px] font-bold uppercase tracking-wider shrink-0"
+                title="The truck you're logged into today"
+              >
+                <Truck className="w-3 h-3" />
+                {truckLabel}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className="text-[13px] font-bold truncate text-rebel-text hover:text-rebel-accent transition-colors"
+              title="Change today's driver"
+            >
+              Hi, {greeting}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -47,7 +72,6 @@ export function DriverShell({ profile }: DriverShellProps) {
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
           >
             {tab === 'today' && <MyRunToday />}
-            {tab === 'week' && <MyRunWeek />}
             {tab === 'profile' && <DriverProfileTab profile={profile} />}
           </motion.div>
         </AnimatePresence>
@@ -81,6 +105,13 @@ export function DriverShell({ profile }: DriverShellProps) {
           })}
         </div>
       </nav>
+
+      <WhoDrivingDialog
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onPick={(name) => setDriverName(name)}
+        initialName={driverName}
+      />
 
       <Toaster position="top-center" />
     </div>

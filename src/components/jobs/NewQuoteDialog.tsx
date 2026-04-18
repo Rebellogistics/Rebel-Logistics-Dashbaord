@@ -15,7 +15,7 @@ import { useRepeatCustomerLookup, type RepeatCustomerInfo } from '@/hooks/useRep
 import { Job, JobType, PricingType } from '@/lib/types';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Info } from 'lucide-react';
 
 const LONG_DISTANCE_THRESHOLD_KM = 40;
 const LONG_DISTANCE_LEVY_AUD = 25;
@@ -193,7 +193,10 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Job type">
+            <Field
+              label="Job type"
+              hint="Standard = regular delivery. White Glove = careful handling / inside placement. House Move = hourly, whole-home relocations."
+            >
               <NativeSelect
                 value={form.type}
                 onChange={(v) => update('type', v as JobType)}
@@ -274,7 +277,10 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
             </div>
           )}
 
-          <Field label="Notes">
+          <Field
+            label="Notes"
+            hint="Visible to the driver on their job card. Use for access codes, stairs, fragile items, parking instructions, etc."
+          >
             <textarea
               value={form.notes}
               onChange={(e) => update('notes', e.target.value)}
@@ -290,8 +296,12 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
               <span className="font-semibold">${computedFee.toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">
+              <span
+                className="text-muted-foreground inline-flex items-center gap-1"
+                title={`A flat $${LONG_DISTANCE_LEVY_AUD} surcharge applied automatically when distance exceeds ${LONG_DISTANCE_THRESHOLD_KM} km.`}
+              >
                 Fuel levy {distanceNum > LONG_DISTANCE_THRESHOLD_KM ? `(> ${LONG_DISTANCE_THRESHOLD_KM}km)` : ''}
+                <Info className="w-3 h-3 opacity-60" />
               </span>
               <span className="font-semibold">${fuelLevy.toFixed(2)}</span>
             </div>
@@ -319,10 +329,23 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return (
     <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground font-medium">{label}</Label>
+      <Label className="text-xs text-muted-foreground font-medium inline-flex items-center gap-1">
+        {label}
+        {hint && (
+          <span
+            tabIndex={0}
+            role="img"
+            aria-label={hint}
+            title={hint}
+            className="inline-flex items-center justify-center text-muted-foreground/70 hover:text-rebel-accent cursor-help"
+          >
+            <Info className="w-3 h-3" />
+          </span>
+        )}
+      </Label>
       {children}
     </div>
   );

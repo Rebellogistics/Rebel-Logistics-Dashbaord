@@ -3,7 +3,6 @@ import { useMemo } from 'react';
 import { addDays, format, parseISO, subDays, isAfter, isBefore } from 'date-fns';
 import { ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
 import { Sparkline } from '@/components/ui/sparkline';
-import { useCan } from '@/hooks/useCan';
 import { cn } from '@/lib/utils';
 
 interface InsightChipsProps {
@@ -11,11 +10,10 @@ interface InsightChipsProps {
 }
 
 export function InsightChips({ jobs }: InsightChipsProps) {
-  const canSeeRevenue = useCan('view_revenue');
   const insights = useMemo(() => buildInsights(jobs), [jobs]);
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <InsightCard
         label="Jobs vs last week"
         value={`${insights.jobsThisWeek}`}
@@ -23,15 +21,6 @@ export function InsightChips({ jobs }: InsightChipsProps) {
         deltaSuffix=" vs last 7"
         sparkline={insights.dailyJobCounts}
       />
-      {canSeeRevenue && (
-        <InsightCard
-          label="Revenue vs last week"
-          value={`$${insights.revenueThisWeek.toFixed(0)}`}
-          delta={insights.revenueDeltaPct}
-          deltaSuffix="%"
-          sparkline={insights.dailyRevenue}
-        />
-      )}
       <InsightCard
         label="On-time deliveries"
         value={`${insights.onTimePct}%`}

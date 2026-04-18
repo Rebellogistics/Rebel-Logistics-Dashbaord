@@ -83,6 +83,8 @@ export interface Job {
   recipientName?: string;
   recipientPhone?: string;
   recipientAddress?: string;
+  /** Xero draft/finalised invoice id once this job has been billed. Phase 12. */
+  xeroInvoiceId?: string;
   createdAt: string;
 }
 

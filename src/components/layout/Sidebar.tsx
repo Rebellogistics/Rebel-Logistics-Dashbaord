@@ -13,6 +13,7 @@ import {
   ChevronsRight,
   Sparkles,
   Send,
+  KanbanSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { signOut } from '@/hooks/useAuth';
@@ -39,6 +40,7 @@ const baseSections: NavSection[] = [
     title: 'Operations',
     items: [
       { label: 'Dashboard', icon: LayoutDashboard },
+      { label: 'Board', icon: KanbanSquare },
       { label: 'Truck Runs', icon: Truck, badge: 3 },
       { label: 'Jobs', icon: ClipboardList },
       { label: 'Customers', icon: Users },

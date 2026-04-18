@@ -16,7 +16,7 @@ import {
   Send,
   type LucideIcon,
 } from 'lucide-react';
-import { AcceptAssignDialog } from '@/components/jobs/AcceptAssignDialog';
+import { AcceptDialog } from '@/components/jobs/AcceptDialog';
 import { DeclineDialog } from '@/components/jobs/DeclineDialog';
 import { MarkCompleteDialog } from '@/components/jobs/MarkCompleteDialog';
 import { RecentPhotosPanel } from './RecentPhotosPanel';
@@ -203,7 +203,7 @@ export function DailyReviewPanel({ jobs }: DailyReviewPanelProps) {
         <RecentPhotosPanel />
       </div>
 
-      <AcceptAssignDialog job={acceptTarget} onClose={() => setAcceptTarget(null)} />
+      <AcceptDialog job={acceptTarget} onClose={() => setAcceptTarget(null)} />
       <DeclineDialog job={declineTarget} onClose={() => setDeclineTarget(null)} />
       <MarkCompleteDialog job={completeTarget} onClose={() => setCompleteTarget(null)} />
     </>

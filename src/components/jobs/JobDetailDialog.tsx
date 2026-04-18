@@ -24,7 +24,13 @@ import {
   Activity,
   Copy,
   Printer,
+  Star,
+  Navigation,
+  FileText,
+  CheckCircle2,
+  Lock,
 } from 'lucide-react';
+import { canSendJobToXero } from '@/lib/xero';
 import { format, parseISO } from 'date-fns';
 import { JobPhotoGallery } from './JobPhotoGallery';
 import { supabase } from '@/lib/supabase';
@@ -33,6 +39,10 @@ import { SendSmsDialog } from '@/components/sms/SendSmsDialog';
 import { JobActivityTimeline } from './JobActivityTimeline';
 import { NewQuoteDialog } from './NewQuoteDialog';
 import { PrintReceipt } from './PrintReceipt';
+import { AssignTruckDialog } from './AssignTruckDialog';
+import { useCustomers } from '@/hooks/useSupabaseData';
+import { exportJobProofZip, jobZipName, triggerDownload } from '@/lib/export';
+import { toast } from 'sonner';
 
 interface JobDetailDialogProps {
   job: Job | null;
@@ -49,6 +59,38 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
   const [signatureError, setSignatureError] = useState(false);
   const [sendSmsOpen, setSendSmsOpen] = useState(false);
   const [rebookOpen, setRebookOpen] = useState(false);
+  const [assignTruckOpen, setAssignTruckOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const { data: customers = [] } = useCustomers();
+  const isVip = !!(job?.customerId && customers.find((c) => c.id === job.customerId)?.vip);
+  const canReassign =
+    !!job &&
+    (job.status === 'Accepted' ||
+      job.status === 'Scheduled' ||
+      job.status === 'Notified');
+  const hasProof = !!(job?.proofPhoto || job?.signature);
+
+  const handleExportProof = async () => {
+    if (!job || exporting) return;
+    setExporting(true);
+    const toastId = toast.loading('Preparing proof export…');
+    try {
+      const blob = await exportJobProofZip(job, (p) => {
+        if (p.phase === 'zipping') toast.loading('Zipping files…', { id: toastId });
+      });
+      triggerDownload(blob, jobZipName(job));
+      toast.success('Proof exported', { id: toastId });
+    } catch (err) {
+      console.error(err);
+      toast.error('Export failed', { id: toastId });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const xeroConnected = false; // Flip once an integrations row for `xero` exists — Phase 12 go-live.
+  const xeroEligible = !!job && canSendJobToXero(job);
+  const xeroAlreadySent = !!job?.xeroInvoiceId;
 
   useEffect(() => {
     let cancelled = false;
@@ -90,6 +132,15 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
             <div className="min-w-0">
               <DialogTitle className="flex items-center gap-2">
                 <span className="truncate">{job.customerName}</span>
+                {isVip && (
+                  <span
+                    className="inline-flex items-center gap-1 h-5 px-1.5 rounded-full bg-amber-400 text-white text-[10px] font-bold uppercase tracking-wider"
+                    title="VIP customer — handle with care"
+                  >
+                    <Star className="w-2.5 h-2.5 fill-white" />
+                    VIP
+                  </span>
+                )}
                 <StatusPill status={job.status} size="sm" />
               </DialogTitle>
               <DialogDescription className="text-xs">{job.id}</DialogDescription>
@@ -100,13 +151,25 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
         <div className="grid gap-4 py-2 max-h-[65vh] overflow-y-auto pr-1">
           <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <DetailRow icon={MapPin} label="Pickup">
-              {job.pickupAddress || '—'}
+              <AddressWithMaps address={job.pickupAddress} />
             </DetailRow>
             <DetailRow icon={MapPin} label="Delivery">
-              {job.deliveryAddress || '—'}
+              <AddressWithMaps address={job.deliveryAddress} />
             </DetailRow>
             <DetailRow icon={Truck} label="Truck">
-              {job.assignedTruck ?? '—'}
+              <span className="inline-flex items-center gap-1.5 min-w-0">
+                <span className="truncate">{job.assignedTruck ?? '—'}</span>
+                {canReassign && (
+                  <button
+                    type="button"
+                    onClick={() => setAssignTruckOpen(true)}
+                    className="shrink-0 inline-flex items-center gap-0.5 h-5 px-1.5 rounded-md bg-rebel-accent-surface text-rebel-accent text-[10px] font-bold uppercase tracking-wider hover:bg-rebel-accent hover:text-white transition-colors"
+                    title={job.assignedTruck ? 'Change truck' : 'Assign a truck'}
+                  >
+                    {job.assignedTruck ? 'Change' : 'Assign'}
+                  </button>
+                )}
+              </span>
             </DetailRow>
             <DetailRow icon={Calendar} label="Date">
               {job.date ? format(parseISO(job.date), 'd MMM yyyy') : '—'}
@@ -234,6 +297,46 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
               <Printer className="w-3.5 h-3.5" />
               Print
             </Button>
+            {hasProof && (
+              <Button
+                variant="outline"
+                className="gap-1.5"
+                onClick={handleExportProof}
+                disabled={exporting}
+                title="Download photos + signature as a zip, named by customer / address / date"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                {exporting ? 'Exporting…' : 'Export proof'}
+              </Button>
+            )}
+            {(xeroEligible || xeroAlreadySent) && (
+              <Button
+                variant="outline"
+                className={
+                  'gap-1.5 ' +
+                  (xeroAlreadySent
+                    ? 'text-rebel-success border-rebel-success/40 hover:bg-rebel-success-surface'
+                    : '')
+                }
+                disabled={!xeroAlreadySent && !xeroConnected}
+                title={
+                  xeroAlreadySent
+                    ? `Already sent to Xero (invoice ${job.xeroInvoiceId})`
+                    : xeroConnected
+                      ? 'Send a draft invoice to Xero'
+                      : 'Connect Xero from Settings → Integrations to enable. See DEFERRED.md.'
+                }
+              >
+                {xeroAlreadySent ? (
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                ) : xeroConnected ? (
+                  <FileText className="w-3.5 h-3.5" />
+                ) : (
+                  <Lock className="w-3.5 h-3.5" />
+                )}
+                {xeroAlreadySent ? 'Sent to Xero' : 'Send to Xero'}
+              </Button>
+            )}
           </div>
           <Button variant="outline" onClick={onClose}>
             Close
@@ -253,6 +356,11 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
           if (!open) onClose();
         }}
         prefillJob={rebookOpen ? job : null}
+      />
+      <AssignTruckDialog
+        job={assignTruckOpen ? job : null}
+        onClose={() => setAssignTruckOpen(false)}
+        setScheduled={job?.status === 'Accepted'}
       />
     </Dialog>
   );
@@ -275,5 +383,25 @@ function DetailRow({
         <p className="text-sm font-medium truncate">{children}</p>
       </div>
     </div>
+  );
+}
+
+function AddressWithMaps({ address }: { address: string | undefined }) {
+  if (!address) return <>—</>;
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`;
+  return (
+    <span className="inline-flex items-center gap-1.5 min-w-0">
+      <span className="truncate">{address}</span>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Open in Google Maps"
+        title="Open directions in Google Maps"
+        className="shrink-0 inline-flex items-center justify-center h-5 w-5 rounded text-rebel-accent hover:bg-rebel-accent-surface"
+      >
+        <Navigation className="w-3 h-3" />
+      </a>
+    </span>
   );
 }

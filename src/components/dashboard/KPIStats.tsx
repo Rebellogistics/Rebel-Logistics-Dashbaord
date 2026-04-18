@@ -1,12 +1,19 @@
 import { Job, SmsLogEntry } from '@/lib/types';
 import { Truck, Bell, CheckCircle2, ArrowUpRight, LucideIcon } from 'lucide-react';
-import { format, subDays } from 'date-fns';
+import { format, subDays, parseISO, isAfter, startOfDay } from 'date-fns';
 import { motion } from 'motion/react';
+import { useState, useEffect } from 'react';
+import { cn } from '@/lib/utils';
 
 interface KPIStatsProps {
   jobs: Job[];
   smsLog: SmsLogEntry[];
 }
+
+type ProofRange = 'day' | 'week' | 'month';
+const PROOF_RANGE_KEY = 'rebel.kpi.proofRange';
+const PROOF_RANGE_DAYS: Record<ProofRange, number> = { day: 1, week: 7, month: 30 };
+const PROOF_RANGE_LABELS: Record<ProofRange, string> = { day: 'Day', week: 'Week', month: 'Month' };
 
 export function KPIStatsCards({ jobs, smsLog }: KPIStatsProps) {
   const today = format(new Date(), 'yyyy-MM-dd');
@@ -26,10 +33,33 @@ export function KPIStatsCards({ jobs, smsLog }: KPIStatsProps) {
   ).length;
   const smsDelta = notificationsSent - notificationsYesterday;
 
-  const closedJobs = jobs.filter((j) => j.status === 'Completed' || j.status === 'Invoiced');
-  const closedWithProof = closedJobs.filter((j) => j.proofPhoto && j.signature).length;
+  const [proofRange, setProofRange] = useState<ProofRange>(() => {
+    if (typeof window === 'undefined') return 'month';
+    const saved = window.localStorage.getItem(PROOF_RANGE_KEY) as ProofRange | null;
+    return saved === 'day' || saved === 'week' || saved === 'month' ? saved : 'month';
+  });
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(PROOF_RANGE_KEY, proofRange);
+    } catch {
+      // ignore storage errors (private mode etc.)
+    }
+  }, [proofRange]);
+
+  const rangeCutoff = startOfDay(subDays(new Date(), PROOF_RANGE_DAYS[proofRange] - 1));
+  const closedInRange = jobs.filter((j) => {
+    if (j.status !== 'Completed' && j.status !== 'Invoiced') return false;
+    if (!j.date) return false;
+    try {
+      const d = parseISO(j.date);
+      return isAfter(d, rangeCutoff) || d.getTime() === rangeCutoff.getTime();
+    } catch {
+      return false;
+    }
+  });
+  const closedWithProof = closedInRange.filter((j) => j.proofPhoto && j.signature).length;
   const proofRate =
-    closedJobs.length === 0 ? 0 : Math.round((closedWithProof / closedJobs.length) * 100);
+    closedInRange.length === 0 ? 0 : Math.round((closedWithProof / closedInRange.length) * 100);
 
   const cards: KPICardProps[] = [
     {
@@ -50,7 +80,26 @@ export function KPIStatsCards({ jobs, smsLog }: KPIStatsProps) {
       icon: CheckCircle2,
       label: 'Closed with Proof',
       value: `${proofRate}%`,
-      meta: `${closedWithProof}/${closedJobs.length} closed jobs`,
+      meta: `${closedWithProof}/${closedInRange.length} closed · last ${PROOF_RANGE_LABELS[proofRange].toLowerCase()}`,
+      rangeToggle: (
+        <div className="mt-3 inline-flex rounded-lg border border-rebel-border bg-rebel-surface-sunken p-0.5">
+          {(Object.keys(PROOF_RANGE_LABELS) as ProofRange[]).map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setProofRange(r)}
+              className={cn(
+                'px-2 h-6 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors',
+                proofRange === r
+                  ? 'bg-rebel-surface text-rebel-text shadow-card'
+                  : 'text-rebel-text-tertiary hover:text-rebel-text-secondary',
+              )}
+            >
+              {PROOF_RANGE_LABELS[r]}
+            </button>
+          ))}
+        </div>
+      ),
     },
   ];
 
@@ -76,9 +125,10 @@ interface KPICardProps {
   value: string;
   delta?: number;
   meta: string;
+  rangeToggle?: React.ReactNode;
 }
 
-function KPICard({ icon: Icon, label, value, delta, meta }: KPICardProps) {
+function KPICard({ icon: Icon, label, value, delta, meta, rangeToggle }: KPICardProps) {
   return (
     <div className="group relative rounded-2xl bg-rebel-surface border border-rebel-border p-5 shadow-card hover:border-rebel-border-strong transition-colors overflow-hidden">
       <div
@@ -103,6 +153,7 @@ function KPICard({ icon: Icon, label, value, delta, meta }: KPICardProps) {
             )}
           </div>
           <p className="mt-2 text-[11px] font-medium text-rebel-text-tertiary truncate">{meta}</p>
+          {rangeToggle}
         </div>
       </div>
     </div>

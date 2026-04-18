@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Job } from '@/lib/types';
-import { useJobs, useUpdateJob } from '@/hooks/useSupabaseData';
+import { useJobs, useUpdateJob, useCustomers } from '@/hooks/useSupabaseData';
 import { useSendSmsForJob } from '@/hooks/useSms';
 import {
   MapPin,
@@ -14,6 +14,8 @@ import {
   StickyNote,
   Calendar,
   Play,
+  Star,
+  Navigation,
 } from 'lucide-react';
 import { format, isToday, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -27,11 +29,18 @@ type Filter = 'all' | 'todo' | 'done';
 
 export function MyRunToday() {
   const { data: jobs = [], isLoading, error } = useJobs();
+  const { data: customers = [] } = useCustomers();
   const [completeTarget, setCompleteTarget] = useState<Job | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [startingId, setStartingId] = useState<string | null>(null);
   const updateJob = useUpdateJob();
   const sendSms = useSendSmsForJob();
+
+  const vipCustomerIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const c of customers) if (c.vip) s.add(c.id);
+    return s;
+  }, [customers]);
 
   const handleStartRun = async (job: Job) => {
     setStartingId(job.id);
@@ -57,27 +66,21 @@ export function MyRunToday() {
     }
   };
 
-  const { todaysJobs, recentJobs } = useMemo(() => {
+  const { todaysJobs } = useMemo(() => {
     const today: Job[] = [];
-    const recent: Job[] = [];
     for (const job of jobs) {
       if (!job.date) continue;
       try {
         const d = parseISO(job.date);
         if (isToday(d)) {
           today.push(job);
-        } else {
-          recent.push(job);
         }
       } catch {
         // bad date — ignore
       }
     }
-    // Sort today's jobs by creation time (earlier first)
     today.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    // Sort recent jobs by date desc (most recent first)
-    recent.sort((a, b) => b.date.localeCompare(a.date));
-    return { todaysJobs: today, recentJobs: recent };
+    return { todaysJobs: today };
   }, [jobs]);
 
   const todayStats = useMemo(() => {
@@ -161,6 +164,7 @@ export function MyRunToday() {
                       onMarkDelivered={setCompleteTarget}
                       onStartRun={handleStartRun}
                       starting={startingId === job.id}
+                      isVip={!!(job.customerId && vipCustomerIds.has(job.customerId))}
                     />
                   ))}
               </div>
@@ -168,23 +172,6 @@ export function MyRunToday() {
           )}
         </section>
 
-        {recentJobs.length > 0 && (
-          <section className="space-y-3">
-            <SectionHeader title="Earlier this week" count={recentJobs.length} />
-            <div className="space-y-2">
-              {recentJobs.slice(0, 5).map((job) => (
-                <DriverJobCard
-                  key={job.id}
-                  job={job}
-                  onMarkDelivered={setCompleteTarget}
-                  onStartRun={handleStartRun}
-                  starting={startingId === job.id}
-                  compact
-                />
-              ))}
-            </div>
-          </section>
-        )}
       </div>
 
       <MarkDeliveredSheet job={completeTarget} onClose={() => setCompleteTarget(null)} />
@@ -268,13 +255,16 @@ interface DriverJobCardProps {
   onStartRun: (job: Job) => void;
   starting?: boolean;
   compact?: boolean;
+  isVip?: boolean;
 }
 
-function DriverJobCard({ job, onMarkDelivered, onStartRun, starting, compact }: DriverJobCardProps) {
+function DriverJobCard({ job, onMarkDelivered, onStartRun, starting, compact, isVip }: DriverJobCardProps) {
   const isDone = job.status === 'Completed' || job.status === 'Invoiced';
   const isInDelivery = job.status === 'In Delivery';
   const canStart = job.status === 'Scheduled' || job.status === 'Accepted' || job.status === 'Notified';
   const hasPhone = !!job.customerPhone?.trim();
+  const mapsUrl = (addr: string) =>
+    `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}`;
 
   return (
     <Card
@@ -286,9 +276,20 @@ function DriverJobCard({ job, onMarkDelivered, onStartRun, starting, compact }: 
       <CardContent className={cn('space-y-3', compact ? 'p-3' : 'p-4')}>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <p className={cn('font-bold truncate', compact ? 'text-sm' : 'text-base')}>
-              {job.customerName}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <p className={cn('font-bold truncate', compact ? 'text-sm' : 'text-base')}>
+                {job.customerName}
+              </p>
+              {isVip && (
+                <span
+                  className="shrink-0 inline-flex items-center gap-0.5 h-5 px-1.5 rounded-full bg-amber-400 text-white text-[9px] font-bold uppercase tracking-wider"
+                  title="VIP customer — handle with care"
+                >
+                  <Star className="w-2.5 h-2.5 fill-white" />
+                  VIP
+                </span>
+              )}
+            </div>
             {job.date && !compact && (
               <p className="text-[10px] text-muted-foreground">
                 {format(parseISO(job.date), 'EEE d MMM')}
@@ -301,15 +302,48 @@ function DriverJobCard({ job, onMarkDelivered, onStartRun, starting, compact }: 
         <div className="space-y-1.5">
           <div className="flex items-start gap-2 text-xs">
             <MapPin className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate">
-                <span className="text-muted-foreground">From: </span>
-                {job.pickupAddress || '—'}
-              </p>
-              <p className="truncate">
-                <span className="text-muted-foreground">To: </span>
-                {job.deliveryAddress || '—'}
-              </p>
+            <div className="min-w-0 flex-1 space-y-1">
+              {job.pickupAddress && (
+                <div className="flex items-center gap-1.5">
+                  <p className="truncate flex-1">
+                    <span className="text-muted-foreground">From: </span>
+                    {job.pickupAddress}
+                  </p>
+                  <a
+                    href={mapsUrl(job.pickupAddress)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Open pickup in Google Maps"
+                    title="Open pickup in Google Maps"
+                    className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-md text-rebel-accent hover:bg-rebel-accent-surface"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Navigation className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
+              {job.deliveryAddress && (
+                <div className="flex items-center gap-1.5">
+                  <p className="truncate flex-1">
+                    <span className="text-muted-foreground">To: </span>
+                    {job.deliveryAddress}
+                  </p>
+                  <a
+                    href={mapsUrl(job.deliveryAddress)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Open delivery in Google Maps"
+                    title="Open delivery in Google Maps"
+                    className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-md text-rebel-accent hover:bg-rebel-accent-surface"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Navigation className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
+              {!job.pickupAddress && !job.deliveryAddress && (
+                <p className="text-muted-foreground">—</p>
+              )}
             </div>
           </div>
 

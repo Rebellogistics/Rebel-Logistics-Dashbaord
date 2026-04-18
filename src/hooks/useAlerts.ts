@@ -9,6 +9,7 @@ export type AlertKind =
   | 'missing_proof'
   | 'unassigned_scheduled'
   | 'day_prior_unsent'
+  | 'run_started'
   | 'delivery_completed';
 
 export interface Alert {
@@ -100,18 +101,21 @@ export function useAlerts(jobs: Job[], smsLog: SmsLogEntry[]): UseAlertsResult {
       });
     }
 
-    // 4. Unassigned scheduled jobs — warning
+    // 4. Accepted / Scheduled jobs without a truck — warning
     for (const job of jobs) {
-      if (job.status !== 'Scheduled') continue;
+      if (job.status !== 'Accepted' && job.status !== 'Scheduled') continue;
       if (job.assignedTruck) continue;
       alerts.push({
         id: `unassigned-${job.id}`,
         kind: 'unassigned_scheduled',
         severity: 'warning',
         title: `${job.customerName} — no truck assigned`,
-        description: `Scheduled for ${job.date} but no truck picked yet.`,
+        description:
+          job.status === 'Accepted'
+            ? `Accepted for ${job.date || 'no date'} — waiting for a truck.`
+            : `Scheduled for ${job.date} but no truck picked yet.`,
         jobId: job.id,
-        action: 'view_job',
+        action: 'assign_truck',
         actionLabel: 'Assign',
         weight: 700,
       });
@@ -133,6 +137,30 @@ export function useAlerts(jobs: Job[], smsLog: SmsLogEntry[]): UseAlertsResult {
         actionLabel: 'Open job',
         weight: 400,
       });
+    }
+
+    // 5b. Run started — info (In Delivery, not yet overdue)
+    for (const job of jobs) {
+      if (job.status !== 'In Delivery') continue;
+      try {
+        const jobDate = parseISO(job.date);
+        // Skip if already covered by eta_overdue
+        if (isAfter(today, jobDate)) continue;
+        const stops = job.recipientAddress ? ' + stops' : '';
+        alerts.push({
+          id: `run-started-${job.id}`,
+          kind: 'run_started',
+          severity: 'info',
+          title: `${job.assignedTruck ?? 'Driver'} started run`,
+          description: `${job.customerName}${stops} — ${job.deliveryAddress?.split(',')[0] ?? 'destination'}`,
+          jobId: job.id,
+          action: 'view_job',
+          actionLabel: 'View',
+          weight: 500 + Date.parse(job.date || '0'),
+        });
+      } catch {
+        // ignore
+      }
     }
 
     // 6. Recently completed deliveries — info (last 24h)
@@ -169,6 +197,7 @@ export function useAlerts(jobs: Job[], smsLog: SmsLogEntry[]): UseAlertsResult {
       missing_proof: [],
       unassigned_scheduled: [],
       day_prior_unsent: [],
+      run_started: [],
       delivery_completed: [],
     };
     for (const a of alerts) byKind[a.kind].push(a);
@@ -194,9 +223,11 @@ export function alertKindLabel(kind: AlertKind): string {
     case 'missing_proof':
       return 'Missing proof';
     case 'unassigned_scheduled':
-      return 'Unassigned';
+      return 'Needs a truck';
     case 'day_prior_unsent':
       return 'Day-prior reminders';
+    case 'run_started':
+      return 'Runs started';
     case 'delivery_completed':
       return 'Completed deliveries';
   }

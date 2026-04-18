@@ -18,16 +18,19 @@ import {
   CircleSlash,
   MessageSquare,
   FileSpreadsheet,
+  Link2,
 } from 'lucide-react';
 import { AddDriverDialog } from './AddDriverDialog';
 import { EditTeamMemberDialog } from './EditTeamMemberDialog';
 import { TruckDialog } from './TruckDialog';
 import { SmsTemplatesSection } from './SmsTemplatesSection';
 import { CustomerImportSection } from './CustomerImportSection';
+import { IntegrationsSection } from './IntegrationsSection';
+import { BackupExportSection } from './BackupExportSection';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-type Section = 'team' | 'trucks' | 'sms' | 'import';
+type Section = 'team' | 'trucks' | 'sms' | 'import' | 'export' | 'integrations';
 
 export function SettingsView() {
   const [section, setSection] = useState<Section>('team');
@@ -63,6 +66,20 @@ export function SettingsView() {
         >
           Import
         </TabButton>
+        <TabButton
+          active={section === 'export'}
+          onClick={() => setSection('export')}
+          icon={FileSpreadsheet}
+        >
+          Export
+        </TabButton>
+        <TabButton
+          active={section === 'integrations'}
+          onClick={() => setSection('integrations')}
+          icon={Link2}
+        >
+          Integrations
+        </TabButton>
       </div>
 
       {section === 'team' ? (
@@ -71,8 +88,12 @@ export function SettingsView() {
         <TrucksSection />
       ) : section === 'sms' ? (
         <SmsTemplatesSection />
-      ) : (
+      ) : section === 'import' ? (
         <CustomerImportSection />
+      ) : section === 'export' ? (
+        <BackupExportSection />
+      ) : (
+        <IntegrationsSection />
       )}
     </div>
   );

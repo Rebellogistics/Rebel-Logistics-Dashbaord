@@ -8,12 +8,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Job, JobStatus } from '@/lib/types';
-import { Plus, Check, X, PackageCheck, Copy, Eye } from 'lucide-react';
+import { Plus, Check, X, PackageCheck, Copy, Eye, Star, Truck as TruckIcon, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StatusPill } from '@/components/ui/status-pill';
 import { NewQuoteDialog } from '@/components/jobs/NewQuoteDialog';
 import { useCan } from '@/hooks/useCan';
-import { AcceptAssignDialog } from '@/components/jobs/AcceptAssignDialog';
+import { useCustomers } from '@/hooks/useSupabaseData';
+import { AcceptDialog } from '@/components/jobs/AcceptDialog';
+import { AssignTruckDialog } from '@/components/jobs/AssignTruckDialog';
 import { DeclineDialog } from '@/components/jobs/DeclineDialog';
 import { MarkCompleteDialog } from '@/components/jobs/MarkCompleteDialog';
 import { JobDetailDialog } from '@/components/jobs/JobDetailDialog';
@@ -32,6 +34,7 @@ const FILTER_LABELS: { id: StatusFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'open', label: 'Open' },
   { id: 'Quote', label: 'Quotes' },
+  { id: 'Accepted', label: 'Accepted' },
   { id: 'Scheduled', label: 'Scheduled' },
   { id: 'In Delivery', label: 'In Delivery' },
   { id: 'Completed', label: 'Completed' },
@@ -49,11 +52,18 @@ export function JobsTable({
   const [newQuoteOpen, setNewQuoteOpen] = useState(false);
   const [duplicateSource, setDuplicateSource] = useState<Job | null>(null);
   const [acceptTarget, setAcceptTarget] = useState<Job | null>(null);
+  const [assignTarget, setAssignTarget] = useState<Job | null>(null);
   const [declineTarget, setDeclineTarget] = useState<Job | null>(null);
   const [completeTarget, setCompleteTarget] = useState<Job | null>(null);
   const [viewTarget, setViewTarget] = useState<Job | null>(null);
   const [filter, setFilter] = useState<StatusFilter>('all');
   const canSeeRevenue = useCan('view_revenue');
+  const { data: customers = [] } = useCustomers();
+  const vipCustomerIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of customers) if (c.vip) set.add(c.id);
+    return set;
+  }, [customers]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: jobs.length, open: 0 };
@@ -69,6 +79,11 @@ export function JobsTable({
     if (filter === 'open') return jobs.filter((j) => OPEN_STATUSES.includes(j.status));
     return jobs.filter((j) => j.status === filter);
   }, [jobs, filter]);
+
+  const unassignedAcceptedCount = useMemo(
+    () => jobs.filter((j) => j.status === 'Accepted' && !j.assignedTruck).length,
+    [jobs],
+  );
 
   const openNewQuote = () => {
     setDuplicateSource(null);
@@ -87,6 +102,26 @@ export function JobsTable({
 
   return (
     <>
+      {unassignedAcceptedCount > 0 && filter !== 'Accepted' && (
+        <button
+          type="button"
+          onClick={() => setFilter('Accepted')}
+          className="w-full mb-3 flex items-center gap-3 rounded-2xl bg-rebel-warning-surface border border-rebel-warning/30 px-4 py-3 text-left hover:bg-rebel-warning-surface/80 transition-colors"
+        >
+          <div className="w-9 h-9 rounded-xl bg-rebel-warning/15 flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-4 h-4 text-rebel-warning" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[12.5px] font-bold text-rebel-warning">
+              {unassignedAcceptedCount} accepted {unassignedAcceptedCount === 1 ? 'job' : 'jobs'} waiting for a truck
+            </p>
+            <p className="text-[10.5px] text-rebel-warning/80 mt-0.5">
+              Tap to filter and assign trucks to them.
+            </p>
+          </div>
+          <span className="text-[11px] font-bold text-rebel-warning">View →</span>
+        </button>
+      )}
       <div className="bg-rebel-surface rounded-2xl border border-rebel-border overflow-hidden shadow-card">
         <div className="px-5 py-4 border-b border-rebel-border flex items-center justify-between gap-2">
           <div>
@@ -175,7 +210,18 @@ export function JobsTable({
                   </TableCell>
                   <TableCell>
                     <div>
-                      <p className="text-[12.5px] font-semibold text-rebel-text">{job.customerName}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-[12.5px] font-semibold text-rebel-text truncate">{job.customerName}</p>
+                        {job.customerId && vipCustomerIds.has(job.customerId) && (
+                          <span
+                            className="shrink-0 inline-flex items-center justify-center h-4 w-4 rounded-full bg-amber-400"
+                            aria-label="VIP"
+                            title="VIP customer"
+                          >
+                            <Star className="w-2.5 h-2.5 text-white fill-white" />
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[10.5px] font-mono text-rebel-text-tertiary mt-0.5">{job.customerPhone}</p>
                       <p className="text-[10px] text-rebel-text-tertiary md:hidden mt-0.5">
                         {job.type}
@@ -195,6 +241,7 @@ export function JobsTable({
                       job={job}
                       onView={() => setViewTarget(job)}
                       onAccept={() => setAcceptTarget(job)}
+                      onAssign={() => setAssignTarget(job)}
                       onDecline={() => setDeclineTarget(job)}
                       onComplete={() => setCompleteTarget(job)}
                       onDuplicate={() => openDuplicate(job)}
@@ -214,7 +261,8 @@ export function JobsTable({
         prefillJob={duplicateSource}
       />
       <JobDetailDialog job={viewTarget} onClose={() => setViewTarget(null)} />
-      <AcceptAssignDialog job={acceptTarget} onClose={() => setAcceptTarget(null)} />
+      <AcceptDialog job={acceptTarget} onClose={() => setAcceptTarget(null)} />
+      <AssignTruckDialog job={assignTarget} onClose={() => setAssignTarget(null)} />
       <DeclineDialog job={declineTarget} onClose={() => setDeclineTarget(null)} />
       <MarkCompleteDialog job={completeTarget} onClose={() => setCompleteTarget(null)} />
     </>
@@ -225,6 +273,7 @@ function RowActions({
   job,
   onView,
   onAccept,
+  onAssign,
   onDecline,
   onComplete,
   onDuplicate,
@@ -232,6 +281,7 @@ function RowActions({
   job: Job;
   onView: () => void;
   onAccept: () => void;
+  onAssign: () => void;
   onDecline: () => void;
   onComplete: () => void;
   onDuplicate: () => void;
@@ -264,7 +314,23 @@ function RowActions({
     );
   }
 
-  if (job.status === 'Scheduled' || job.status === 'Accepted' || job.status === 'Notified' || job.status === 'In Delivery') {
+  if (job.status === 'Accepted') {
+    return (
+      <div className="flex items-center justify-end gap-1">
+        {viewButton}
+        <Button size="xs" variant="outline" onClick={onAssign} className="gap-1">
+          <TruckIcon className="w-3 h-3" />
+          {job.assignedTruck ? 'Change truck' : 'Assign truck'}
+        </Button>
+        <Button size="xs" variant="outline" onClick={onComplete} className="gap-1">
+          <PackageCheck className="w-3 h-3" />
+          Complete
+        </Button>
+      </div>
+    );
+  }
+
+  if (job.status === 'Scheduled' || job.status === 'Notified' || job.status === 'In Delivery') {
     return (
       <div className="flex items-center justify-end gap-1">
         {viewButton}

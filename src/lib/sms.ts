@@ -191,8 +191,18 @@ export function computeSmsSegments(body: string): SmsSegmentInfo {
 }
 
 // ──────────────────────────────────────────────────────────────────
-// Stub provider
+// Provider abstraction
 // ──────────────────────────────────────────────────────────────────
+// Today the stub is the default. When Yamen drops Twilio credentials into
+// Vercel env (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM) and we
+// stand up the /api/sms/send Edge Function, `resolveProvider()` flips over
+// automatically. Nothing calling `sendSms()` needs to change.
+//
+// The Twilio provider intentionally fails loudly when invoked without the
+// server-side fetch endpoint — we never want the browser to hit Twilio
+// directly with the auth token in-flight. See DEFERRED.md §2.
+
+import { normalizeToE164 } from './phone';
 
 export interface SendSmsParams {
   to: string;
@@ -203,11 +213,79 @@ export interface SendSmsResult {
   status: 'sent' | 'failed';
   sentAt: string;
   errorMessage?: string;
+  /** Provider-specific message id when available — used for delivery receipts. */
+  providerMessageId?: string;
 }
 
-export async function sendSms(_params: SendSmsParams): Promise<SendSmsResult> {
-  return {
-    status: 'sent',
-    sentAt: new Date().toISOString(),
-  };
+export interface SmsProvider {
+  name: 'stub' | 'twilio';
+  send(params: SendSmsParams): Promise<SendSmsResult>;
+}
+
+const stubProvider: SmsProvider = {
+  name: 'stub',
+  async send(_params) {
+    return { status: 'sent', sentAt: new Date().toISOString() };
+  },
+};
+
+/**
+ * Talks to our own /api/sms/send endpoint (NOT Twilio directly) so the auth
+ * token lives server-side only. The endpoint lands the moment creds arrive —
+ * see DEFERRED.md §2.
+ */
+const twilioProvider: SmsProvider = {
+  name: 'twilio',
+  async send(params) {
+    const normalized = normalizeToE164(params.to);
+    if (!normalized) {
+      return {
+        status: 'failed',
+        sentAt: new Date().toISOString(),
+        errorMessage: `Invalid phone number: ${params.to}`,
+      };
+    }
+    try {
+      const res = await fetch('/api/sms/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: normalized, body: params.body }),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        return {
+          status: 'failed',
+          sentAt: new Date().toISOString(),
+          errorMessage: text || `Provider HTTP ${res.status}`,
+        };
+      }
+      const payload = (await res.json()) as { sid?: string };
+      return {
+        status: 'sent',
+        sentAt: new Date().toISOString(),
+        providerMessageId: payload.sid,
+      };
+    } catch (err) {
+      return {
+        status: 'failed',
+        sentAt: new Date().toISOString(),
+        errorMessage: err instanceof Error ? err.message : 'Network error',
+      };
+    }
+  },
+};
+
+function resolveProvider(): SmsProvider {
+  // The browser can't read server env vars; we signal live-Twilio via a
+  // public-safe VITE_SMS_PROVIDER=twilio flag. When unset we stay on the stub.
+  const flag = (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_SMS_PROVIDER;
+  return flag === 'twilio' ? twilioProvider : stubProvider;
+}
+
+export async function sendSms(params: SendSmsParams): Promise<SendSmsResult> {
+  return resolveProvider().send(params);
+}
+
+export function currentSmsProviderName(): SmsProvider['name'] {
+  return resolveProvider().name;
 }

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Job, TruckId } from '@/lib/types';
 import {
   ChevronLeft,
@@ -12,10 +13,12 @@ import {
   MapPin,
   Send,
   CheckCircle2,
+  GripVertical,
 } from 'lucide-react';
 import { addDays, format, subDays, isToday, parseISO } from 'date-fns';
 import { MarkCompleteDialog } from '@/components/jobs/MarkCompleteDialog';
 import { useSendSmsForJob } from '@/hooks/useSms';
+import { useUpdateJob } from '@/hooks/useSupabaseData';
 import { useTrucks } from '@/hooks/useTrucks';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -31,6 +34,10 @@ interface TruckColumnProps {
   showEnRouteAction: boolean;
   busyId: string | null;
   onSendEnRoute: (job: Job) => void;
+  onDropJob: (jobId: string, truck: TruckId | null) => void;
+  isDropTarget: boolean;
+  draggingId: string | null;
+  setDraggingId: (id: string | null) => void;
 }
 
 interface JobCardProps {
@@ -39,6 +46,9 @@ interface JobCardProps {
   showEnRouteAction: boolean;
   busy: boolean;
   onSendEnRoute: (job: Job) => void;
+  draggable?: boolean;
+  onDragStart?: (jobId: string) => void;
+  onDragEnd?: () => void;
 }
 
 export function TruckRunsView({ jobs }: TruckRunsViewProps) {
@@ -46,7 +56,9 @@ export function TruckRunsView({ jobs }: TruckRunsViewProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [completeTarget, setCompleteTarget] = useState<Job | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
   const sendSms = useSendSmsForJob();
+  const updateJob = useUpdateJob();
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const isTodaySelected = isToday(selectedDate);
@@ -94,6 +106,43 @@ export function TruckRunsView({ jobs }: TruckRunsViewProps) {
     }
   };
 
+  const handleDropJob = async (jobId: string, targetTruck: TruckId | null) => {
+    setDraggingId(null);
+    const job = jobs.find((j) => j.id === jobId);
+    if (!job) return;
+    if ((job.assignedTruck ?? null) === targetTruck) return;
+    try {
+      if (targetTruck) {
+        // Moving a job onto a truck — if currently Accepted/unassigned, bump to Scheduled
+        const nextStatus =
+          job.status === 'Quote' || job.status === 'Declined'
+            ? job.status
+            : job.status === 'Accepted'
+              ? 'Scheduled'
+              : job.status;
+        await updateJob.mutateAsync({
+          id: jobId,
+          assignedTruck: targetTruck,
+          status: nextStatus,
+        });
+        toast.success(`Moved to ${targetTruck}`);
+      } else {
+        // Dropped into Unassigned pool — drop truck, revert Scheduled → Accepted
+        const nextStatus =
+          job.status === 'Scheduled' || job.status === 'Notified' ? 'Accepted' : job.status;
+        await updateJob.mutateAsync({
+          id: jobId,
+          assignedTruck: undefined,
+          status: nextStatus,
+        });
+        toast.success('Moved to Unassigned');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to move job');
+    }
+  };
+
   return (
     <>
       <div className="space-y-6">
@@ -121,6 +170,21 @@ export function TruckRunsView({ jobs }: TruckRunsViewProps) {
             >
               <ChevronRight className="w-4 h-4" />
             </Button>
+            <Input
+              type="date"
+              className="h-8 w-[140px] text-xs"
+              value={dateStr}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!v) return;
+                try {
+                  setSelectedDate(parseISO(v));
+                } catch {
+                  /* ignore */
+                }
+              }}
+              aria-label="Pick a date"
+            />
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => setSelectedDate(new Date())}>
@@ -149,38 +213,24 @@ export function TruckRunsView({ jobs }: TruckRunsViewProps) {
                 showEnRouteAction={isTodaySelected}
                 busyId={busyId}
                 onSendEnRoute={handleSendEnRoute}
+                onDropJob={handleDropJob}
+                isDropTarget={!!draggingId}
+                draggingId={draggingId}
+                setDraggingId={setDraggingId}
               />
             ))
           )}
         </div>
 
-        {unassigned.length > 0 && (
-          <Card className="border-amber-200 bg-amber-50/40 border shadow-none">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600" />
-                <h3 className="font-semibold text-sm text-amber-900">
-                  Unassigned ({unassigned.length})
-                </h3>
-                <p className="text-[11px] text-amber-800">
-                  These jobs have no truck assigned. Accept them from the Jobs list to schedule.
-                </p>
-              </div>
-              <div className="space-y-2">
-                {unassigned.map((job) => (
-                  <JobCard
-                    key={job.id}
-                    job={job}
-                    onComplete={setCompleteTarget}
-                    showEnRouteAction={false}
-                    busy={false}
-                    onSendEnRoute={handleSendEnRoute}
-                  />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <UnassignedZone
+          jobs={unassigned}
+          onComplete={setCompleteTarget}
+          onSendEnRoute={handleSendEnRoute}
+          onDropJob={handleDropJob}
+          isDropTarget={!!draggingId}
+          draggingId={draggingId}
+          setDraggingId={setDraggingId}
+        />
       </div>
 
       <MarkCompleteDialog job={completeTarget} onClose={() => setCompleteTarget(null)} />
@@ -195,9 +245,36 @@ function TruckColumn({
   showEnRouteAction,
   busyId,
   onSendEnRoute,
+  onDropJob,
+  isDropTarget,
+  draggingId,
+  setDraggingId,
 }: TruckColumnProps) {
+  const [isOver, setIsOver] = useState(false);
   return (
-    <Card className="border shadow-none">
+    <Card
+      className={cn(
+        'border shadow-none transition-colors',
+        isOver
+          ? 'border-rebel-accent bg-rebel-accent-surface/40'
+          : isDropTarget
+            ? 'border-dashed border-rebel-accent/40'
+            : '',
+      )}
+      onDragOver={(e) => {
+        if (!draggingId) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (!isOver) setIsOver(true);
+      }}
+      onDragLeave={() => setIsOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsOver(false);
+        const jobId = e.dataTransfer.getData('text/plain');
+        if (jobId) onDropJob(jobId, truck);
+      }}
+    >
       <CardContent className="p-4 space-y-3">
         <div className="flex items-center justify-between border-b pb-3">
           <div className="flex items-center gap-2">
@@ -212,7 +289,9 @@ function TruckColumn({
         </div>
 
         {jobs.length === 0 ? (
-          <p className="text-center text-xs text-muted-foreground py-6">No jobs scheduled.</p>
+          <p className="text-center text-xs text-muted-foreground py-6">
+            {isDropTarget ? 'Drop here to assign' : 'No jobs scheduled.'}
+          </p>
         ) : (
           <div className="space-y-2">
             {jobs.map((job) => (
@@ -223,6 +302,86 @@ function TruckColumn({
                 showEnRouteAction={showEnRouteAction}
                 busy={busyId === job.id}
                 onSendEnRoute={onSendEnRoute}
+                draggable
+                onDragStart={setDraggingId}
+                onDragEnd={() => setDraggingId(null)}
+              />
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+interface UnassignedZoneProps {
+  jobs: Job[];
+  onComplete: (job: Job) => void;
+  onSendEnRoute: (job: Job) => void;
+  onDropJob: (jobId: string, truck: TruckId | null) => void;
+  isDropTarget: boolean;
+  draggingId: string | null;
+  setDraggingId: (id: string | null) => void;
+}
+
+function UnassignedZone({
+  jobs,
+  onComplete,
+  onSendEnRoute,
+  onDropJob,
+  isDropTarget,
+  draggingId,
+  setDraggingId,
+}: UnassignedZoneProps) {
+  const [isOver, setIsOver] = useState(false);
+  const empty = jobs.length === 0;
+  if (empty && !isDropTarget) return null;
+
+  return (
+    <Card
+      className={cn(
+        'border shadow-none transition-colors',
+        isOver
+          ? 'border-rebel-warning bg-rebel-warning-surface/60'
+          : 'border-amber-200 bg-amber-50/40',
+      )}
+      onDragOver={(e) => {
+        if (!draggingId) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (!isOver) setIsOver(true);
+      }}
+      onDragLeave={() => setIsOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsOver(false);
+        const jobId = e.dataTransfer.getData('text/plain');
+        if (jobId) onDropJob(jobId, null);
+      }}
+    >
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-amber-600" />
+          <h3 className="font-semibold text-sm text-amber-900">
+            Unassigned ({jobs.length})
+          </h3>
+          <p className="text-[11px] text-amber-800">
+            {empty ? 'Drop a job here to unassign its truck.' : 'Drag a job onto a truck column to schedule.'}
+          </p>
+        </div>
+        {!empty && (
+          <div className="space-y-2">
+            {jobs.map((job) => (
+              <JobCard
+                key={job.id}
+                job={job}
+                onComplete={onComplete}
+                showEnRouteAction={false}
+                busy={false}
+                onSendEnRoute={onSendEnRoute}
+                draggable
+                onDragStart={setDraggingId}
+                onDragEnd={() => setDraggingId(null)}
               />
             ))}
           </div>
@@ -248,6 +407,9 @@ function JobCard({
   showEnRouteAction,
   busy,
   onSendEnRoute,
+  draggable,
+  onDragStart,
+  onDragEnd,
 }: JobCardProps) {
   const missing = detectMissingInfo(job);
   const isClosed = job.status === 'Completed' || job.status === 'Invoiced';
@@ -256,18 +418,33 @@ function JobCard({
   const enRouteTimeLabel = enRouteSent
     ? format(parseISO(job.enRouteSmsSentAt!), 'HH:mm')
     : null;
+  const canDrag = !!draggable && !isClosed;
 
   return (
     <div
       className={cn(
         'rounded-lg border p-3 space-y-2',
-        isClosed ? 'bg-green-50/40 border-green-200' : 'bg-card'
+        isClosed ? 'bg-green-50/40 border-green-200' : 'bg-card',
+        canDrag && 'hover:ring-1 hover:ring-rebel-accent/30 cursor-grab active:cursor-grabbing',
       )}
+      draggable={canDrag}
+      onDragStart={(e) => {
+        if (!canDrag) return;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', job.id);
+        onDragStart?.(job.id);
+      }}
+      onDragEnd={() => onDragEnd?.()}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold truncate">{job.customerName}</p>
-          <p className="text-[10px] text-muted-foreground">{job.customerPhone || '—'}</p>
+        <div className="min-w-0 flex items-start gap-1.5">
+          {canDrag && (
+            <GripVertical className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/60" />
+          )}
+          <div className="min-w-0">
+            <p className="text-xs font-semibold truncate">{job.customerName}</p>
+            <p className="text-[10px] text-muted-foreground">{job.customerPhone || '—'}</p>
+          </div>
         </div>
         <Badge
           variant="secondary"

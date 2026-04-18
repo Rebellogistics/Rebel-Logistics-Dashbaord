@@ -58,6 +58,7 @@ export function NotificationsBell({ jobs, smsLog, onAlertAction }: Notifications
     'missing_proof',
     'unassigned_scheduled',
     'day_prior_unsent',
+    'run_started',
     'delivery_completed',
   ];
 

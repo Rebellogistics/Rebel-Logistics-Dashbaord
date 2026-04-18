@@ -13,9 +13,12 @@ import {
   Award,
   CheckCircle2,
   Activity,
+  User,
 } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { useDriverToday } from '@/hooks/useDriverToday';
+import { WhoDrivingDialog } from './WhoDrivingDialog';
 
 interface DriverProfileTabProps {
   profile: Profile;
@@ -24,6 +27,10 @@ interface DriverProfileTabProps {
 export function DriverProfileTab({ profile }: DriverProfileTabProps) {
   const navigate = useNavigate();
   const { data: jobs = [] } = useJobs();
+  const { name: pickedDriverName, setName: setDriverName } = useDriverToday();
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const truckName = profile.assignedTruck?.trim() ?? null;
 
   const stats = useMemo(() => {
     let lifetime = 0;
@@ -32,6 +39,9 @@ export function DriverProfileTab({ profile }: DriverProfileTabProps) {
     const weekStart = Date.now() - 7 * 86400000;
     for (const job of jobs) {
       if (job.status !== 'Completed' && job.status !== 'Invoiced') continue;
+      // When the driver is logged into a truck account, scope lifetime stats to
+      // that truck. When there's no truck context, fall back to all jobs.
+      if (truckName && job.assignedTruck !== truckName) continue;
       lifetime += 1;
       if (job.proofPhoto || job.signature) onTime += 1;
       try {
@@ -42,7 +52,7 @@ export function DriverProfileTab({ profile }: DriverProfileTabProps) {
     }
     const onTimePct = lifetime === 0 ? 0 : Math.round((onTime / lifetime) * 100);
     return { lifetime, thisWeek, onTimePct };
-  }, [jobs]);
+  }, [jobs, truckName]);
 
   const handleLogout = async () => {
     try {
@@ -87,10 +97,41 @@ export function DriverProfileTab({ profile }: DriverProfileTabProps) {
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-2">
-        <StatCard icon={Award} label="Lifetime" value={stats.lifetime} />
+        <StatCard
+          icon={Award}
+          label={truckName ? `${truckName} total` : 'Lifetime'}
+          value={stats.lifetime}
+        />
         <StatCard icon={Activity} label="Last 7d" value={stats.thisWeek} />
         <StatCard icon={CheckCircle2} label="On time" value={`${stats.onTimePct}%`} />
       </div>
+
+      {/* Today's driver */}
+      <Card className="border-rebel-border bg-card">
+        <CardContent className="p-4 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-rebel-text-tertiary">
+              Today's driver
+            </p>
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className="text-[10.5px] font-bold text-rebel-accent hover:underline"
+            >
+              {pickedDriverName ? 'Change' : 'Pick'}
+            </button>
+          </div>
+          <div className="flex items-center gap-2.5 text-[12.5px]">
+            <User className="w-3.5 h-3.5 text-rebel-text-tertiary" />
+            <span className="font-semibold text-rebel-text">
+              {pickedDriverName ?? 'Not picked yet'}
+            </span>
+          </div>
+          <p className="text-[10.5px] text-rebel-text-tertiary">
+            Completion notes are tagged with this name so the office knows who drove.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Contact */}
       <Card className="border-rebel-border bg-card">
@@ -136,6 +177,13 @@ export function DriverProfileTab({ profile }: DriverProfileTabProps) {
         <LogOut className="w-4 h-4" />
         Sign out
       </Button>
+
+      <WhoDrivingDialog
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onPick={(name) => setDriverName(name)}
+        initialName={pickedDriverName}
+      />
     </div>
   );
 }

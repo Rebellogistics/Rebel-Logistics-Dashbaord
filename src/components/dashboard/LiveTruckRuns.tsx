@@ -1,7 +1,7 @@
 import { Job, JobStatus, Customer } from '@/lib/types';
-import { Truck, Clock, ArrowRight, MapPin, Flame, MessageSquare } from 'lucide-react';
+import { Truck, Clock, ArrowRight, MapPin, Flame, MessageSquare, Star, Calendar } from 'lucide-react';
 import { motion } from 'motion/react';
-import { format } from 'date-fns';
+import { format, parseISO, isToday, isTomorrow } from 'date-fns';
 import { useMemo, useState } from 'react';
 import { CustomerAvatar } from '@/components/customers/CustomerAvatar';
 import { StatusPill, statusGradient } from '@/components/ui/status-pill';
@@ -140,7 +140,18 @@ function RunCard({ job, customer }: RunCardProps) {
       {/* Footer */}
       <div className="p-3.5 space-y-2">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="text-[13px] font-bold text-rebel-text truncate">{job.customerName}</h3>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h3 className="text-[13px] font-bold text-rebel-text truncate">{job.customerName}</h3>
+            {customer.vip && (
+              <span
+                className="shrink-0 inline-flex items-center justify-center h-4 w-4 rounded-full bg-amber-400"
+                aria-label="VIP"
+                title="VIP customer"
+              >
+                <Star className="w-2.5 h-2.5 text-white fill-white" />
+              </span>
+            )}
+          </div>
           <button
             type="button"
             onClick={(e) => {
@@ -161,6 +172,10 @@ function RunCard({ job, customer }: RunCardProps) {
             {shortRoute(job.pickupAddress)} → {shortRoute(job.deliveryAddress)}
           </span>
         </div>
+        <div className="flex items-center gap-1.5 text-[10.5px] text-rebel-text-tertiary">
+          <Calendar className="w-3 h-3 shrink-0" />
+          <span className="truncate">{formatJobDate(job.date)}</span>
+        </div>
         <div className="flex items-center justify-between pt-1.5 border-t border-rebel-border">
           <span className="text-[10px] font-bold uppercase tracking-wider text-rebel-text-tertiary">
             {job.assignedTruck ?? 'Unassigned'}
@@ -179,6 +194,18 @@ function RunCard({ job, customer }: RunCardProps) {
     />
     </>
   );
+}
+
+function formatJobDate(date: string): string {
+  if (!date) return '—';
+  try {
+    const d = parseISO(date);
+    if (isToday(d)) return `Today · ${format(d, 'EEE d MMM')}`;
+    if (isTomorrow(d)) return `Tomorrow · ${format(d, 'EEE d MMM')}`;
+    return format(d, 'EEE d MMM');
+  } catch {
+    return date;
+  }
 }
 
 function formatEta(job: Job): string {
