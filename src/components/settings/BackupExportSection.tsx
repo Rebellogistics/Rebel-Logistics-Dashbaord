@@ -30,7 +30,7 @@ export function BackupExportSection() {
   const { data: usage } = useStorageUsage();
   const updateJob = useUpdateJob();
   const [exporting, setExporting] = useState(false);
-  const [cleanupDays, setCleanupDays] = useState(90);
+  const [cleanupDays, setCleanupDays] = useState<number | null>(null);
 
   const lastBackup = getLastBackupDate();
 
@@ -68,6 +68,7 @@ export function BackupExportSection() {
   };
 
   const oldJobs = useMemo(() => {
+    if (cleanupDays === null) return [];
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - cleanupDays);
     return jobs.filter((j) => {
@@ -199,10 +200,14 @@ export function BackupExportSection() {
             <label className="text-xs text-muted-foreground font-medium">
               Older than
               <select
-                value={cleanupDays}
-                onChange={(e) => setCleanupDays(Number(e.target.value))}
+                value={cleanupDays === null ? 'never' : String(cleanupDays)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setCleanupDays(v === 'never' ? null : Number(v));
+                }}
                 className="ml-2 h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
               >
+                <option value="never">Never (keep all)</option>
                 <option value={30}>30 days</option>
                 <option value={60}>60 days</option>
                 <option value={90}>90 days</option>
@@ -214,13 +219,19 @@ export function BackupExportSection() {
               variant="outline"
               className="gap-1.5 text-rebel-danger border-rebel-danger/30 hover:bg-rebel-danger-surface hover:text-rebel-danger"
               onClick={handleCleanup}
-              disabled={oldJobs.length === 0}
+              disabled={cleanupDays === null || oldJobs.length === 0}
             >
               <Trash2 className="w-3.5 h-3.5" />
-              Clear {oldJobs.length} job{oldJobs.length === 1 ? '' : 's'}
+              {cleanupDays === null ? 'Cleanup disabled' : `Clear ${oldJobs.length} job${oldJobs.length === 1 ? '' : 's'}`}
             </Button>
           </div>
-          {oldJobs.length > 0 && (
+          {cleanupDays === null && (
+            <p className="text-[10.5px] text-rebel-success flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" />
+              Auto-cleanup is off — all proof photos are kept indefinitely.
+            </p>
+          )}
+          {cleanupDays !== null && oldJobs.length > 0 && (
             <p className="text-[10.5px] text-rebel-warning flex items-center gap-1">
               <AlertTriangle className="w-3 h-3" />
               Back up first — cleared photos cannot be recovered from this app.
