@@ -9,20 +9,337 @@ import {
   ExternalLink,
   Copy,
   CheckCircle2,
+  LogOut,
+  RefreshCw,
+  User,
+  ArrowRight,
+  AlertTriangle,
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import {
+  useIntegration,
+  useDisconnectIntegration,
+  useConnectIntegration,
+  type Integration,
+} from '@/hooks/useIntegrations';
 
-/**
- * Scaffolding UI for Phase 10 (Google Calendar), Phase 11 (Twilio) and
- * Phase 12 (Xero). Each provider shows its real connection state once the
- * credentials Yamen needs to provide land. Until then, every card is locked
- * with inline setup instructions pulled from DEFERRED.md.
- */
+// ──────────────────────────────────────────────────────────────────
+// Google Calendar — dynamic connect/disconnect/switch
+// ──────────────────────────────────────────────────────────────────
 
-interface ProviderState {
-  id: 'google_calendar' | 'twilio' | 'xero';
+const GOOGLE_SCOPES = [
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/userinfo.email',
+].join(' ');
+
+function buildGoogleOAuthUrl(): string | null {
+  const clientId = (import.meta as { env?: Record<string, string | undefined> }).env
+    ?.VITE_GOOGLE_OAUTH_CLIENT_ID;
+  if (!clientId) return null;
+
+  const origin = window.location.origin;
+  const redirectUri = `${origin}/integrations/google/callback`;
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: GOOGLE_SCOPES,
+    access_type: 'offline',
+    prompt: 'consent select_account',
+    state: 'rebel_gcal',
+  });
+
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+}
+
+function GoogleCalendarCard() {
+  const { data: integration, isLoading } = useIntegration('google_calendar');
+  const disconnect = useDisconnectIntegration();
+  const [showSetup, setShowSetup] = useState(false);
+
+  const oauthUrl = buildGoogleOAuthUrl();
+  const isConfigured = !!oauthUrl;
+  const isConnected = !!integration;
+
+  const handleConnect = () => {
+    if (!oauthUrl) {
+      toast.error(
+        'Google OAuth client not configured. Add VITE_GOOGLE_OAUTH_CLIENT_ID to your environment variables.',
+      );
+      return;
+    }
+    window.location.href = oauthUrl;
+  };
+
+  const handleDisconnect = async () => {
+    if (!integration) return;
+    if (!confirm('Disconnect this Google account? Calendar sync will stop until you reconnect.'))
+      return;
+    try {
+      await disconnect.mutateAsync(integration.id);
+      toast.success('Google Calendar disconnected');
+    } catch {
+      toast.error('Failed to disconnect');
+    }
+  };
+
+  const handleSwitch = () => {
+    if (!oauthUrl) {
+      toast.error('Google OAuth client not configured.');
+      return;
+    }
+    window.location.href = oauthUrl;
+  };
+
+  return (
+    <Card
+      className={cn(
+        'border shadow-none bg-card transition-colors',
+        isConnected ? 'border-rebel-success/40' : 'border-rebel-border',
+      )}
+    >
+      <CardContent className="p-5 space-y-3">
+        <div className="flex items-start gap-3">
+          <div className="h-11 w-11 rounded-xl bg-rebel-accent-surface flex items-center justify-center shrink-0">
+            <Calendar className="w-5 h-5 text-rebel-accent" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="font-bold text-sm text-rebel-text truncate">Google Calendar</h4>
+              {isLoading ? (
+                <Badge
+                  variant="secondary"
+                  className="bg-muted text-muted-foreground border-none text-[10px]"
+                >
+                  Loading…
+                </Badge>
+              ) : isConnected ? (
+                <Badge
+                  variant="secondary"
+                  className="bg-rebel-success-surface text-rebel-success border-none gap-1 text-[10px]"
+                >
+                  <CheckCircle2 className="w-3 h-3" />
+                  Connected
+                </Badge>
+              ) : (
+                <Badge
+                  variant="secondary"
+                  className="bg-muted text-muted-foreground border-none gap-1 text-[10px]"
+                >
+                  <Lock className="w-3 h-3" />
+                  Not connected
+                </Badge>
+              )}
+            </div>
+            <p className="text-[11.5px] text-muted-foreground mt-1">
+              Push Accepted and Scheduled jobs into your Google Calendar. One-way sync, colour-coded
+              by truck, location set to the delivery address so Maps opens on tap.
+            </p>
+          </div>
+        </div>
+
+        {/* Connected state — shows account + actions */}
+        {isConnected && integration && (
+          <ConnectedAccountStrip
+            integration={integration}
+            onSwitch={handleSwitch}
+            onDisconnect={handleDisconnect}
+            disconnecting={disconnect.isPending}
+            canSwitch={isConfigured}
+          />
+        )}
+
+        {/* Not connected — connect button */}
+        {!isConnected && !isLoading && (
+          <div className="space-y-2">
+            {isConfigured ? (
+              <Button
+                className="bg-rebel-accent hover:bg-rebel-accent-hover text-white gap-1.5 w-full sm:w-auto"
+                onClick={handleConnect}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                Connect Google Calendar
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  className="gap-1.5 w-full sm:w-auto"
+                  disabled
+                  title="Add VITE_GOOGLE_OAUTH_CLIENT_ID to your env vars first"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  Connect Google Calendar
+                </Button>
+                <div className="flex items-start gap-2 rounded-xl bg-rebel-warning-surface px-3 py-2 text-[11px] text-rebel-warning ring-1 ring-rebel-warning/20">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span>
+                    OAuth client not configured. Add{' '}
+                    <code className="font-mono text-[10px]">VITE_GOOGLE_OAUTH_CLIENT_ID</code> to
+                    your Vercel environment variables. See setup steps below.
+                  </span>
+                </div>
+              </>
+            )}
+            <p className="text-[10.5px] text-muted-foreground">
+              You'll choose which Google account to connect on Google's sign-in screen. You can
+              switch accounts anytime from here.
+            </p>
+          </div>
+        )}
+
+        {/* Setup steps toggle */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowSetup((v) => !v)}
+          className="text-[11px] font-semibold text-muted-foreground hover:text-rebel-text"
+        >
+          {showSetup ? 'Hide setup steps' : 'Setup steps (one-time)'}
+        </Button>
+
+        {showSetup && (
+          <div className="rounded-xl bg-muted/60 border border-rebel-border p-4 space-y-3 text-[11.5px]">
+            <div>
+              <p className="font-bold uppercase tracking-wider text-[9.5px] text-rebel-text-tertiary mb-1.5">
+                One-time app setup (Google Cloud Console)
+              </p>
+              <ol className="list-decimal pl-4 space-y-1 text-rebel-text-secondary">
+                <li>Go to Google Cloud Console → create or reuse a project.</li>
+                <li>Enable the <strong>Google Calendar API</strong>.</li>
+                <li>
+                  APIs & Services → OAuth consent screen → External, publish the app.
+                </li>
+                <li>
+                  Credentials → OAuth 2.0 Client ID → Web application.
+                </li>
+                <li>
+                  Authorised redirect URI:{' '}
+                  <code className="font-mono text-[10px] bg-card px-1 rounded">
+                    {typeof window !== 'undefined' ? window.location.origin : 'https://…'}
+                    /integrations/google/callback
+                  </code>
+                </li>
+                <li>
+                  Copy the <strong>Client ID</strong> into Vercel as{' '}
+                  <code className="font-mono text-[10px]">VITE_GOOGLE_OAUTH_CLIENT_ID</code>
+                </li>
+                <li>
+                  Copy the <strong>Client Secret</strong> into Vercel as{' '}
+                  <code className="font-mono text-[10px]">GOOGLE_OAUTH_CLIENT_SECRET</code>{' '}
+                  (server-side only)
+                </li>
+                <li>Redeploy. The Connect button above will activate.</li>
+              </ol>
+            </div>
+
+            <div className="space-y-1">
+              {['VITE_GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET'].map((key) => (
+                <div
+                  key={key}
+                  className="flex items-center justify-between gap-2 rounded-lg bg-card border border-rebel-border px-2.5 py-1.5 font-mono text-[10.5px]"
+                >
+                  <code className="truncate">{key}</code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(key).then(() => {
+                        toast.success(`Copied ${key}`);
+                      });
+                    }}
+                    className="shrink-0 inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-rebel-accent"
+                  >
+                    <Copy className="w-3 h-3" />
+                    Copy
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <a
+              href="https://console.cloud.google.com/apis/credentials"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-rebel-accent hover:underline"
+            >
+              Open Google Cloud Console
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ConnectedAccountStrip({
+  integration,
+  onSwitch,
+  onDisconnect,
+  disconnecting,
+  canSwitch,
+}: {
+  integration: Integration;
+  onSwitch: () => void;
+  onDisconnect: () => void;
+  disconnecting: boolean;
+  canSwitch: boolean;
+}) {
+  const label = integration.accountLabel || 'Google account';
+  const syncLabel = integration.lastSyncAt
+    ? `Last sync: ${new Date(integration.lastSyncAt).toLocaleString()}`
+    : `Connected ${new Date(integration.connectedAt).toLocaleDateString()}`;
+
+  return (
+    <div className="rounded-xl bg-rebel-success-surface/50 border border-rebel-success/20 p-3 space-y-2">
+      <div className="flex items-center gap-3">
+        <div className="h-9 w-9 rounded-full bg-rebel-success/20 flex items-center justify-center shrink-0">
+          <User className="w-4 h-4 text-rebel-success" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[12.5px] font-semibold text-rebel-text truncate">{label}</p>
+          <p className="text-[10.5px] text-muted-foreground">{syncLabel}</p>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {canSwitch && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onSwitch}
+              className="gap-1 text-[11px]"
+              title="Sign in with a different Google account"
+            >
+              <RefreshCw className="w-3 h-3" />
+              Switch
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onDisconnect}
+            disabled={disconnecting}
+            className="gap-1 text-[11px] text-rebel-danger border-rebel-danger/30 hover:bg-rebel-danger-surface hover:text-rebel-danger"
+            title="Disconnect this Google account"
+          >
+            <LogOut className="w-3 h-3" />
+            {disconnecting ? '…' : 'Disconnect'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Twilio + Xero — static cards (same pattern as before, blocked on creds)
+// ──────────────────────────────────────────────────────────────────
+
+interface StaticProviderDef {
+  id: string;
   name: string;
   description: string;
   icon: typeof Calendar;
@@ -31,31 +348,9 @@ interface ProviderState {
   envHint: string;
   checklist: string[];
   consolePath: string;
-  /** Once an integrations row exists for the user + provider, flip this true. */
-  connected?: boolean;
 }
 
-const PROVIDERS: ProviderState[] = [
-  {
-    id: 'google_calendar',
-    name: 'Google Calendar',
-    description:
-      "Push Accepted and Scheduled jobs into Yamen's calendar. One-way sync, colour-coded by truck, location set to the delivery address so Maps opens on tap.",
-    icon: Calendar,
-    iconClass: 'bg-rebel-accent-surface text-rebel-accent',
-    envKeys: ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET'],
-    envHint:
-      'Set these in Vercel → Project → Settings → Environment Variables (all environments).',
-    checklist: [
-      'Google Cloud Console → same project as the Maps key, enable Google Calendar API.',
-      'APIs & Services → OAuth consent screen → External, publish the app.',
-      'Credentials → OAuth 2.0 Client ID → Web application.',
-      'Authorised redirect URI: https://<prod-domain>/integrations/google/callback',
-      'Copy Client ID + Client Secret into Vercel env vars above.',
-      'Decide: use Yamen\'s primary Google account, or a dedicated calendar@rebellogistics.com.au?',
-    ],
-    consolePath: 'https://console.cloud.google.com/apis/credentials',
-  },
+const STATIC_PROVIDERS: StaticProviderDef[] = [
   {
     id: 'twilio',
     name: 'Twilio SMS',
@@ -93,31 +388,110 @@ const PROVIDERS: ProviderState[] = [
   },
 ];
 
-export function IntegrationsSection() {
+function StaticProviderCard({ provider }: { provider: StaticProviderDef }) {
+  const [expanded, setExpanded] = useState(false);
+  const Icon = provider.icon;
+
   return (
-    <div className="space-y-3">
-      <div>
-        <h3 className="font-bold text-base">Integrations</h3>
-        <p className="text-xs text-muted-foreground">
-          Connect the external services Rebel relies on. Every provider below is gated on
-          credentials Yamen needs to create — see <code className="font-mono">DEFERRED.md</code> in
-          the repo for the complete runbook.
-        </p>
-      </div>
+    <Card className="border-rebel-border shadow-none bg-card">
+      <CardContent className="p-5 space-y-3">
+        <div className="flex items-start gap-3">
+          <div
+            className={cn(
+              'h-11 w-11 rounded-xl flex items-center justify-center shrink-0',
+              provider.iconClass,
+            )}
+          >
+            <Icon className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="font-bold text-sm text-rebel-text truncate">{provider.name}</h4>
+              <Badge
+                variant="secondary"
+                className="bg-muted text-muted-foreground border-none gap-1 text-[10px]"
+              >
+                <Lock className="w-3 h-3" />
+                Not connected
+              </Badge>
+            </div>
+            <p className="text-[11.5px] text-muted-foreground mt-1">{provider.description}</p>
+          </div>
+          <div className="shrink-0 flex flex-col gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              className="gap-1.5 cursor-not-allowed"
+              title="Blocked on credentials — see DEFERRED.md"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              Connect
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setExpanded((v) => !v)}
+              className="text-[11px] font-semibold text-muted-foreground hover:text-rebel-text"
+            >
+              {expanded ? 'Hide setup' : 'Setup steps'}
+            </Button>
+          </div>
+        </div>
 
-      <EmbedSnippetCard />
-
-      <div className="grid grid-cols-1 gap-3">
-        {PROVIDERS.map((provider) => (
-          <ProviderCard key={provider.id} provider={provider} />
-        ))}
-      </div>
-    </div>
+        {expanded && (
+          <div className="rounded-xl bg-muted/60 border border-rebel-border p-4 space-y-3 text-[11.5px]">
+            <ol className="list-decimal pl-4 space-y-1 text-rebel-text-secondary">
+              {provider.checklist.map((step, i) => (
+                <li key={i}>{step}</li>
+              ))}
+            </ol>
+            <div className="space-y-1">
+              {provider.envKeys.map((key) => (
+                <div
+                  key={key}
+                  className="flex items-center justify-between gap-2 rounded-lg bg-card border border-rebel-border px-2.5 py-1.5 font-mono text-[10.5px]"
+                >
+                  <code className="truncate">{key}</code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(key).then(() => {
+                        toast.success(`Copied ${key}`);
+                      });
+                    }}
+                    className="shrink-0 inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-rebel-accent"
+                  >
+                    <Copy className="w-3 h-3" />
+                    Copy
+                  </button>
+                </div>
+              ))}
+            </div>
+            <p className="mt-1 text-[10.5px] text-muted-foreground">{provider.envHint}</p>
+            <a
+              href={provider.consolePath}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-rebel-accent hover:underline"
+            >
+              Open console
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
+// ──────────────────────────────────────────────────────────────────
+// Embed snippet (unchanged)
+// ──────────────────────────────────────────────────────────────────
+
 function EmbedSnippetCard() {
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app';
+  const origin =
+    typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app';
   const snippet = `<iframe
   src="${origin}/quote?embed=1"
   width="100%"
@@ -147,8 +521,9 @@ function EmbedSnippetCard() {
               </Badge>
             </div>
             <p className="text-[11.5px] text-muted-foreground mt-1">
-              Paste this snippet into any Wordpress page (or any HTML site) to embed the public quote form.
-              The <code className="font-mono text-[10px]">?embed=1</code> flag hides the header and footer for a clean fit.
+              Paste this snippet into any Wordpress page (or any HTML site) to embed the public
+              quote form. The <code className="font-mono text-[10px]">?embed=1</code> flag hides the
+              header and footer for a clean fit.
             </p>
           </div>
         </div>
@@ -181,130 +556,34 @@ function EmbedSnippetCard() {
           >
             /quote
           </a>
-          {' '}— preview it there before embedding. Once embedded, submissions land in your Jobs tab as new quotes.
+          {' '}— preview it there before embedding.
         </p>
       </CardContent>
     </Card>
   );
 }
 
-function ProviderCard({ provider }: { provider: ProviderState }) {
-  const [expanded, setExpanded] = useState(false);
-  const Icon = provider.icon;
-  const connected = !!provider.connected;
+// ──────────────────────────────────────────────────────────────────
+// Root
+// ──────────────────────────────────────────────────────────────────
 
+export function IntegrationsSection() {
   return (
-    <Card
-      className={cn(
-        'border shadow-none bg-card transition-colors',
-        connected ? 'border-rebel-success/40' : 'border-rebel-border',
-      )}
-    >
-      <CardContent className="p-5 space-y-3">
-        <div className="flex items-start gap-3">
-          <div className={cn('h-11 w-11 rounded-xl flex items-center justify-center shrink-0', provider.iconClass)}>
-            <Icon className="w-5 h-5" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h4 className="font-bold text-sm text-rebel-text truncate">{provider.name}</h4>
-              {connected ? (
-                <Badge
-                  variant="secondary"
-                  className="bg-rebel-success-surface text-rebel-success border-none gap-1 text-[10px]"
-                >
-                  <CheckCircle2 className="w-3 h-3" />
-                  Connected
-                </Badge>
-              ) : (
-                <Badge
-                  variant="secondary"
-                  className="bg-muted text-muted-foreground border-none gap-1 text-[10px]"
-                >
-                  <Lock className="w-3 h-3" />
-                  Not connected
-                </Badge>
-              )}
-            </div>
-            <p className="text-[11.5px] text-muted-foreground mt-1">{provider.description}</p>
-          </div>
-          <div className="shrink-0 flex flex-col gap-1.5">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled
-              className="gap-1.5 cursor-not-allowed"
-              title="Blocked on credentials — see DEFERRED.md"
-            >
-              <Lock className="w-3.5 h-3.5" />
-              Connect
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setExpanded((v) => !v)}
-              className="text-[11px] font-semibold text-muted-foreground hover:text-rebel-text"
-            >
-              {expanded ? 'Hide setup' : 'Setup steps'}
-            </Button>
-          </div>
-        </div>
+    <div className="space-y-3">
+      <div>
+        <h3 className="font-bold text-base">Integrations</h3>
+        <p className="text-xs text-muted-foreground">
+          Connect external services to Rebel Logistics. You choose which account to use for each
+          service — switch anytime from here.
+        </p>
+      </div>
 
-        {expanded && (
-          <div className="rounded-xl bg-muted/60 border border-rebel-border p-4 space-y-3 text-[11.5px]">
-            <div>
-              <p className="font-bold uppercase tracking-wider text-[9.5px] text-rebel-text-tertiary mb-1.5">
-                Steps
-              </p>
-              <ol className="list-decimal pl-4 space-y-1 text-rebel-text-secondary">
-                {provider.checklist.map((step, i) => (
-                  <li key={i}>{step}</li>
-                ))}
-              </ol>
-            </div>
+      <EmbedSnippetCard />
+      <GoogleCalendarCard />
 
-            <div>
-              <p className="font-bold uppercase tracking-wider text-[9.5px] text-rebel-text-tertiary mb-1.5">
-                Env vars
-              </p>
-              <div className="space-y-1">
-                {provider.envKeys.map((key) => (
-                  <div
-                    key={key}
-                    className="flex items-center justify-between gap-2 rounded-lg bg-card border border-rebel-border px-2.5 py-1.5 font-mono text-[10.5px]"
-                  >
-                    <code className="truncate">{key}</code>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard?.writeText(key).then(() => {
-                          toast.success(`Copied ${key}`);
-                        });
-                      }}
-                      className="shrink-0 inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-rebel-accent"
-                      aria-label={`Copy ${key}`}
-                    >
-                      <Copy className="w-3 h-3" />
-                      Copy
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-1.5 text-[10.5px] text-muted-foreground">{provider.envHint}</p>
-            </div>
-
-            <a
-              href={provider.consolePath}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-rebel-accent hover:underline"
-            >
-              Open console
-              <ExternalLink className="w-3 h-3" />
-            </a>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {STATIC_PROVIDERS.map((p) => (
+        <StaticProviderCard key={p.id} provider={p} />
+      ))}
+    </div>
   );
 }

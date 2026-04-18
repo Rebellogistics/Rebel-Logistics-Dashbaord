@@ -6,6 +6,7 @@ import { ThemeProvider } from 'next-themes';
 import App from './App.tsx';
 import { PublicQuoteForm } from './components/public/PublicQuoteForm';
 import { PublicStatusPage } from './components/public/PublicStatusPage';
+import { GoogleOAuthCallback } from './components/public/GoogleOAuthCallback';
 import { LoginPage } from './components/auth/LoginPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import './index.css';
@@ -33,6 +34,7 @@ createRoot(document.getElementById('root')!).render(
           <Routes>
             <Route path="/quote" element={<PublicQuoteForm />} />
             <Route path="/status/:jobId" element={<PublicStatusPage />} />
+            <Route path="/integrations/google/callback" element={<GoogleOAuthCallback />} />
             <Route path="/login" element={<LoginPage />} />
             <Route
               path="/*"
