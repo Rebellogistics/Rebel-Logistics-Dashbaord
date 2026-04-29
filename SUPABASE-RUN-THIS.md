@@ -72,6 +72,8 @@ CREATE TABLE IF NOT EXISTS quote_number_counter (
     next_number INTEGER NOT NULL DEFAULT 1
 );
 
+-- SECURITY DEFINER so the trigger can write to quote_number_counter even
+-- though that table has RLS on (it's internal — no policies needed).
 CREATE OR REPLACE FUNCTION assign_quote_number() RETURNS TRIGGER AS $$
 DECLARE
     yr INTEGER := EXTRACT(YEAR FROM NOW())::INTEGER;
@@ -87,7 +89,7 @@ BEGIN
     NEW.quote_number := 'RL-' || yr::TEXT || '-' || LPAD(n::TEXT, 4, '0');
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS jobs_assign_quote_number ON jobs;
 CREATE TRIGGER jobs_assign_quote_number
