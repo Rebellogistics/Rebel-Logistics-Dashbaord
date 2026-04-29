@@ -8,6 +8,8 @@ export interface RepeatCustomerInfo {
   lastJobDate?: string;
   lastPickup?: string;
   lastDelivery?: string;
+  overrideMetroRate?: number;
+  overrideHourlyRate?: number;
 }
 
 const EMPTY: RepeatCustomerInfo = { found: false };
@@ -70,6 +72,10 @@ export function useRepeatCustomerLookup(phone: string): {
           lastJobDate: row.last_job_date,
           lastPickup: row.last_pickup,
           lastDelivery: row.last_delivery,
+          overrideMetroRate:
+            row.override_metro_rate != null ? Number(row.override_metro_rate) : undefined,
+          overrideHourlyRate:
+            row.override_hourly_rate != null ? Number(row.override_hourly_rate) : undefined,
         });
         setIsChecking(false);
       } catch {

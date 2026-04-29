@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Logo } from '@/components/ui/logo';
 import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
-import { useConnectIntegration } from '@/hooks/useIntegrations';
+import { CheckCircle2, AlertCircle, Copy, ExternalLink } from 'lucide-react';
+import { apiPostJson } from '@/lib/apiClient';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 /**
@@ -22,26 +23,46 @@ import { toast } from 'sonner';
  */
 
 type CallbackState = 'processing' | 'success' | 'error';
+type ErrorKind = 'redirect_mismatch' | 'access_denied' | 'invalid_callback' | 'exchange' | 'other';
 
 export function GoogleOAuthCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const connectIntegration = useConnectIntegration();
+  const queryClient = useQueryClient();
   const [state, setState] = useState<CallbackState>('processing');
   const [errorMsg, setErrorMsg] = useState('');
+  const [errorKind, setErrorKind] = useState<ErrorKind>('other');
 
   const code = searchParams.get('code');
   const stateParam = searchParams.get('state');
   const errorParam = searchParams.get('error');
+  const errorDescription = searchParams.get('error_description');
+
+  const expectedRedirectUri = useMemo(
+    () => `${window.location.origin}/integrations/google/callback`,
+    [],
+  );
+
+  const classify = (msg: string): ErrorKind => {
+    const lower = msg.toLowerCase();
+    if (lower.includes('redirect_uri_mismatch') || lower.includes('redirect uri mismatch')) {
+      return 'redirect_mismatch';
+    }
+    if (lower.includes('access_denied') || lower.includes('access denied')) return 'access_denied';
+    return 'exchange';
+  };
 
   useEffect(() => {
     if (errorParam) {
-      setErrorMsg(`Google denied access: ${errorParam}`);
+      const kind = classify(errorParam + ' ' + (errorDescription ?? ''));
+      setErrorKind(kind);
+      setErrorMsg(errorDescription || `Google denied access: ${errorParam}`);
       setState('error');
       return;
     }
 
     if (!code || stateParam !== 'rebel_gcal') {
+      setErrorKind('invalid_callback');
       setErrorMsg('Invalid callback — missing authorization code.');
       setState('error');
       return;
@@ -52,34 +73,22 @@ export function GoogleOAuthCallback() {
     (async () => {
       try {
         // Exchange the auth code for tokens via our own server endpoint.
-        // This endpoint holds the client secret and calls Google's token API.
-        const res = await fetch('/api/auth/google/exchange', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, redirectUri: `${window.location.origin}/integrations/google/callback` }),
-        });
-
-        if (!res.ok) {
-          const text = await res.text().catch(() => '');
-          throw new Error(
-            text ||
-              `Token exchange failed (HTTP ${res.status}). The /api/auth/google/exchange endpoint may not be deployed yet.`,
-          );
-        }
-
-        const { email, refreshToken } = (await res.json()) as {
-          email: string;
-          refreshToken: string;
-        };
+        // The endpoint holds the client secret, exchanges the code with
+        // Google, and writes the refresh token directly into Supabase. The
+        // refresh token NEVER reaches the browser — only the connected
+        // account's email comes back.
+        const { email } = await apiPostJson<{ email: string }>(
+          '/api/auth/google/exchange',
+          {
+            code,
+            redirectUri: `${window.location.origin}/integrations/google/callback`,
+          },
+        );
 
         if (cancelled) return;
 
-        // Store the connection in the integrations table
-        await connectIntegration.mutateAsync({
-          provider: 'google_calendar',
-          accountLabel: email,
-          metadata: { refreshToken },
-        });
+        // Refresh integrations list so Settings → Integrations reflects the new connection.
+        queryClient.invalidateQueries({ queryKey: ['integrations'] });
 
         setState('success');
         toast.success(`Connected Google Calendar as ${email}`);
@@ -91,6 +100,7 @@ export function GoogleOAuthCallback() {
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : 'Something went wrong during the connection.';
+        setErrorKind(classify(message));
         setErrorMsg(message);
         setState('error');
       }
@@ -140,15 +150,70 @@ export function GoogleOAuthCallback() {
                 <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
                   <AlertCircle className="w-8 h-8 text-red-600" />
                 </div>
-                <h2 className="text-lg font-bold text-red-900">Connection failed</h2>
-                <p className="text-sm text-red-800">{errorMsg}</p>
-                <button
-                  type="button"
-                  onClick={() => navigate('/', { replace: true })}
-                  className="mt-2 text-sm font-semibold text-rebel-accent hover:underline"
-                >
-                  Back to dashboard
-                </button>
+                <h2 className="text-lg font-bold text-red-900">
+                  {errorKind === 'redirect_mismatch'
+                    ? 'Redirect URI not registered'
+                    : errorKind === 'access_denied'
+                      ? 'You cancelled the connection'
+                      : 'Connection failed'}
+                </h2>
+
+                {errorKind === 'redirect_mismatch' ? (
+                  <div className="space-y-3 text-left">
+                    <p className="text-sm text-red-800">
+                      Google rejected the redirect URL because it isn't on the OAuth client's
+                      allow-list. You need to add <span className="font-semibold">this exact URL</span> to
+                      your Google Cloud Console OAuth client and try again:
+                    </p>
+                    <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-2.5 py-1.5">
+                      <code className="font-mono text-[11px] truncate flex-1 min-w-0 text-red-900">
+                        {expectedRedirectUri}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(expectedRedirectUri).then(() => {
+                            toast.success('Redirect URI copied');
+                          });
+                        }}
+                        className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold text-red-700 hover:text-red-900"
+                      >
+                        <Copy className="w-3 h-3" />
+                        Copy
+                      </button>
+                    </div>
+                    <ol className="text-xs text-left text-red-900 list-decimal pl-5 space-y-1">
+                      <li>
+                        Open{' '}
+                        <a
+                          href="https://console.cloud.google.com/apis/credentials"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-rebel-accent underline inline-flex items-center gap-0.5"
+                        >
+                          Google Cloud Console — Credentials
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      </li>
+                      <li>Click the OAuth 2.0 Client ID for "Rebel Logistics Dashboard" (or whichever you set up)</li>
+                      <li>Under <span className="font-semibold">Authorised redirect URIs</span>, click <span className="font-semibold">Add URI</span></li>
+                      <li>Paste the URL above (it will say <em>{expectedRedirectUri}</em>) and click Save</li>
+                      <li>Wait ~30 seconds for Google to propagate, then come back and click Connect again</li>
+                    </ol>
+                  </div>
+                ) : (
+                  <p className="text-sm text-red-800">{errorMsg}</p>
+                )}
+
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/', { replace: true })}
+                    className="text-sm font-semibold text-rebel-accent hover:underline"
+                  >
+                    Back to dashboard
+                  </button>
+                </div>
               </>
             )}
           </CardContent>

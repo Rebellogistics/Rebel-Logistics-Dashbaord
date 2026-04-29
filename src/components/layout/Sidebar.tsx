@@ -14,6 +14,7 @@ import {
   Sparkles,
   Send,
   KanbanSquare,
+  CalendarDays,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { signOut } from '@/hooks/useAuth';
@@ -42,6 +43,7 @@ const baseSections: NavSection[] = [
       { label: 'Dashboard', icon: LayoutDashboard },
       { label: 'Board', icon: KanbanSquare },
       { label: 'Truck Runs', icon: Truck, badge: 3 },
+      { label: 'Trucks', icon: CalendarDays },
       { label: 'Jobs', icon: ClipboardList },
       { label: 'Customers', icon: Users },
       { label: 'Reviews', icon: Star },

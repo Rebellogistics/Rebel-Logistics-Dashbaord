@@ -14,16 +14,19 @@ import {
   User,
   ArrowRight,
   AlertTriangle,
+  CalendarPlus,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
   useIntegration,
   useDisconnectIntegration,
-  useConnectIntegration,
   type Integration,
 } from '@/hooks/useIntegrations';
+import { useJobs } from '@/hooks/useSupabaseData';
+import { apiPostJson } from '@/lib/apiClient';
+import { Job } from '@/lib/types';
 
 // ──────────────────────────────────────────────────────────────────
 // Google Calendar — dynamic connect/disconnect/switch
@@ -55,10 +58,37 @@ function buildGoogleOAuthUrl(): string | null {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
+// Statuses whose jobs get a Google Calendar event when assignedTruck is set.
+// Mirrors api/calendar/sync.ts. Kept duplicated here so the count badge on
+// the Sync Open Jobs button stays accurate without a server round-trip.
+const SYNCABLE_STATUSES: Job['status'][] = ['Accepted', 'Scheduled', 'Notified', 'In Delivery'];
+
+function isOpenSyncable(j: Job): boolean {
+  return !!j.assignedTruck && SYNCABLE_STATUSES.includes(j.status);
+}
+
 function GoogleCalendarCard() {
   const { data: integration, isLoading } = useIntegration('google_calendar');
   const disconnect = useDisconnectIntegration();
+  const { data: jobs = [] } = useJobs();
   const [showSetup, setShowSetup] = useState(false);
+
+  const openJobs = useMemo(() => jobs.filter(isOpenSyncable), [jobs]);
+
+  // The exact redirect URI this app will send to Google. Must be whitelisted
+  // in Google Cloud Console → APIs & Services → Credentials → OAuth client
+  // → Authorised redirect URIs, EXACTLY (http/https, port, no trailing slash).
+  const redirectUri = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return `${window.location.origin}/integrations/google/callback`;
+  }, []);
+
+  const copyRedirect = () => {
+    navigator.clipboard
+      ?.writeText(redirectUri)
+      .then(() => toast.success('Redirect URI copied'))
+      .catch(() => toast.error('Could not copy'));
+  };
 
   const oauthUrl = buildGoogleOAuthUrl();
   const isConfigured = !!oauthUrl;
@@ -145,6 +175,7 @@ function GoogleCalendarCard() {
         {isConnected && integration && (
           <ConnectedAccountStrip
             integration={integration}
+            openJobs={openJobs}
             onSwitch={handleSwitch}
             onDisconnect={handleDisconnect}
             disconnecting={disconnect.isPending}
@@ -152,9 +183,50 @@ function GoogleCalendarCard() {
           />
         )}
 
-        {/* Not connected — connect button */}
+        {/* Not connected — connect button + always-visible redirect URI */}
         {!isConnected && !isLoading && (
-          <div className="space-y-2">
+          <div className="space-y-3">
+            {/* Prominent redirect-URI panel. Common cause of the
+                Error 400: redirect_uri_mismatch — this URL must EXACTLY match
+                what's in the Google Cloud Console OAuth client. We surface it
+                here so it can be copied with one tap. */}
+            {isConfigured && (
+              <div className="rounded-xl border border-rebel-border bg-muted/40 p-3 space-y-2">
+                <p className="text-[11px] font-semibold inline-flex items-center gap-1.5">
+                  <AlertTriangle className="w-3 h-3 text-amber-600" />
+                  Before you click Connect — add this exact URL to Google
+                </p>
+                <div className="flex items-center gap-2 rounded-lg bg-card border border-rebel-border px-2.5 py-1.5">
+                  <code className="font-mono text-[10.5px] truncate flex-1 min-w-0">
+                    {redirectUri}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={copyRedirect}
+                    className="shrink-0 inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-rebel-accent"
+                  >
+                    <Copy className="w-3 h-3" />
+                    Copy
+                  </button>
+                </div>
+                <p className="text-[10.5px] text-muted-foreground">
+                  Paste it into Google Cloud Console → APIs & Services → Credentials → your OAuth
+                  client → <span className="font-semibold">Authorised redirect URIs</span> →
+                  Save. If you skip this, Google will reject the connect with
+                  <em> redirect_uri_mismatch</em>.{' '}
+                  <a
+                    href="https://console.cloud.google.com/apis/credentials"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-rebel-accent hover:underline inline-flex items-center gap-0.5"
+                  >
+                    Open the credentials page
+                    <ExternalLink className="w-2.5 h-2.5" />
+                  </a>
+                </p>
+              </div>
+            )}
+
             {isConfigured ? (
               <Button
                 className="bg-rebel-accent hover:bg-rebel-accent-hover text-white gap-1.5 w-full sm:w-auto"
@@ -278,12 +350,14 @@ function GoogleCalendarCard() {
 
 function ConnectedAccountStrip({
   integration,
+  openJobs,
   onSwitch,
   onDisconnect,
   disconnecting,
   canSwitch,
 }: {
   integration: Integration;
+  openJobs: Job[];
   onSwitch: () => void;
   onDisconnect: () => void;
   disconnecting: boolean;
@@ -294,8 +368,51 @@ function ConnectedAccountStrip({
     ? `Last sync: ${new Date(integration.lastSyncAt).toLocaleString()}`
     : `Connected ${new Date(integration.connectedAt).toLocaleDateString()}`;
 
+  const [bulkSyncing, setBulkSyncing] = useState(false);
+
+  // The total count we'll attempt — captured at click time so the toast
+  // doesn't shift if a job changes during the loop.
+  const handleBulkSync = async () => {
+    if (openJobs.length === 0) {
+      toast.message('No open jobs to sync', {
+        description: 'A job is "open" when it has a truck assigned and is Accepted, Scheduled, Notified, or In Delivery.',
+      });
+      return;
+    }
+    if (
+      !confirm(
+        `Push ${openJobs.length} open job${openJobs.length === 1 ? '' : 's'} to Google Calendar now? Existing events will be updated, missing ones created.`,
+      )
+    ) {
+      return;
+    }
+    setBulkSyncing(true);
+    const total = openJobs.length;
+    let done = 0;
+    let failed = 0;
+    const toastId = toast.loading(`Syncing 0 of ${total}…`);
+    for (const job of openJobs) {
+      try {
+        await apiPostJson('/api/calendar/sync', { jobId: job.id });
+        done += 1;
+      } catch (err) {
+        console.warn('Bulk sync row failed', job.id, err);
+        failed += 1;
+      }
+      toast.loading(`Syncing ${done + failed} of ${total}…`, { id: toastId });
+    }
+    setBulkSyncing(false);
+    if (failed === 0) {
+      toast.success(`${done} job${done === 1 ? '' : 's'} pushed to Google Calendar`, { id: toastId });
+    } else if (done === 0) {
+      toast.error(`All ${failed} pushes failed — check the integration is still connected`, { id: toastId });
+    } else {
+      toast.warning(`${done} synced, ${failed} failed`, { id: toastId });
+    }
+  };
+
   return (
-    <div className="rounded-xl bg-rebel-success-surface/50 border border-rebel-success/20 p-3 space-y-2">
+    <div className="rounded-xl bg-rebel-success-surface/50 border border-rebel-success/20 p-3 space-y-3">
       <div className="flex items-center gap-3">
         <div className="h-9 w-9 rounded-full bg-rebel-success/20 flex items-center justify-center shrink-0">
           <User className="w-4 h-4 text-rebel-success" />
@@ -304,7 +421,7 @@ function ConnectedAccountStrip({
           <p className="text-[12.5px] font-semibold text-rebel-text truncate">{label}</p>
           <p className="text-[10.5px] text-muted-foreground">{syncLabel}</p>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
           {canSwitch && (
             <Button
               variant="outline"
@@ -329,6 +446,27 @@ function ConnectedAccountStrip({
             {disconnecting ? '…' : 'Disconnect'}
           </Button>
         </div>
+      </div>
+
+      {/* Bulk-sync row — visible whenever the integration is connected */}
+      <div className="flex items-center gap-2 flex-wrap rounded-lg bg-card/50 border border-rebel-success/20 px-3 py-2">
+        <CalendarPlus className="w-3.5 h-3.5 text-rebel-accent shrink-0" />
+        <p className="text-[11px] text-muted-foreground flex-1 min-w-0">
+          {openJobs.length === 0
+            ? 'No open jobs need syncing right now.'
+            : `${openJobs.length} open job${openJobs.length === 1 ? '' : 's'} ready to push (truck assigned, not yet completed).`}
+        </p>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleBulkSync}
+          disabled={bulkSyncing || openJobs.length === 0}
+          className="gap-1.5 text-[11px] shrink-0"
+          title="One-time backfill — re-pushes every open job's current state to Google Calendar"
+        >
+          <CalendarPlus className="w-3 h-3" />
+          {bulkSyncing ? 'Syncing…' : 'Sync open jobs'}
+        </Button>
       </div>
     </div>
   );

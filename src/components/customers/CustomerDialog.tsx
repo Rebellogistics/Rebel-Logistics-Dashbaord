@@ -31,6 +31,8 @@ const initial = {
   source: '',
   notes: '',
   vip: false,
+  overrideMetroRate: '',
+  overrideHourlyRate: '',
 };
 
 const SOURCES = [
@@ -73,6 +75,8 @@ export function CustomerDialog({ open, onOpenChange, customer }: CustomerDialogP
         source: customer.source ?? '',
         notes: customer.notes ?? '',
         vip: customer.vip,
+        overrideMetroRate: customer.overrideMetroRate != null ? String(customer.overrideMetroRate) : '',
+        overrideHourlyRate: customer.overrideHourlyRate != null ? String(customer.overrideHourlyRate) : '',
       });
     } else if (open && !customer) {
       setForm(initial);
@@ -87,6 +91,9 @@ export function CustomerDialog({ open, onOpenChange, customer }: CustomerDialogP
   const handleSubmit = async () => {
     if (!canSubmit) return;
     try {
+      const overrideMetro = form.overrideMetroRate.trim() ? parseFloat(form.overrideMetroRate) : null;
+      const overrideHourly = form.overrideHourlyRate.trim() ? parseFloat(form.overrideHourlyRate) : null;
+
       const base = {
         type: form.type,
         name: form.name.trim(),
@@ -97,6 +104,8 @@ export function CustomerDialog({ open, onOpenChange, customer }: CustomerDialogP
         source: form.source.trim() || undefined,
         notes: form.notes.trim() || undefined,
         vip: form.vip,
+        overrideMetroRate: overrideMetro != null && !isNaN(overrideMetro) ? overrideMetro : null,
+        overrideHourlyRate: overrideHourly != null && !isNaN(overrideHourly) ? overrideHourly : null,
       };
 
       if (isEditing && customer) {
@@ -229,6 +238,43 @@ export function CustomerDialog({ open, onOpenChange, customer }: CustomerDialogP
                 <Info className="w-3 h-3" />
               </span>
             </Label>
+          </div>
+
+          <div className="rounded-lg border border-input bg-muted/30 p-3 space-y-2.5">
+            <p className="text-[11px] font-semibold text-foreground inline-flex items-center gap-1">
+              Custom rates (optional)
+              <span
+                tabIndex={0}
+                role="img"
+                aria-label="If this customer has a special rate, set it here. It overrides the default Settings → Pricing rates whenever you create a quote for them. Leave blank to use the defaults."
+                title="If this customer has a special rate, set it here. It overrides the default Settings → Pricing rates whenever you create a quote for them. Leave blank to use the defaults."
+                className="inline-flex items-center justify-center text-muted-foreground/70 hover:text-rebel-accent cursor-help"
+              >
+                <Info className="w-3 h-3" />
+              </span>
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Metro per m³ (AUD)">
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  value={form.overrideMetroRate}
+                  onChange={(e) => update('overrideMetroRate', e.target.value)}
+                  placeholder="Leave blank to use default"
+                />
+              </Field>
+              <Field label="Hourly rate (AUD)">
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  value={form.overrideHourlyRate}
+                  onChange={(e) => update('overrideHourlyRate', e.target.value)}
+                  placeholder="Leave blank to use default"
+                />
+              </Field>
+            </div>
           </div>
 
           <Field

@@ -27,65 +27,82 @@ import { SmsTemplatesSection } from './SmsTemplatesSection';
 import { CustomerImportSection } from './CustomerImportSection';
 import { IntegrationsSection } from './IntegrationsSection';
 import { BackupExportSection } from './BackupExportSection';
+import { PricingPanel } from './PricingPanel';
+import { DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-type Section = 'team' | 'trucks' | 'sms' | 'import' | 'export' | 'integrations';
+type Section = 'team' | 'trucks' | 'pricing' | 'sms' | 'import' | 'export' | 'integrations';
 
 export function SettingsView() {
   const [section, setSection] = useState<Section>('team');
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <TabButton
-          active={section === 'team'}
-          onClick={() => setSection('team')}
-          icon={Users}
-        >
-          Team
-        </TabButton>
-        <TabButton
-          active={section === 'trucks'}
-          onClick={() => setSection('trucks')}
-          icon={TruckIcon}
-        >
-          Trucks
-        </TabButton>
-        <TabButton
-          active={section === 'sms'}
-          onClick={() => setSection('sms')}
-          icon={MessageSquare}
-        >
-          SMS Templates
-        </TabButton>
-        <TabButton
-          active={section === 'import'}
-          onClick={() => setSection('import')}
-          icon={FileSpreadsheet}
-        >
-          Import
-        </TabButton>
-        <TabButton
-          active={section === 'export'}
-          onClick={() => setSection('export')}
-          icon={FileSpreadsheet}
-        >
-          Export
-        </TabButton>
-        <TabButton
-          active={section === 'integrations'}
-          onClick={() => setSection('integrations')}
-          icon={Link2}
-        >
-          Integrations
-        </TabButton>
+      {/* Settings tab bar.
+          Mobile: a horizontal-scroll strip with snap so tabs stay one-row but
+                  don't burst out of the viewport.
+          Tablet+: tabs wrap to two rows naturally. */}
+      <div className="-mx-1 px-1 overflow-x-auto sm:overflow-visible">
+        <div className="flex items-center gap-2 flex-nowrap sm:flex-wrap min-w-max sm:min-w-0">
+          <TabButton
+            active={section === 'team'}
+            onClick={() => setSection('team')}
+            icon={Users}
+          >
+            Team
+          </TabButton>
+          <TabButton
+            active={section === 'trucks'}
+            onClick={() => setSection('trucks')}
+            icon={TruckIcon}
+          >
+            Trucks
+          </TabButton>
+          <TabButton
+            active={section === 'pricing'}
+            onClick={() => setSection('pricing')}
+            icon={DollarSign}
+          >
+            Pricing
+          </TabButton>
+          <TabButton
+            active={section === 'sms'}
+            onClick={() => setSection('sms')}
+            icon={MessageSquare}
+          >
+            SMS Templates
+          </TabButton>
+          <TabButton
+            active={section === 'import'}
+            onClick={() => setSection('import')}
+            icon={FileSpreadsheet}
+          >
+            Import
+          </TabButton>
+          <TabButton
+            active={section === 'export'}
+            onClick={() => setSection('export')}
+            icon={FileSpreadsheet}
+          >
+            Export
+          </TabButton>
+          <TabButton
+            active={section === 'integrations'}
+            onClick={() => setSection('integrations')}
+            icon={Link2}
+          >
+            Integrations
+          </TabButton>
+        </div>
       </div>
 
       {section === 'team' ? (
         <TeamSection />
       ) : section === 'trucks' ? (
         <TrucksSection />
+      ) : section === 'pricing' ? (
+        <PricingPanel />
       ) : section === 'sms' ? (
         <SmsTemplatesSection />
       ) : section === 'import' ? (
@@ -115,7 +132,7 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={cn(
-        'h-9 px-4 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2',
+        'h-9 px-4 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 shrink-0',
         active
           ? 'bg-rebel-accent text-white'
           : 'bg-card border border-input text-muted-foreground hover:bg-muted'

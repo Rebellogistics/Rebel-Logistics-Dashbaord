@@ -203,7 +203,8 @@ export function JobsTable({
               return (
                 <TableRow
                   key={job.id}
-                  className="border-b border-rebel-border last:border-0 hover:bg-rebel-surface-sunken transition-colors h-[60px]"
+                  onClick={() => setViewTarget(job)}
+                  className="border-b border-rebel-border last:border-0 hover:bg-rebel-surface-sunken transition-colors h-[60px] cursor-pointer"
                 >
                   <TableCell className="px-5">
                     <StatusPill status={job.status} size="sm" />
@@ -222,7 +223,15 @@ export function JobsTable({
                           </span>
                         )}
                       </div>
-                      <p className="text-[10.5px] font-mono text-rebel-text-tertiary mt-0.5">{job.customerPhone}</p>
+                      {job.customerPhone ? (
+                        <a
+                          href={`tel:${job.customerPhone}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="block text-[10.5px] font-mono text-rebel-text-tertiary mt-0.5 hover:text-rebel-accent"
+                        >
+                          {job.customerPhone}
+                        </a>
+                      ) : null}
                       <p className="text-[10px] text-rebel-text-tertiary md:hidden mt-0.5">
                         {job.type}
                         {job.assignedTruck ? ` · ${job.assignedTruck}` : ''}
@@ -236,7 +245,10 @@ export function JobsTable({
                   {canSeeRevenue && (
                     <TableCell className="text-[12.5px] font-mono font-bold text-rebel-text tabular-nums">${total.toFixed(2)}</TableCell>
                   )}
-                  <TableCell className="text-right pr-5">
+                  <TableCell
+                    className="text-right pr-5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <RowActions
                       job={job}
                       onView={() => setViewTarget(job)}

@@ -8,6 +8,7 @@ export type Permission =
   | 'edit_trucks'
   | 'edit_sms_templates'
   | 'edit_customers'
+  | 'edit_pricing'
   | 'send_sms'
   | 'edit_jobs'
   | 'see_audit_log';
@@ -20,6 +21,7 @@ const ROLE_PERMS: Record<UserRole, Set<Permission>> = {
     'edit_trucks',
     'edit_sms_templates',
     'edit_customers',
+    'edit_pricing',
     'send_sms',
     'edit_jobs',
     'see_audit_log',
@@ -31,6 +33,7 @@ const ROLE_PERMS: Record<UserRole, Set<Permission>> = {
     'edit_trucks',
     'edit_sms_templates',
     'edit_customers',
+    'edit_pricing',
     'send_sms',
     'edit_jobs',
     'see_audit_log',
@@ -72,6 +75,7 @@ export function useAllPerms(): Record<Permission, boolean> {
     'edit_trucks',
     'edit_sms_templates',
     'edit_customers',
+    'edit_pricing',
     'send_sms',
     'edit_jobs',
     'see_audit_log',

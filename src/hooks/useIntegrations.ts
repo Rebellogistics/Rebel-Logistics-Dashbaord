@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { apiPostJson } from '../lib/apiClient';
 
 export interface Integration {
   id: string;
@@ -56,10 +57,23 @@ export function useDisconnectIntegration() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await integrationsTable()
-        .update({ revoked_at: new Date().toISOString() })
-        .eq('id', id);
-      if (error) throw error;
+      // Look up the provider so we know which server endpoint to call.
+      const { data, error: lookupErr } = await integrationsTable()
+        .select('provider')
+        .eq('id', id)
+        .maybeSingle();
+      if (lookupErr) throw lookupErr;
+
+      if (data?.provider === 'google_calendar') {
+        // Server-side revoke: also calls Google's revoke endpoint so the
+        // refresh token is invalidated remotely, not just in our DB.
+        await apiPostJson('/api/auth/google/disconnect', {});
+      } else {
+        const { error } = await integrationsTable()
+          .update({ revoked_at: new Date().toISOString() })
+          .eq('id', id);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['integrations'] });

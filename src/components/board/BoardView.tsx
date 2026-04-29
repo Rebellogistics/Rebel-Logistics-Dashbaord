@@ -5,6 +5,8 @@ import { useTrucks } from '@/hooks/useTrucks';
 import { useSendSmsForJob } from '@/hooks/useSms';
 import { StatusPill, statusGradient } from '@/components/ui/status-pill';
 import { AssignTruckDialog } from '@/components/jobs/AssignTruckDialog';
+import { MarkCompleteDialog } from '@/components/jobs/MarkCompleteDialog';
+import { JobActionMenu, type JobMenuAction } from '@/components/jobs/JobActionMenu';
 import { Button } from '@/components/ui/button';
 import {
   GripVertical,
@@ -31,28 +33,81 @@ export type GroupBy = 'status' | 'truck' | 'date' | 'customer';
 interface BoardViewProps {
   jobs: Job[];
   customers?: Customer[];
+  /** Optional — when supplied, tapping a card (or choosing "Open job" from the
+   *  action menu) opens the full Job dialog at the shell level. */
+  onViewJob?: (job: Job) => void;
 }
 
+// Board is the *administration* surface. Operations columns (Scheduled,
+// Notified, In Delivery) live on the Truck Runs page now — Board only shows
+// the four states that matter to the office: Quote → Accepted → Completed → Invoiced.
 const STATUS_ORDER: JobStatus[] = [
   'Quote',
   'Accepted',
-  'Scheduled',
-  'In Delivery',
   'Completed',
   'Invoiced',
 ];
+
+// Statuses that have moved to Truck Runs. We still surface jobs in these
+// states under the Board so the count is honest, but they fold under
+// "Accepted" so the office view stays simple.
+const OPERATIONS_STATUSES: JobStatus[] = ['Scheduled', 'Notified', 'In Delivery'];
 
 // ──────────────────────────────────────────────────────────────────
 // Root
 // ──────────────────────────────────────────────────────────────────
 
-export function BoardView({ jobs, customers = [] }: BoardViewProps) {
+export function BoardView({ jobs, customers = [], onViewJob }: BoardViewProps) {
   const [groupBy, setGroupBy] = useState<GroupBy>('status');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [assignTarget, setAssignTarget] = useState<Job | null>(null);
+  const [markCompleteTarget, setMarkCompleteTarget] = useState<Job | null>(null);
   const updateJob = useUpdateJob();
   const { data: trucks = [] } = useTrucks();
   const sendSms = useSendSmsForJob();
+
+  const handleMenuAction = async (job: Job, action: JobMenuAction) => {
+    if (action.type === 'view') {
+      onViewJob?.(job);
+      return;
+    }
+    if (action.type === 'mark_complete') {
+      setMarkCompleteTarget(job);
+      return;
+    }
+    if (action.type === 'set_status') {
+      if (action.status === 'Declined') {
+        if (!confirm(`Decline ${job.customerName}?`)) return;
+      }
+      try {
+        await updateJob.mutateAsync({ id: job.id, status: action.status });
+        toast.success(`${job.customerName} → ${action.status}`);
+      } catch {
+        toast.error('Failed to move job');
+      }
+      return;
+    }
+    if (action.type === 'assign_truck') {
+      try {
+        const nextStatus = job.status === 'Accepted' ? 'Scheduled' : job.status;
+        await updateJob.mutateAsync({ id: job.id, assignedTruck: action.truck, status: nextStatus });
+        toast.success(`${job.customerName} → ${action.truck}`);
+      } catch {
+        toast.error('Failed to assign truck');
+      }
+      return;
+    }
+    if (action.type === 'unassign_truck') {
+      try {
+        const nextStatus = job.status === 'Scheduled' || job.status === 'Notified' ? 'Accepted' : job.status;
+        await updateJob.mutateAsync({ id: job.id, assignedTruck: undefined, status: nextStatus });
+        toast.success(`${job.customerName} → Accepted pool`);
+      } catch {
+        toast.error('Failed to unassign');
+      }
+      return;
+    }
+  };
 
   const activeJobs = useMemo(
     () => jobs.filter((j) => j.status !== 'Declined'),
@@ -204,6 +259,9 @@ export function BoardView({ jobs, customers = [] }: BoardViewProps) {
             selected={selected}
             onToggleSelect={toggleSelect}
             draggable={groupBy === 'status' || groupBy === 'truck'}
+            onCardClick={(job) => onViewJob?.(job)}
+            onMenuAction={handleMenuAction}
+            trucks={trucks}
           />
         ))}
       </div>
@@ -214,6 +272,10 @@ export function BoardView({ jobs, customers = [] }: BoardViewProps) {
           setAssignTarget(null);
           clearSelection();
         }}
+      />
+      <MarkCompleteDialog
+        job={markCompleteTarget}
+        onClose={() => setMarkCompleteTarget(null)}
       />
     </div>
   );
@@ -235,12 +297,18 @@ function KanbanColumn({
   selected,
   onToggleSelect,
   draggable,
+  onCardClick,
+  onMenuAction,
+  trucks,
 }: {
   column: ColumnDef;
   onDrop: (jobId: string, columnKey: string) => void;
   selected: Set<string>;
   onToggleSelect: (id: string) => void;
   draggable: boolean;
+  onCardClick: (job: Job) => void;
+  onMenuAction: (job: Job, action: JobMenuAction) => void;
+  trucks: import('@/lib/types').Truck[];
 }) {
   const [isOver, setIsOver] = useState(false);
 
@@ -290,6 +358,9 @@ function KanbanColumn({
             isSelected={selected.has(job.id)}
             onToggle={() => onToggleSelect(job.id)}
             draggable={draggable}
+            onClick={() => onCardClick(job)}
+            onMenuAction={(action) => onMenuAction(job, action)}
+            trucks={trucks}
           />
         ))}
       </div>
@@ -306,22 +377,37 @@ function CompactJobCard({
   isSelected,
   onToggle,
   draggable,
+  onClick,
+  onMenuAction,
+  trucks,
 }: {
   job: Job;
   isSelected: boolean;
   onToggle: () => void;
   draggable: boolean;
+  onClick: () => void;
+  onMenuAction: (action: JobMenuAction) => void;
+  trucks: import('@/lib/types').Truck[];
 }) {
   const total = (job.fee ?? 0) + (job.fuelLevy ?? 0);
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
-        'group rounded-xl border p-2.5 space-y-1.5 transition-all text-left',
+        'group rounded-xl border p-2.5 space-y-1.5 transition-all text-left cursor-pointer',
         isSelected
           ? 'border-rebel-accent bg-rebel-accent-surface/40 ring-1 ring-rebel-accent/30'
           : 'border-rebel-border bg-rebel-surface hover:border-rebel-accent/30',
-        draggable && 'cursor-grab active:cursor-grabbing',
+        draggable && 'sm:cursor-grab sm:active:cursor-grabbing',
       )}
       draggable={draggable}
       onDragStart={(e) => {
@@ -346,7 +432,7 @@ function CompactJobCard({
           )}
         </button>
         {draggable && (
-          <GripVertical className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/40" />
+          <GripVertical className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/40 hidden sm:block" />
         )}
         <div className="flex-1 min-w-0">
           <p className="text-[11.5px] font-semibold text-rebel-text truncate">
@@ -362,6 +448,12 @@ function CompactJobCard({
             )}
           </div>
         </div>
+        <JobActionMenu
+          job={job}
+          trucks={trucks}
+          size="icon-xs"
+          onAction={onMenuAction}
+        />
       </div>
 
       <div className="flex items-center justify-between text-[10px] text-rebel-text-tertiary">
@@ -437,7 +529,11 @@ function buildColumns(
       return STATUS_ORDER.map((s) => ({
         key: s,
         label: s,
-        jobs: jobs.filter((j) => j.status === s),
+        // Operations-state jobs (Scheduled/Notified/In Delivery) bucket under
+        // Accepted in the Board view — Yamin tracks those on Truck Runs.
+        jobs: jobs.filter((j) =>
+          j.status === s || (s === 'Accepted' && OPERATIONS_STATUSES.includes(j.status)),
+        ),
       }));
 
     case 'truck': {

@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { useUpdateJob } from '@/hooks/useSupabaseData';
 import { useProfile } from '@/hooks/useProfile';
 import { useDriverToday } from '@/hooks/useDriverToday';
+import { useRecordJobCompletion } from '@/hooks/useTruckShifts';
 import { Job } from '@/lib/types';
 import { toast } from 'sonner';
 import { PenLine, PackageCheck, Camera } from 'lucide-react';
@@ -33,6 +34,7 @@ export function MarkDeliveredSheet({ job, onClose }: MarkDeliveredSheetProps) {
   const [newNote, setNewNote] = useState('');
   const sigPadRef = useRef<SignaturePadHandle>(null);
   const updateJob = useUpdateJob();
+  const recordCompletion = useRecordJobCompletion();
   const { data: profile } = useProfile();
   const { name: pickedDriverName } = useDriverToday();
 
@@ -63,7 +65,7 @@ export function MarkDeliveredSheet({ job, onClose }: MarkDeliveredSheetProps) {
         }
       }
 
-      const author = pickedDriverName ?? profile?.fullName;
+      const author = pickedDriverName ?? profile?.fullName ?? 'Unknown';
       const updatedNotes = appendCompletionNote(job.notes, newNote, author);
       await updateJob.mutateAsync({
         id: job.id,
@@ -72,6 +74,16 @@ export function MarkDeliveredSheet({ job, onClose }: MarkDeliveredSheetProps) {
         signature: resolvedSignature || undefined,
         notes: updatedNotes,
       });
+      try {
+        await recordCompletion.mutateAsync({
+          jobId: job.id,
+          driverId: profile?.userId ?? null,
+          driverName: author,
+        });
+      } catch (rpcErr) {
+        // Driver attribution is best-effort; don't block the completion.
+        console.warn('record_job_completion failed', rpcErr);
+      }
       toast.success('Delivered');
       onClose();
     } catch (err) {

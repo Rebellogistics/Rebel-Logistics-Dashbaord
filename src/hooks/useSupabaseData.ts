@@ -1,7 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { upsertCustomerByPhone } from '../lib/customerUpsert';
+import { apiPostJson } from '../lib/apiClient';
 import type { Job, Customer, Message } from '../lib/types';
+
+/**
+ * Best-effort calendar sync. Server decides create/update/delete based on
+ * the job's current state. Failures are swallowed so a broken integration
+ * doesn't break job updates.
+ */
+function fireCalendarSync(jobId: string) {
+  apiPostJson('/api/calendar/sync', { jobId }).catch((err) => {
+    console.warn('Calendar sync failed', err);
+  });
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && (value as any).constructor === Object;
@@ -102,8 +114,11 @@ export function useUpdateJob() {
       if (error) throw error;
       return toCamelCase<Job>(data);
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      // Push the updated job into the connected Google Calendar. Server
+      // decides the action based on the row (create / update / delete).
+      if (vars?.id) fireCalendarSync(vars.id);
     },
   });
 }
@@ -113,6 +128,13 @@ export function useDeleteJob() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Best-effort: ask the calendar to remove its event before we drop the
+      // row, since the sync endpoint reads `assigned_truck` and decides to
+      // delete when it's gone. The job still has its row at this point so
+      // the endpoint can find the event id.
+      await apiPostJson('/api/calendar/sync', { jobId: id }).catch(() => {
+        /* swallow — not blocking the delete */
+      });
       const { error } = await supabase
         .from('jobs')
         .delete()

@@ -17,6 +17,7 @@ export type JobStatusDb =
   | 'Declined'
 
 export type PricingTypeDb = 'fixed' | 'hourly'
+export type JobLocationDb = 'Metro' | 'Regional'
 
 export type SmsTypeDb = 'day_prior' | 'en_route' | 'other'
 export type SmsStatusDb = 'sent' | 'failed' | 'pending'
@@ -55,6 +56,16 @@ export interface Database {
           recipient_name: string | null
           recipient_phone: string | null
           recipient_address: string | null
+          location: JobLocationDb | null
+          cubic_metres: number | null
+          quote_number: string | null
+          valid_until: string | null
+          is_draft: boolean
+          gst_amount: number | null
+          completed_by_driver_id: string | null
+          completed_by_driver_name: string | null
+          completed_at: string | null
+          google_calendar_event_id: string | null
           created_at: string
         }
         Insert: {
@@ -85,6 +96,16 @@ export interface Database {
           recipient_name?: string | null
           recipient_phone?: string | null
           recipient_address?: string | null
+          location?: JobLocationDb | null
+          cubic_metres?: number | null
+          quote_number?: string | null
+          valid_until?: string | null
+          is_draft?: boolean
+          gst_amount?: number | null
+          completed_by_driver_id?: string | null
+          completed_by_driver_name?: string | null
+          completed_at?: string | null
+          google_calendar_event_id?: string | null
           created_at?: string
         }
         Update: {
@@ -115,6 +136,16 @@ export interface Database {
           recipient_name?: string | null
           recipient_phone?: string | null
           recipient_address?: string | null
+          location?: JobLocationDb | null
+          cubic_metres?: number | null
+          quote_number?: string | null
+          valid_until?: string | null
+          is_draft?: boolean
+          gst_amount?: number | null
+          completed_by_driver_id?: string | null
+          completed_by_driver_name?: string | null
+          completed_at?: string | null
+          google_calendar_event_id?: string | null
           created_at?: string
         }
         Relationships: []
@@ -174,6 +205,9 @@ export interface Database {
           total_spent: number
           last_job_date: string | null
           avatar: string | null
+          override_metro_rate: number | null
+          override_hourly_rate: number | null
+          import_batch: string | null
           created_at: string
         }
         Insert: {
@@ -191,6 +225,9 @@ export interface Database {
           total_spent?: number
           last_job_date?: string | null
           avatar?: string | null
+          override_metro_rate?: number | null
+          override_hourly_rate?: number | null
+          import_batch?: string | null
           created_at?: string
         }
         Update: {
@@ -208,6 +245,9 @@ export interface Database {
           total_spent?: number
           last_job_date?: string | null
           avatar?: string | null
+          override_metro_rate?: number | null
+          override_hourly_rate?: number | null
+          import_batch?: string | null
           created_at?: string
         }
         Relationships: []
@@ -326,6 +366,105 @@ export interface Database {
         }
         Relationships: []
       }
+      truck_shifts: {
+        Row: {
+          id: string
+          truck_name: string
+          driver_user_id: string | null
+          driver_name: string
+          shift_date: string
+          started_at: string
+          ended_at: string
+          job_count: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          truck_name: string
+          driver_user_id?: string | null
+          driver_name: string
+          shift_date: string
+          started_at?: string
+          ended_at?: string
+          job_count?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          truck_name?: string
+          driver_user_id?: string | null
+          driver_name?: string
+          shift_date?: string
+          started_at?: string
+          ended_at?: string
+          job_count?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
+      job_history: {
+        Row: {
+          id: string
+          job_id: string
+          field: string
+          old_value: string | null
+          new_value: string | null
+          changed_by: string | null
+          changed_at: string
+        }
+        Insert: {
+          id?: string
+          job_id: string
+          field: string
+          old_value?: string | null
+          new_value?: string | null
+          changed_by?: string | null
+          changed_at?: string
+        }
+        Update: {
+          id?: string
+          job_id?: string
+          field?: string
+          old_value?: string | null
+          new_value?: string | null
+          changed_by?: string | null
+          changed_at?: string
+        }
+        Relationships: []
+      }
+      pricing_rates: {
+        Row: {
+          id: string
+          metro_per_cube_aud: number
+          regional_minimum_aud: number
+          hourly_rate_aud: number
+          minimum_hours: number
+          gst_percent: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          metro_per_cube_aud?: number
+          regional_minimum_aud?: number
+          hourly_rate_aud?: number
+          minimum_hours?: number
+          gst_percent?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          metro_per_cube_aud?: number
+          regional_minimum_aud?: number
+          hourly_rate_aud?: number
+          minimum_hours?: number
+          gst_percent?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -348,6 +487,8 @@ export interface Database {
           last_job_date: string
           last_pickup: string
           last_delivery: string
+          override_metro_rate: number | null
+          override_hourly_rate: number | null
         }[]
       }
       is_owner: {
@@ -361,6 +502,14 @@ export interface Database {
       current_user_truck: {
         Args: Record<string, never>
         Returns: string
+      }
+      record_job_completion: {
+        Args: {
+          p_job_id: string
+          p_driver_id: string | null
+          p_driver_name: string
+        }
+        Returns: void
       }
     }
     Enums: {

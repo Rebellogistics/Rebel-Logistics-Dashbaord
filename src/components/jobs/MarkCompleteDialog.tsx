@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useUpdateJob } from '@/hooks/useSupabaseData';
 import { useProfile } from '@/hooks/useProfile';
+import { useRecordJobCompletion } from '@/hooks/useTruckShifts';
+import { useTeam } from '@/hooks/useTeam';
 import { Job } from '@/lib/types';
 import { toast } from 'sonner';
 import { PhotoCapture } from '@/components/driver/PhotoCapture';
@@ -29,7 +31,9 @@ export function MarkCompleteDialog({ job, onClose }: MarkCompleteDialogProps) {
   const [newNote, setNewNote] = useState('');
   const sigPadRef = useRef<SignaturePadHandle>(null);
   const updateJob = useUpdateJob();
+  const recordCompletion = useRecordJobCompletion();
   const { data: profile } = useProfile();
+  const { data: team = [] } = useTeam();
 
   useEffect(() => {
     if (job) {
@@ -58,7 +62,16 @@ export function MarkCompleteDialog({ job, onClose }: MarkCompleteDialogProps) {
         }
       }
 
-      const updatedNotes = appendCompletionNote(job.notes, newNote, profile?.fullName);
+      // Resolve who to attribute this completion to. Owner-side flow: the
+      // driver assigned to the truck on this job is the most accurate guess;
+      // fall back to the current profile (the user pressing the button).
+      const driverFromTeam = job.assignedTruck
+        ? team.find((m) => m.role === 'driver' && m.assignedTruck === job.assignedTruck && m.active)
+        : undefined;
+      const driverName = driverFromTeam?.fullName ?? profile?.fullName ?? 'Unknown';
+      const driverId = driverFromTeam?.userId ?? profile?.userId ?? null;
+
+      const updatedNotes = appendCompletionNote(job.notes, newNote, driverName);
       await updateJob.mutateAsync({
         id: job.id,
         status: 'Completed',
@@ -66,6 +79,16 @@ export function MarkCompleteDialog({ job, onClose }: MarkCompleteDialogProps) {
         signature: resolvedSignature || undefined,
         notes: updatedNotes,
       });
+      try {
+        await recordCompletion.mutateAsync({
+          jobId: job.id,
+          driverId,
+          driverName,
+        });
+      } catch (rpcErr) {
+        // Driver attribution is best-effort; don't block the completion.
+        console.warn('record_job_completion failed', rpcErr);
+      }
       toast.success('Job marked complete');
       onClose();
     } catch (err) {

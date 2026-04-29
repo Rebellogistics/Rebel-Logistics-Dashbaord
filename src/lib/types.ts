@@ -8,7 +8,17 @@ export type JobStatus =
   | 'Completed'
   | 'Invoiced'
   | 'Declined';
+export type JobLocation = 'Metro' | 'Regional';
 export type TruckId = string;
+
+export interface PricingRates {
+  metroPerCubeAud: number;
+  regionalMinimumAud: number;
+  hourlyRateAud: number;
+  minimumHours: number;
+  gstPercent: number;
+  updatedAt?: string;
+}
 
 export interface Truck {
   id: string;
@@ -85,6 +95,37 @@ export interface Job {
   recipientAddress?: string;
   /** Xero draft/finalised invoice id once this job has been billed. Phase 12. */
   xeroInvoiceId?: string;
+  /** Metro/Regional split for Standard + White Glove jobs. */
+  location?: JobLocation;
+  /** Volume in m³ for Standard / White Glove jobs. */
+  cubicMetres?: number;
+  /** Auto-assigned RL-YYYY-NNNN reference. */
+  quoteNumber?: string;
+  /** Quote expiry date (defaulted to +30 days on create). */
+  validUntil?: string;
+  /** True until the owner finishes filling the quote out. */
+  isDraft?: boolean;
+  /** GST amount snapshotted at quote-create time. */
+  gstAmount?: number;
+  /** Driver attribution at completion time — frozen so it survives if the
+   *  driver record is later deleted. */
+  completedByDriverId?: string;
+  completedByDriverName?: string;
+  completedAt?: string;
+  /** Google Calendar event id once this job has been pushed to a calendar. */
+  googleCalendarEventId?: string;
+  createdAt: string;
+}
+
+export interface TruckShift {
+  id: string;
+  truckName: string;
+  driverUserId?: string;
+  driverName: string;
+  shiftDate: string;
+  startedAt: string;
+  endedAt: string;
+  jobCount: number;
   createdAt: string;
 }
 
@@ -116,6 +157,11 @@ export interface Customer {
   totalSpent: number;
   lastJobDate?: string;
   avatar?: string;
+  /** Optional per-customer overrides applied in place of the default rate book. */
+  overrideMetroRate?: number;
+  overrideHourlyRate?: number;
+  /** Tag stamped during a bulk import — e.g. "xero-2026-04-28". */
+  importBatch?: string;
   createdAt?: string;
 }
 

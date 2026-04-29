@@ -31,23 +31,26 @@ export interface BuildCalendarEventOptions {
 }
 
 /**
- * Google Calendar colorId palette (11 slots). We map trucks onto distinct
- * colors so Yamen's week on his phone is a glance-readable heatmap. Unknown
- * trucks fall back to the brand-blue "Blueberry" (9).
+ * Google Calendar colorId palette (11 slots). We map *job types* onto
+ * distinct colours so Yamin's week on his phone reads at a glance:
+ *   White Glove → Blueberry (9, brand blue) — premium, careful work
+ *   Standard    → Basil (10, green)         — bread-and-butter delivery
+ *   House Move  → Tangerine (6, orange)     — full-day hourly work
+ * Trucks share colour because the truck name is already in the title.
  */
-const TRUCK_COLOR_MAP: Record<string, string> = {
-  'Truck 1': '9', // Blueberry — brand blue
-  'Truck 2': '10', // Basil — green
-  'Truck 3': '6', // Tangerine — orange
-  'Truck 4': '5', // Banana — yellow
-  'Truck 5': '3', // Grape — purple
-  'Truck 6': '11', // Tomato — red
+const TYPE_COLOR_MAP: Record<string, string> = {
+  'White Glove': '9',
+  Standard: '10',
+  'House Move': '6',
 };
 
-export function colorIdForTruck(truck: string | undefined): string {
-  if (!truck) return '8'; // Graphite — neutral gray for unassigned
-  return TRUCK_COLOR_MAP[truck] ?? '9';
+export function colorIdForJobType(type: string | undefined): string {
+  if (!type) return '8';
+  return TYPE_COLOR_MAP[type] ?? '9';
 }
+
+// Backwards-compat re-export for any callers that still reference the old name.
+export const colorIdForTruck = colorIdForJobType;
 
 export function buildCalendarEventFromJob(
   job: Job,
@@ -56,7 +59,7 @@ export function buildCalendarEventFromJob(
   const summary = formatSummary(job);
   const description = formatDescription(job);
   const location = job.deliveryAddress?.trim() || job.pickupAddress?.trim() || '';
-  const colorId = colorIdForTruck(job.assignedTruck);
+  const colorId = colorIdForJobType(job.type);
   const date = job.date || options.fallbackDate || new Date().toISOString().slice(0, 10);
 
   return {

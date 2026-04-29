@@ -170,12 +170,19 @@ export function useAlerts(jobs: Job[], smsLog: SmsLogEntry[]): UseAlertsResult {
       const completedTime = Date.parse(job.createdAt || '0');
       if (completedTime < oneDayAgo) continue;
       const hasProof = !!(job.proofPhoto || job.signature);
+      const driver = job.completedByDriverName?.trim();
+      const truck = job.assignedTruck;
+      const driverPrefix = driver
+        ? truck
+          ? `${driver} · ${truck}`
+          : driver
+        : truck ?? 'Driver';
       alerts.push({
         id: `completed-${job.id}`,
         kind: 'delivery_completed',
         severity: 'info',
         title: `${job.customerName} — delivered`,
-        description: `${job.assignedTruck ?? 'Driver'} completed delivery to ${job.deliveryAddress?.split(',')[0] ?? 'destination'}${hasProof ? ' · proof captured' : ''}`,
+        description: `${driverPrefix} completed delivery to ${job.deliveryAddress?.split(',')[0] ?? 'destination'}${hasProof ? ' · proof captured' : ''}`,
         jobId: job.id,
         action: 'view_job',
         actionLabel: 'View',

@@ -8,6 +8,7 @@ import { LiveTruckRuns } from '@/components/dashboard/LiveTruckRuns';
 import { RecentJobs } from '@/components/dashboard/RecentJobs';
 import { InsightChips } from '@/components/dashboard/InsightChips';
 import { TruckRunsView } from '@/components/truck-runs/TruckRunsView';
+import { TrucksView } from '@/components/trucks/TrucksView';
 import { CustomersView } from '@/components/customers/CustomersView';
 import { ReviewsView } from '@/components/reviews/ReviewsView';
 import { SmsLogView } from '@/components/sms/SmsLogView';
@@ -16,11 +17,14 @@ import { BoardView } from '@/components/board/BoardView';
 import { JobDetailDialog } from '@/components/jobs/JobDetailDialog';
 import { MarkCompleteDialog } from '@/components/jobs/MarkCompleteDialog';
 import { AssignTruckDialog } from '@/components/jobs/AssignTruckDialog';
+import { QuickQuoteDialog } from '@/components/jobs/QuickQuoteDialog';
+import { InstallPwaPrompt } from '@/components/layout/InstallPwaPrompt';
 import { CustomerDetailDialog } from '@/components/customers/CustomerDetailDialog';
 import { useJobs, useCustomers, useDeleteCustomer } from '@/hooks/useSupabaseData';
 import { useSmsLog } from '@/hooks/useSms';
 import { useProfile } from '@/hooks/useProfile';
 import { useTeam } from '@/hooks/useTeam';
+import { useRealtimeJobs } from '@/hooks/useRealtimeJobs';
 import { signOut } from '@/hooks/useAuth';
 import { DriverShell } from '@/components/driver/DriverShell';
 import { Profile, Job, Customer } from '@/lib/types';
@@ -28,7 +32,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Truck, LogOut, Clock, AlertCircle } from 'lucide-react';
+import { Truck, LogOut, Clock, AlertCircle, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Alert } from '@/hooks/useAlerts';
@@ -86,6 +90,7 @@ export default function App() {
 const SEARCH_SCOPE_BY_TAB: Record<string, SearchScope> = {
   Dashboard: 'all',
   'Truck Runs': 'jobs',
+  Trucks: 'none',
   Jobs: 'jobs',
   Customers: 'customers',
   Reviews: 'jobs',
@@ -97,6 +102,12 @@ function OwnerShell({ profile }: { profile: Profile }) {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Live updates: when a driver flips a job to Completed (or any other row
+  // change happens server-side), invalidate the owner's React Query caches
+  // so the dashboard, board, truck runs, alerts, and trucks calendar reflect
+  // it without a manual refresh.
+  useRealtimeJobs();
 
   const { data: jobs = [], isLoading: jobsLoading } = useJobs();
   const { data: customers = [], isLoading: customersLoading } = useCustomers();
@@ -111,6 +122,7 @@ function OwnerShell({ profile }: { profile: Profile }) {
   const [markCompleteTarget, setMarkCompleteTarget] = useState<Job | null>(null);
   const [assignTarget, setAssignTarget] = useState<Job | null>(null);
   const [viewCustomerTarget, setViewCustomerTarget] = useState<Customer | null>(null);
+  const [quickQuoteOpen, setQuickQuoteOpen] = useState(false);
 
   const isLoading = jobsLoading || customersLoading;
   const searchScope = SEARCH_SCOPE_BY_TAB[activeTab] ?? 'all';
@@ -179,7 +191,16 @@ function OwnerShell({ profile }: { profile: Profile }) {
     switch (activeTab) {
       case 'Dashboard':
         return (
-          <div className="space-y-8">
+          <div className="space-y-6 lg:space-y-8">
+            {/* Mobile-only hero: a big New Job button up top so a phone-call quote starts in one tap. */}
+            <button
+              type="button"
+              onClick={() => setQuickQuoteOpen(true)}
+              className="lg:hidden w-full h-16 rounded-2xl bg-rebel-accent text-white font-bold text-base shadow-[0_12px_28px_-12px_rgba(45,91,255,0.55)] flex items-center justify-center gap-2 active:scale-[0.99] transition-transform"
+            >
+              <Plus className="w-5 h-5" />
+              New job
+            </button>
             <KPIStatsCards jobs={jobs} smsLog={smsLog} />
             <InsightChips jobs={jobs} />
             <LiveTruckRuns jobs={jobs} customers={customers} />
@@ -188,9 +209,11 @@ function OwnerShell({ profile }: { profile: Profile }) {
           </div>
         );
       case 'Board':
-        return <BoardView jobs={jobs} customers={customers} />;
+        return <BoardView jobs={jobs} customers={customers} onViewJob={setViewJobTarget} />;
       case 'Truck Runs':
-        return <TruckRunsView jobs={jobs} />;
+        return <TruckRunsView jobs={jobs} onViewJob={setViewJobTarget} />;
+      case 'Trucks':
+        return <TrucksView jobs={jobs} onViewJob={setViewJobTarget} />;
       case 'Jobs':
         return (
           <div className="space-y-8">
@@ -261,10 +284,23 @@ function OwnerShell({ profile }: { profile: Profile }) {
         </div>
       </main>
 
+      {/* Mobile-only floating + button — quick-add a job from anywhere. Hidden on desktop and on Settings (where it'd cover edits). */}
+      {activeTab !== 'Settings' && (
+        <button
+          type="button"
+          onClick={() => setQuickQuoteOpen(true)}
+          className="lg:hidden fixed bottom-5 right-5 z-30 w-14 h-14 rounded-full bg-rebel-accent text-white shadow-[0_12px_28px_-8px_rgba(45,91,255,0.55)] flex items-center justify-center active:scale-95 transition-transform"
+          aria-label="Quick quote"
+        >
+          <Plus className="w-6 h-6" />
+        </button>
+      )}
+
       {/* Shell-level dialogs — driven by bell, search, or any inner view */}
       <JobDetailDialog job={viewJobTarget} onClose={() => setViewJobTarget(null)} />
       <MarkCompleteDialog job={markCompleteTarget} onClose={() => setMarkCompleteTarget(null)} />
       <AssignTruckDialog job={assignTarget} onClose={() => setAssignTarget(null)} />
+      <QuickQuoteDialog open={quickQuoteOpen} onOpenChange={setQuickQuoteOpen} />
       <CustomerDetailDialog
         customer={viewCustomerTarget}
         jobs={jobs}
@@ -275,6 +311,7 @@ function OwnerShell({ profile }: { profile: Profile }) {
         onDelete={handleCustomerDelete}
       />
 
+      <InstallPwaPrompt />
       <Toaster position="top-right" />
     </div>
   );
