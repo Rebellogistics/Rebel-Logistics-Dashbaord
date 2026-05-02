@@ -47,6 +47,9 @@ const ROLE_PERMS: Record<UserRole, Set<Permission>> = {
   driver: new Set<Permission>([
     // Drivers only act on their own jobs through the driver shell
   ]),
+  // Phase 11: truck-role users are tablets — same permission profile as the
+  // legacy driver role. They land on the truck shell, never the owner UI.
+  truck: new Set<Permission>([]),
   pending: new Set<Permission>([]),
 };
 

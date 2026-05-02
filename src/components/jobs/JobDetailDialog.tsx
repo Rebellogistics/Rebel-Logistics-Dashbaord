@@ -9,7 +9,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Job } from '@/lib/types';
+import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
+import type { Job, JobLocation, JobType } from '@/lib/types';
 import {
   MapPin,
   Truck,
@@ -47,6 +48,9 @@ import { PrintReceipt } from './PrintReceipt';
 import { AssignTruckDialog } from './AssignTruckDialog';
 import { useCustomers, useUpdateJob } from '@/hooks/useSupabaseData';
 import { useJobHistory, useAppendJobHistory } from '@/hooks/useJobHistory';
+import { usePricingRates } from '@/hooks/usePricingRates';
+import { useRepeatCustomerLookup } from '@/hooks/useRepeatCustomer';
+import { calculateQuote, formatAud } from '@/lib/pricing';
 import { exportJobProofZip, jobZipName, triggerDownload } from '@/lib/export';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -61,6 +65,29 @@ function looksLikeSignaturePath(jobId: string, value: string | null | undefined)
   return value.startsWith(`${jobId}/`) && /\.(png|jpg|jpeg|webp)$/i.test(value);
 }
 
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+// Snapshot a job into the editable draft shape. Used both on dialog open
+// and when the user cancels an edit.
+function buildDraftFromJob(job: Job) {
+  return {
+    customerName: job.customerName ?? '',
+    date: job.date ?? '',
+    pickupAddress: job.pickupAddress ?? '',
+    deliveryAddress: job.deliveryAddress ?? '',
+    customerPhone: job.customerPhone ?? '',
+    type: (job.type ?? 'Standard') as JobType,
+    location: (job.location ?? 'Metro') as JobLocation,
+    cubicMetres: job.cubicMetres != null ? String(job.cubicMetres) : '',
+    estimatedHours: job.hoursEstimated != null ? String(job.hoursEstimated) : '',
+    fee: job.fee != null ? job.fee.toFixed(2) : '',
+    priceIsManual: job.priceIsManual ?? false,
+    notes: job.notes ?? '',
+  };
+}
+
 export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
   const [signatureError, setSignatureError] = useState(false);
@@ -69,11 +96,29 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
   const [assignTruckOpen, setAssignTruckOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<{ date: string; pickupAddress: string; deliveryAddress: string }>(
-    { date: '', pickupAddress: '', deliveryAddress: '' },
-  );
+  // Expanded edit draft (Phase 10): every field on the form except customerName,
+  // status, and audit-trail data is editable until the job is Completed/Invoiced.
+  // priceIsManual mirrors the DB column — flips to true the moment the user
+  // types in the price field directly so subsequent type/cubes/hours edits
+  // don't silently overwrite their override.
+  const [draft, setDraft] = useState({
+    customerName: '',
+    date: '',
+    pickupAddress: '',
+    deliveryAddress: '',
+    customerPhone: '',
+    type: 'Standard' as JobType,
+    location: 'Metro' as JobLocation,
+    cubicMetres: '',
+    estimatedHours: '',
+    fee: '',
+    priceIsManual: false,
+    notes: '',
+  });
   const [activityTab, setActivityTab] = useState<'activity' | 'history'>('activity');
   const { data: customers = [] } = useCustomers();
+  const { data: rates } = usePricingRates();
+  const { info: repeatInfo } = useRepeatCustomerLookup(job?.customerPhone ?? '');
   const updateJob = useUpdateJob();
   const appendHistory = useAppendJobHistory();
   const isVip = !!(job?.customerId && customers.find((c) => c.id === job.customerId)?.vip);
@@ -88,11 +133,7 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
 
   useEffect(() => {
     if (job) {
-      setDraft({
-        date: job.date ?? '',
-        pickupAddress: job.pickupAddress ?? '',
-        deliveryAddress: job.deliveryAddress ?? '',
-      });
+      setDraft(buildDraftFromJob(job));
       setEditing(false);
       setActivityTab('activity');
     }
@@ -145,52 +186,228 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
     };
   }, [job]);
 
+  // Live recompute against the rate book based on whatever's in the draft
+  // right now. Used in two places:
+  //   1. Edit mode — the price input auto-tracks this value while the user
+  //      hasn't manually typed in it (priceIsManual = false).
+  //   2. Read-mode footer — to show Subtotal / GST / Total breakdown using
+  //      the saved fee, falling back to a recompute for legacy quotes that
+  //      were created before Phase 1 stored gst_amount.
+  const draftBreakdown = useMemo(() => {
+    if (!rates) return null;
+    return calculateQuote({
+      type: draft.type,
+      location: draft.location,
+      cubicMetres: parseFloat(draft.cubicMetres) || 0,
+      estimatedHours: parseFloat(draft.estimatedHours) || 0,
+      rates,
+      overrideMetroRate: repeatInfo.overrideMetroRate,
+      overrideHourlyRate: repeatInfo.overrideHourlyRate,
+    });
+  }, [draft, rates, repeatInfo]);
+
+  // Auto-track the recomputed price when the user edits inputs and hasn't
+  // manually overridden the fee. The check on `editing` keeps this from
+  // running in read mode.
+  useEffect(() => {
+    if (!editing || !draftBreakdown || draft.priceIsManual) return;
+    const next = draftBreakdown.subtotal.toFixed(2);
+    if (next !== draft.fee) {
+      setDraft((prev) => ({ ...prev, fee: next }));
+    }
+  }, [editing, draftBreakdown, draft.priceIsManual, draft.fee]);
+
   if (!job) return null;
 
-  const total = job.fee + (job.fuelLevy ?? 0);
+  // For pre-Phase-1 jobs gst_amount is null. Show the legacy "Total" line
+  // (no synthetic GST split). For everything else, show Subtotal / GST / Total.
+  const showLegacyTotal = job.gstAmount == null;
+  const savedTotal = job.fee + (job.fuelLevy ?? 0) + (job.gstAmount ?? 0);
+
+  const isHouseMove = draft.type === 'House Move';
+  const isMetro = !isHouseMove && draft.location === 'Metro';
+  const isRegional = !isHouseMove && draft.location === 'Regional';
 
   const startEdit = () => {
-    setDraft({
-      date: job.date ?? '',
-      pickupAddress: job.pickupAddress ?? '',
-      deliveryAddress: job.deliveryAddress ?? '',
-    });
+    setDraft(buildDraftFromJob(job));
     setEditing(true);
   };
 
   const cancelEdit = () => {
-    setDraft({
-      date: job.date ?? '',
-      pickupAddress: job.pickupAddress ?? '',
-      deliveryAddress: job.deliveryAddress ?? '',
-    });
+    setDraft(buildDraftFromJob(job));
     setEditing(false);
+  };
+
+  const applyRateBookPrice = () => {
+    if (!draftBreakdown) return;
+    setDraft((prev) => ({
+      ...prev,
+      fee: draftBreakdown.subtotal.toFixed(2),
+      priceIsManual: false,
+    }));
   };
 
   const saveEdit = async () => {
     if (!job) return;
 
-    const changes: Partial<Job> = {};
+    const changes: Record<string, unknown> = {};
     const historyEntries: Array<{ field: string; oldValue: string | null; newValue: string | null }> = [];
 
+    const pushChange = <K extends keyof Job>(
+      key: K,
+      newValue: Job[K] | null,
+      historyField: string,
+      formatHistory: (v: Job[K] | null) => string | null = (v) =>
+        v == null ? null : String(v),
+    ) => {
+      const before = job[key] ?? null;
+      if ((before ?? null) === (newValue ?? null)) return;
+      changes[key as string] = newValue ?? undefined;
+      historyEntries.push({
+        field: historyField,
+        oldValue: formatHistory(before as Job[K] | null),
+        newValue: formatHistory(newValue),
+      });
+    };
+
+    // Customer name — text NOT NULL, so reject empty trims (but allow rename
+    // through, which only updates this job's stored name, not the linked
+    // customer record on the Customers page).
+    const newName = draft.customerName.trim();
+    if (!newName) {
+      toast.error('Customer name cannot be empty');
+      return;
+    }
+    if (newName !== (job.customerName ?? '')) {
+      changes.customerName = newName;
+      historyEntries.push({
+        field: 'customer_name',
+        oldValue: job.customerName ?? null,
+        newValue: newName,
+      });
+    }
+
+    // Date
     if (draft.date && draft.date !== job.date) {
       changes.date = draft.date;
       historyEntries.push({ field: 'date', oldValue: job.date ?? null, newValue: draft.date });
     }
-    if (draft.pickupAddress.trim() !== (job.pickupAddress ?? '')) {
-      changes.pickupAddress = draft.pickupAddress.trim();
+
+    // Addresses
+    const newPickup = draft.pickupAddress.trim();
+    if (newPickup !== (job.pickupAddress ?? '')) {
+      changes.pickupAddress = newPickup;
       historyEntries.push({
         field: 'pickup_address',
         oldValue: job.pickupAddress ?? null,
-        newValue: draft.pickupAddress.trim(),
+        newValue: newPickup,
       });
     }
-    if (draft.deliveryAddress.trim() !== (job.deliveryAddress ?? '')) {
-      changes.deliveryAddress = draft.deliveryAddress.trim();
+    const newDelivery = draft.deliveryAddress.trim();
+    if (newDelivery !== (job.deliveryAddress ?? '')) {
+      changes.deliveryAddress = newDelivery;
       historyEntries.push({
         field: 'delivery_address',
         oldValue: job.deliveryAddress ?? null,
-        newValue: draft.deliveryAddress.trim(),
+        newValue: newDelivery,
+      });
+    }
+
+    // Phone — text NOT NULL in schema, so empty is '', not null.
+    const newPhone = draft.customerPhone.trim();
+    if (newPhone !== (job.customerPhone ?? '')) {
+      changes.customerPhone = newPhone;
+      historyEntries.push({
+        field: 'customer_phone',
+        oldValue: job.customerPhone || null,
+        newValue: newPhone || null,
+      });
+    }
+
+    // Notes — nullable text, empty = clear (becomes SQL NULL via the
+    // useUpdateJob normaliser when undefined is passed; we pass undefined
+    // explicitly when blank).
+    const newNotes = draft.notes.trim();
+    if (newNotes !== (job.notes ?? '')) {
+      changes.notes = newNotes || undefined;
+      historyEntries.push({
+        field: 'notes',
+        oldValue: job.notes || null,
+        newValue: newNotes || null,
+      });
+    }
+
+    // Type
+    pushChange('type', draft.type as JobType, 'type');
+
+    // Location is null on House Move jobs.
+    const nextLocation: JobLocation | null = isHouseMove ? null : draft.location;
+    pushChange('location', nextLocation as Job['location'], 'location');
+
+    // Cubic metres only applies to Metro Standard / White Glove.
+    const nextCubicMetres: number | null = isMetro && draft.cubicMetres
+      ? parseFloat(draft.cubicMetres)
+      : null;
+    if ((nextCubicMetres ?? null) !== (job.cubicMetres ?? null)) {
+      changes.cubicMetres = nextCubicMetres ?? undefined;
+      historyEntries.push({
+        field: 'cubic_metres',
+        oldValue: job.cubicMetres != null ? String(job.cubicMetres) : null,
+        newValue: nextCubicMetres != null ? String(nextCubicMetres) : null,
+      });
+    }
+
+    // Hours estimated only applies to House Move.
+    const nextHours: number | null = isHouseMove && draft.estimatedHours
+      ? parseFloat(draft.estimatedHours)
+      : null;
+    if ((nextHours ?? null) !== (job.hoursEstimated ?? null)) {
+      changes.hoursEstimated = nextHours ?? undefined;
+      historyEntries.push({
+        field: 'hours_estimated',
+        oldValue: job.hoursEstimated != null ? String(job.hoursEstimated) : null,
+        newValue: nextHours != null ? String(nextHours) : null,
+      });
+    }
+
+    // pricingType is structurally derived from `type` — always reflect a
+    // type change here so downstream code (Phase 1 quote builder, Xero
+    // export, etc.) sees a coherent row.
+    const nextPricingType = isHouseMove ? 'hourly' : 'fixed';
+    if ((job.pricingType ?? null) !== nextPricingType) {
+      changes.pricingType = nextPricingType;
+    }
+
+    // Hourly rate snapshot tracks the live rate when not manual; otherwise
+    // we leave job.hourlyRate alone.
+    if (isHouseMove && draftBreakdown && !draft.priceIsManual) {
+      const nextHourlyRate = draftBreakdown.hourlyRate;
+      if ((job.hourlyRate ?? 0) !== nextHourlyRate) {
+        changes.hourlyRate = nextHourlyRate;
+      }
+    }
+
+    // Fee + GST + manual flag.
+    const parsedFee = parseFloat(draft.fee);
+    const nextFee = isNaN(parsedFee) ? job.fee : Math.max(0, parsedFee);
+    const nextGst = rates ? round2(nextFee * (rates.gstPercent / 100)) : job.gstAmount ?? 0;
+    if (Math.abs((job.fee ?? 0) - nextFee) > 0.005) {
+      changes.fee = nextFee;
+      historyEntries.push({
+        field: 'fee',
+        oldValue: job.fee != null ? job.fee.toFixed(2) : null,
+        newValue: nextFee.toFixed(2),
+      });
+    }
+    if (Math.abs((job.gstAmount ?? 0) - nextGst) > 0.005) {
+      changes.gstAmount = nextGst;
+    }
+    if ((job.priceIsManual ?? false) !== draft.priceIsManual) {
+      changes.priceIsManual = draft.priceIsManual;
+      historyEntries.push({
+        field: 'price_is_manual',
+        oldValue: (job.priceIsManual ?? false) ? 'manual' : 'auto',
+        newValue: draft.priceIsManual ? 'manual' : 'auto',
       });
     }
 
@@ -200,7 +417,7 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
     }
 
     try {
-      await updateJob.mutateAsync({ id: job.id, ...changes } as any);
+      await updateJob.mutateAsync({ id: job.id, ...changes } as Partial<Job> & { id: string });
       try {
         await appendHistory.mutateAsync(
           historyEntries.map((e) => ({ jobId: job.id, ...e })),
@@ -227,7 +444,18 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
             <div className="min-w-0 flex-1">
               <DialogTitle className="flex items-center gap-2 flex-wrap">
-                <span className="truncate min-w-0 max-w-full">{job.customerName}</span>
+                {editing ? (
+                  <Input
+                    value={draft.customerName}
+                    onChange={(e) =>
+                      setDraft((d) => ({ ...d, customerName: e.target.value }))
+                    }
+                    placeholder="Customer name"
+                    className="h-9 text-base font-bold flex-1 min-w-0 max-w-full"
+                  />
+                ) : (
+                  <span className="truncate min-w-0 max-w-full">{job.customerName}</span>
+                )}
                 {isVip && (
                   <span
                     className="inline-flex items-center gap-1 h-5 px-1.5 rounded-full bg-amber-400 text-white text-[10px] font-bold uppercase tracking-wider shrink-0"
@@ -247,6 +475,36 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
                   </span>
                 )}
               </DialogDescription>
+              {/* Type / location / quantity chips — visible at all times so
+                  Yamin can answer "is this white glove?" without scrolling. */}
+              <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                <span className="inline-flex items-center gap-1 h-5 px-2 rounded-md bg-rebel-accent-surface text-rebel-accent text-[10px] font-bold uppercase tracking-wider">
+                  {job.type}
+                </span>
+                {job.type !== 'House Move' && job.location && (
+                  <span className="inline-flex items-center gap-1 h-5 px-2 rounded-md bg-indigo-100 text-indigo-700 text-[10px] font-semibold">
+                    {job.location}
+                  </span>
+                )}
+                {job.type !== 'House Move' && job.cubicMetres != null && (
+                  <span className="inline-flex items-center gap-1 h-5 px-2 rounded-md bg-muted text-muted-foreground text-[10px] font-semibold">
+                    {job.cubicMetres} m³
+                  </span>
+                )}
+                {job.type === 'House Move' && job.hoursEstimated != null && (
+                  <span className="inline-flex items-center gap-1 h-5 px-2 rounded-md bg-muted text-muted-foreground text-[10px] font-semibold">
+                    {job.hoursEstimated} hrs
+                  </span>
+                )}
+                {job.priceIsManual && (
+                  <span
+                    className="inline-flex items-center gap-1 h-5 px-2 rounded-md bg-amber-100 text-amber-800 text-[10px] font-semibold"
+                    title="Price was manually set in the dialog (not from the rate book)"
+                  >
+                    Custom price
+                  </span>
+                )}
+              </div>
             </div>
             {canEditFields && !editing && (
               <Button
@@ -283,9 +541,9 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
           <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <DetailRow icon={MapPin} label="Pickup">
               {editing ? (
-                <Input
+                <AddressAutocomplete
                   value={draft.pickupAddress}
-                  onChange={(e) => setDraft((d) => ({ ...d, pickupAddress: e.target.value }))}
+                  onChange={(v) => setDraft((d) => ({ ...d, pickupAddress: v }))}
                   placeholder="Pickup address"
                   className="h-10 sm:h-8 text-sm"
                 />
@@ -295,9 +553,9 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
             </DetailRow>
             <DetailRow icon={MapPin} label="Delivery">
               {editing ? (
-                <Input
+                <AddressAutocomplete
                   value={draft.deliveryAddress}
-                  onChange={(e) => setDraft((d) => ({ ...d, deliveryAddress: e.target.value }))}
+                  onChange={(v) => setDraft((d) => ({ ...d, deliveryAddress: v }))}
                   placeholder="Delivery address"
                   className="h-10 sm:h-8 text-sm"
                 />
@@ -340,7 +598,14 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
               )}
             </DetailRow>
             <DetailRow icon={Phone} label="Phone">
-              {job.customerPhone ? (
+              {editing ? (
+                <Input
+                  value={draft.customerPhone}
+                  onChange={(e) => setDraft((d) => ({ ...d, customerPhone: e.target.value }))}
+                  placeholder="04xx xxx xxx"
+                  className="h-10 sm:h-8 text-sm"
+                />
+              ) : job.customerPhone ? (
                 <a href={`tel:${job.customerPhone}`} className="text-rebel-accent hover:underline">
                   {job.customerPhone}
                 </a>
@@ -348,25 +613,249 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
                 '—'
               )}
             </DetailRow>
-            <DetailRow icon={DollarSign} label="Total">
-              ${total.toFixed(2)}
-              {job.fuelLevy && job.fuelLevy > 0 ? (
-                <span className="text-[10px] text-muted-foreground ml-1">
-                  (incl ${job.fuelLevy.toFixed(2)} levy)
-                </span>
-              ) : null}
+            <DetailRow icon={DollarSign} label="Total inc-GST">
+              {showLegacyTotal ? (
+                <>
+                  ${savedTotal.toFixed(2)}
+                  <span className="text-[10px] text-muted-foreground ml-1" title="Pre-Phase-1 quote — no GST stored separately">
+                    (legacy)
+                  </span>
+                </>
+              ) : (
+                <>${savedTotal.toFixed(2)}</>
+              )}
             </DetailRow>
           </section>
 
-          {job.notes && (
+          {/* Edit-only: type / location / cubes-or-hours selectors. Mirrors
+              the New Quote dialog's morphing form so the price recompute
+              logic stays consistent. */}
+          {editing && (
+            <section className="rounded-xl border border-rebel-border bg-card p-3 space-y-3">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Pricing inputs
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Job type
+                  </label>
+                  <select
+                    value={draft.type}
+                    onChange={(e) => {
+                      const next = e.target.value as JobType;
+                      setDraft((d) => ({
+                        ...d,
+                        type: next,
+                        // Clear inputs that don't apply to the new type so
+                        // recompute is honest. Keeps the saved DB null
+                        // semantics correct on save.
+                        cubicMetres: next === 'House Move' ? '' : d.cubicMetres,
+                        estimatedHours:
+                          next === 'House Move'
+                            ? d.estimatedHours || String(rates?.minimumHours ?? 3)
+                            : '',
+                      }));
+                    }}
+                    className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    <option value="Standard">Standard</option>
+                    <option value="White Glove">White Glove</option>
+                    <option value="House Move">House Move</option>
+                  </select>
+                </div>
+
+                {!isHouseMove && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      Location
+                    </label>
+                    <div className="flex gap-2">
+                      {(['Metro', 'Regional'] as JobLocation[]).map((loc) => (
+                        <button
+                          key={loc}
+                          type="button"
+                          onClick={() => setDraft((d) => ({ ...d, location: loc }))}
+                          className={cn(
+                            'flex-1 h-9 rounded-lg border text-xs font-semibold transition-colors',
+                            draft.location === loc
+                              ? 'bg-rebel-accent border-rebel-accent text-white'
+                              : 'bg-card border-input text-muted-foreground hover:bg-muted',
+                          )}
+                        >
+                          {loc}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {isMetro && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      Cubic metres (m³)
+                    </label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.1"
+                      value={draft.cubicMetres}
+                      onChange={(e) => setDraft((d) => ({ ...d, cubicMetres: e.target.value }))}
+                      placeholder="e.g. 2"
+                      className="h-9"
+                    />
+                  </div>
+                )}
+
+                {isHouseMove && rates && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      Estimated hours (min {rates.minimumHours})
+                    </label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.5"
+                      min={rates.minimumHours}
+                      value={draft.estimatedHours}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, estimatedHours: e.target.value }))
+                      }
+                      onBlur={() => {
+                        const v = parseFloat(draft.estimatedHours);
+                        if (!isNaN(v) && rates && v < rates.minimumHours) {
+                          setDraft((d) => ({ ...d, estimatedHours: String(rates.minimumHours) }));
+                          toast.message(`Minimum ${rates.minimumHours} hours applied`);
+                        }
+                      }}
+                      className="h-9"
+                    />
+                  </div>
+                )}
+
+                {isRegional && (
+                  <div className="rounded-lg bg-muted/40 p-2 text-[11px] text-muted-foreground">
+                    Regional jobs use a flat minimum charge of{' '}
+                    {rates ? formatAud(rates.regionalMinimumAud) : '—'}.
+                  </div>
+                )}
+              </div>
+
+              {/* Price input + recompute toggle */}
+              <div className="flex flex-col sm:flex-row sm:items-end gap-2 pt-2 border-t border-rebel-border">
+                <div className="flex-1 space-y-1">
+                  <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Price (ex-GST)
+                  </label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min={0}
+                    value={draft.fee}
+                    onChange={(e) =>
+                      setDraft((d) => ({ ...d, fee: e.target.value, priceIsManual: true }))
+                    }
+                    className="h-9"
+                  />
+                </div>
+                {draftBreakdown && draft.priceIsManual && (
+                  <div className="flex flex-col gap-1 text-right">
+                    <span className="text-[10px] text-muted-foreground">
+                      Rate book: {formatAud(draftBreakdown.subtotal)}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-[11px]"
+                      onClick={applyRateBookPrice}
+                    >
+                      Apply rate-book price
+                    </Button>
+                  </div>
+                )}
+                {draftBreakdown && !draft.priceIsManual && (
+                  <span className="text-[10px] text-muted-foreground sm:pb-2">
+                    {draftBreakdown.explainer}
+                  </span>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Pricing breakdown — read-only line items in both modes. */}
+          <section className="rounded-xl border border-rebel-border bg-muted/30 p-3 text-xs space-y-1">
+            {showLegacyTotal ? (
+              <div className="flex justify-between">
+                <span className="font-semibold">Total</span>
+                <span className="font-bold text-base">${savedTotal.toFixed(2)}</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    {editing && draftBreakdown
+                      ? draftBreakdown.explainer
+                      : 'Subtotal'}
+                  </span>
+                  <span className="font-semibold">
+                    ${(editing ? parseFloat(draft.fee) || 0 : job.fee).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    GST ({rates?.gstPercent ?? 10}%)
+                  </span>
+                  <span className="font-semibold">
+                    $
+                    {(editing && rates
+                      ? round2((parseFloat(draft.fee) || 0) * (rates.gstPercent / 100))
+                      : job.gstAmount ?? 0
+                    ).toFixed(2)}
+                  </span>
+                </div>
+                {!editing && job.fuelLevy && job.fuelLevy > 0 ? (
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Fuel levy</span>
+                    <span>${job.fuelLevy.toFixed(2)}</span>
+                  </div>
+                ) : null}
+                <div className="flex justify-between pt-1 border-t border-rebel-border">
+                  <span className="font-semibold">Total inc. GST</span>
+                  <span className="font-bold text-base">
+                    $
+                    {(editing && rates
+                      ? round2(
+                          (parseFloat(draft.fee) || 0) * (1 + rates.gstPercent / 100),
+                        )
+                      : savedTotal
+                    ).toFixed(2)}
+                  </span>
+                </div>
+              </>
+            )}
+          </section>
+
+          {(editing || job.notes) && (
             <section className="space-y-1">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <StickyNote className="w-3 h-3" />
                 Notes
               </h3>
-              <p className="text-xs whitespace-pre-wrap bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-900">
-                {job.notes}
-              </p>
+              {editing ? (
+                <textarea
+                  value={draft.notes}
+                  onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))}
+                  rows={3}
+                  placeholder="Access codes, stairs, fragile items, parking…"
+                  className="w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 outline-none focus-visible:border-amber-400 focus-visible:ring-3 focus-visible:ring-amber-200/50"
+                />
+              ) : (
+                <p className="text-xs whitespace-pre-wrap bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-900">
+                  {job.notes}
+                </p>
+              )}
             </section>
           )}
 
@@ -612,6 +1101,24 @@ function fieldLabel(field: string): string {
       return 'Pickup address';
     case 'delivery_address':
       return 'Delivery address';
+    case 'customer_name':
+      return 'Customer name';
+    case 'customer_phone':
+      return 'Phone';
+    case 'notes':
+      return 'Notes';
+    case 'type':
+      return 'Job type';
+    case 'location':
+      return 'Location';
+    case 'cubic_metres':
+      return 'Cubic metres';
+    case 'hours_estimated':
+      return 'Estimated hours';
+    case 'fee':
+      return 'Price';
+    case 'price_is_manual':
+      return 'Pricing source';
     default:
       return field.replace(/_/g, ' ');
   }
@@ -640,7 +1147,7 @@ function JobHistoryList({ jobId }: { jobId: string }) {
   if (formatted.length === 0) {
     return (
       <p className="text-xs text-muted-foreground py-3 text-center">
-        No edits yet. Changes to date or addresses will be recorded here.
+        No edits yet. Any change to type, price, addresses, date, phone, or notes lands here.
       </p>
     );
   }

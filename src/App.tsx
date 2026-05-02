@@ -80,7 +80,10 @@ export default function App() {
     );
   }
 
-  if (profile.role === 'driver') {
+  // Phase 11B: per-truck tablet logins. Truck-role users land on the same
+  // operational shell as legacy drivers — the shell already prompts "Who's
+  // driving today?" and records attribution from the picker.
+  if (profile.role === 'driver' || profile.role === 'truck') {
     return <DriverShell profile={profile} />;
   }
 

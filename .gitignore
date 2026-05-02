@@ -7,8 +7,8 @@ coverage/
 .env*
 !.env.example
 
-# Local MCP server config contains database credentials
-mcp-config.json
+# Local MCP server config contains a Supabase access token
+.mcp.json
 
 # Claude Code per-project local state
 .claude/

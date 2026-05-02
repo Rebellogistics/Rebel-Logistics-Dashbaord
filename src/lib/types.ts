@@ -26,6 +26,24 @@ export interface Truck {
   description?: string;
   active: boolean;
   createdAt: string;
+  /** Phase 11: optional auth.users account for the tablet login. NULL means
+   *  the truck has no login yet — Yamin can generate one from Settings. */
+  userId?: string | null;
+}
+
+/**
+ * Phase 11: drivers are name+phone only — they don't authenticate. They're
+ * picked from a dropdown when a shift starts on a truck portal. The id space
+ * intentionally overlaps with auth.users for backfilled rows so existing
+ * truck_shifts.driver_user_id references continue to resolve.
+ */
+export interface Driver {
+  id: string;
+  name: string;
+  phone?: string | null;
+  active: boolean;
+  createdAt: string;
+  createdBy?: string | null;
 }
 
 export interface JobPhoto {
@@ -40,7 +58,7 @@ export type TimeRange = '1d' | '7d' | '30d';
 export type PricingType = 'fixed' | 'hourly';
 export type SmsType = 'day_prior' | 'en_route' | 'other';
 export type SmsStatus = 'sent' | 'failed' | 'pending';
-export type UserRole = 'owner' | 'driver' | 'dispatcher' | 'admin' | 'pending';
+export type UserRole = 'owner' | 'driver' | 'truck' | 'dispatcher' | 'admin' | 'pending';
 
 export interface Profile {
   userId: string;
@@ -68,7 +86,8 @@ export type CustomerSource =
 export interface Job {
   id: string;
   customerName: string;
-  customerPhone: string;
+  /** Phone is optional from Phase 14 onwards — Yamin's "name only" rule. */
+  customerPhone?: string | null;
   pickupAddress: string;
   deliveryAddress: string;
   type: JobType;
@@ -107,6 +126,11 @@ export interface Job {
   isDraft?: boolean;
   /** GST amount snapshotted at quote-create time. */
   gstAmount?: number;
+  /** TRUE when the fee was set manually in the job dialog (Phase 10). When
+   *  false, the fee is whatever the rate book + inputs (type / cubes /
+   *  hours) computed at save time. Used to gate the recompute prompt: if
+   *  the user has a manual price, type changes don't silently overwrite. */
+  priceIsManual?: boolean;
   /** Driver attribution at completion time — frozen so it survives if the
    *  driver record is later deleted. */
   completedByDriverId?: string;
@@ -114,6 +138,9 @@ export interface Job {
   completedAt?: string;
   /** Google Calendar event id once this job has been pushed to a calendar. */
   googleCalendarEventId?: string;
+  /** Phase 14 soft-delete: ISO timestamp set when the job is moved to Trash;
+   *  null/undefined for active rows. Main queries filter to active. */
+  deletedAt?: string | null;
   createdAt: string;
 }
 
@@ -162,6 +189,8 @@ export interface Customer {
   overrideHourlyRate?: number;
   /** Tag stamped during a bulk import — e.g. "xero-2026-04-28". */
   importBatch?: string;
+  /** Phase 14 soft-delete (see Job.deletedAt). */
+  deletedAt?: string | null;
   createdAt?: string;
 }
 

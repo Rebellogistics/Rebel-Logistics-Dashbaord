@@ -27,6 +27,7 @@ import {
 import { useJobs } from '@/hooks/useSupabaseData';
 import { apiPostJson } from '@/lib/apiClient';
 import { Job } from '@/lib/types';
+import { TwilioTestSendCard } from './TwilioTestSendCard';
 
 // ──────────────────────────────────────────────────────────────────
 // Google Calendar — dynamic connect/disconnect/switch
@@ -718,6 +719,7 @@ export function IntegrationsSection() {
 
       <EmbedSnippetCard />
       <GoogleCalendarCard />
+      <TwilioTestSendCard />
 
       {STATIC_PROVIDERS.map((p) => (
         <StaticProviderCard key={p.id} provider={p} />

@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useTeam } from '@/hooks/useTeam';
+import { useDrivers } from '@/hooks/useDrivers';
 import { cn } from '@/lib/utils';
 import { User } from 'lucide-react';
 
@@ -21,16 +21,16 @@ interface WhoDrivingDialogProps {
 }
 
 /**
- * Roster picker shown on DriverShell load when no driver has been picked for today.
- * Drivers are sourced from the active profiles (role = 'driver'), but an "Other"
- * free-text option is always available so Yamen can credit a casual driver who
- * doesn't have a login.
+ * Roster picker shown on the truck portal when no driver has been picked for
+ * today. Drivers are sourced from the Phase-11 `drivers` table — they don't
+ * authenticate, they're just labels. An "Other" free-text option remains for
+ * casual drivers / subcontractors who aren't on the roster.
  */
 export function WhoDrivingDialog({ open, onClose, onPick, initialName }: WhoDrivingDialogProps) {
-  const { data: team = [] } = useTeam();
-  const drivers = team
-    .filter((p) => p.role === 'driver' && p.active && (p.fullName?.trim() ?? '').length > 0)
-    .map((p) => p.fullName!.trim())
+  const { data: roster = [] } = useDrivers({ activeOnly: true });
+  const drivers = roster
+    .map((d) => d.name.trim())
+    .filter((n) => n.length > 0)
     .sort((a, b) => a.localeCompare(b));
 
   const [selection, setSelection] = useState<string>(initialName ?? '');

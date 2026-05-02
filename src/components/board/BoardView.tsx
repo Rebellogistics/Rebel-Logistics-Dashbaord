@@ -1,4 +1,16 @@
 import { useMemo, useState } from 'react';
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
 import { Job, JobStatus, Customer } from '@/lib/types';
 import { useUpdateJob } from '@/hooks/useSupabaseData';
 import { useTrucks } from '@/hooks/useTrucks';
@@ -62,9 +74,19 @@ export function BoardView({ jobs, customers = [], onViewJob }: BoardViewProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [assignTarget, setAssignTarget] = useState<Job | null>(null);
   const [markCompleteTarget, setMarkCompleteTarget] = useState<Job | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
   const updateJob = useUpdateJob();
   const { data: trucks = [] } = useTrucks();
   const sendSms = useSendSmsForJob();
+
+  // Drag listeners are attached to the GripVertical handle (touch-none),
+  // not the whole card. Pointer with a 5px activation distance lets taps
+  // open the job dialog and lets the column scroll naturally on touch —
+  // only an explicit grip-and-drag triggers a move.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
+  );
 
   const handleMenuAction = async (job: Job, action: JobMenuAction) => {
     if (action.type === 'view') {
@@ -128,6 +150,19 @@ export function BoardView({ jobs, customers = [], onViewJob }: BoardViewProps) {
     });
 
   const clearSelection = () => setSelected(new Set());
+
+  const handleDndStart = (event: DragStartEvent) => {
+    setDraggingId(String(event.active.id));
+  };
+
+  const handleDndEnd = (event: DragEndEvent) => {
+    const jobId = String(event.active.id);
+    setDraggingId(null);
+    if (!event.over) return;
+    handleDrop(jobId, String(event.over.id));
+  };
+
+  const handleDndCancel = () => setDraggingId(null);
 
   const handleDrop = async (jobId: string, targetColumnKey: string) => {
     const job = jobs.find((j) => j.id === jobId);
@@ -199,7 +234,19 @@ export function BoardView({ jobs, customers = [], onViewJob }: BoardViewProps) {
     clearSelection();
   };
 
+  const draggable = groupBy === 'status' || groupBy === 'truck';
+  const draggingJob = useMemo(
+    () => (draggingId ? jobs.find((j) => j.id === draggingId) ?? null : null),
+    [draggingId, jobs],
+  );
+
   return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDndStart}
+      onDragEnd={handleDndEnd}
+      onDragCancel={handleDndCancel}
+    >
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -255,10 +302,10 @@ export function BoardView({ jobs, customers = [], onViewJob }: BoardViewProps) {
           <KanbanColumn
             key={col.key}
             column={col}
-            onDrop={handleDrop}
             selected={selected}
             onToggleSelect={toggleSelect}
-            draggable={groupBy === 'status' || groupBy === 'truck'}
+            draggable={draggable}
+            isDragSource={!!draggingId}
             onCardClick={(job) => onViewJob?.(job)}
             onMenuAction={handleMenuAction}
             trucks={trucks}
@@ -278,6 +325,21 @@ export function BoardView({ jobs, customers = [], onViewJob }: BoardViewProps) {
         onClose={() => setMarkCompleteTarget(null)}
       />
     </div>
+    <DragOverlay dropAnimation={null}>
+      {draggingJob ? <BoardDragGhost job={draggingJob} /> : null}
+    </DragOverlay>
+    </DndContext>
+  );
+}
+
+function BoardDragGhost({ job }: { job: Job }) {
+  return (
+    <div className="rounded-xl border border-rebel-accent bg-rebel-surface p-2.5 shadow-glow w-[240px] pointer-events-none">
+      <p className="text-[11.5px] font-semibold text-rebel-text truncate">{job.customerName}</p>
+      <p className="text-[9px] text-rebel-text-tertiary truncate">
+        {job.status}{job.assignedTruck ? ` · ${job.assignedTruck}` : ''}
+      </p>
+    </div>
   );
 }
 
@@ -293,46 +355,36 @@ interface ColumnDef {
 
 function KanbanColumn({
   column,
-  onDrop,
   selected,
   onToggleSelect,
   draggable,
+  isDragSource,
   onCardClick,
   onMenuAction,
   trucks,
 }: {
   column: ColumnDef;
-  onDrop: (jobId: string, columnKey: string) => void;
   selected: Set<string>;
   onToggleSelect: (id: string) => void;
   draggable: boolean;
+  isDragSource: boolean;
   onCardClick: (job: Job) => void;
   onMenuAction: (job: Job, action: JobMenuAction) => void;
   trucks: import('@/lib/types').Truck[];
 }) {
-  const [isOver, setIsOver] = useState(false);
+  const { setNodeRef, isOver } = useDroppable({ id: column.key, disabled: !draggable });
 
   return (
     <div
+      ref={setNodeRef}
       className={cn(
         'flex flex-col w-[240px] min-w-[240px] shrink-0 rounded-2xl border bg-card snap-start transition-colors',
-        isOver
+        isOver && draggable
           ? 'border-rebel-accent bg-rebel-accent-surface/30'
-          : 'border-rebel-border',
+          : isDragSource && draggable
+            ? 'border-dashed border-rebel-accent/40'
+            : 'border-rebel-border',
       )}
-      onDragOver={(e) => {
-        if (!draggable) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        setIsOver(true);
-      }}
-      onDragLeave={() => setIsOver(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setIsOver(false);
-        const jobId = e.dataTransfer.getData('text/plain');
-        if (jobId) onDrop(jobId, column.key);
-      }}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-3 pt-3 pb-2">
@@ -390,9 +442,16 @@ function CompactJobCard({
   trucks: import('@/lib/types').Truck[];
 }) {
   const total = (job.fee ?? 0) + (job.fuelLevy ?? 0);
+  // Listeners attached to the GripVertical handle, not the whole card —
+  // keeps tap-to-open and column scroll free of drag interference.
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: job.id,
+    disabled: !draggable,
+  });
 
   return (
     <div
+      ref={setNodeRef}
       role="button"
       tabIndex={0}
       onClick={onClick}
@@ -407,13 +466,8 @@ function CompactJobCard({
         isSelected
           ? 'border-rebel-accent bg-rebel-accent-surface/40 ring-1 ring-rebel-accent/30'
           : 'border-rebel-border bg-rebel-surface hover:border-rebel-accent/30',
-        draggable && 'sm:cursor-grab sm:active:cursor-grabbing',
+        isDragging && 'opacity-40',
       )}
-      draggable={draggable}
-      onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', job.id);
-      }}
     >
       <div className="flex items-start gap-1.5">
         <button
@@ -432,7 +486,16 @@ function CompactJobCard({
           )}
         </button>
         {draggable && (
-          <GripVertical className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/40 hidden sm:block" />
+          <button
+            type="button"
+            aria-label="Drag to move"
+            className="shrink-0 cursor-grab active:cursor-grabbing touch-none p-0.5 -m-0.5 mt-0.5 text-muted-foreground/40 hover:text-rebel-accent"
+            {...attributes}
+            {...listeners}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GripVertical className="w-3 h-3" />
+          </button>
         )}
         <div className="flex-1 min-w-0">
           <p className="text-[11.5px] font-semibold text-rebel-text truncate">

@@ -1,4 +1,16 @@
 import { useMemo, useState } from 'react';
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,6 +29,7 @@ import {
   Inbox,
   CalendarClock,
   Sparkles,
+  CalendarX,
 } from 'lucide-react';
 import { addDays, format, subDays, isToday, isTomorrow, parseISO, compareAsc } from 'date-fns';
 import { MarkCompleteDialog } from '@/components/jobs/MarkCompleteDialog';
@@ -40,6 +53,9 @@ const OVERLOAD_THRESHOLD = 5;
 
 // Special drop targets for the Accepted/Scheduled columns
 const ACCEPTED_KEY = '__accepted__';
+// 5px movement threshold before drag activates — taps still fire onClick
+// (open the job dialog) without accidentally starting a drag.
+const DRAG_ACTIVATION_DISTANCE = 5;
 
 export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
   const { data: trucks = [] } = useTrucks();
@@ -62,6 +78,11 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
 
   const activeJobs = useMemo(() => jobs.filter((j) => j.status !== 'Declined'), [jobs]);
 
+  // Today's actual date string — fixed reference for the past-due check.
+  // Computed once per render; cheap and avoids making the memo depend on
+  // a Date object that changes identity each tick.
+  const todayStr = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
+
   // ── Column buckets ────────────────────────────────────────────────
   // Accepted = status==='Accepted' (no truck yet). Pool to schedule from.
   const acceptedJobs = useMemo(
@@ -72,32 +93,60 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
     [activeJobs],
   );
 
-  // Scheduled = booked for a future/other day (so Yamin can see what's
-  // coming and drag it onto today's trucks if plans change).
-  const scheduledJobs = useMemo(
-    () =>
-      activeJobs
-        .filter((j) => (j.status === 'Scheduled' || j.status === 'Notified') && j.date !== dateStr)
-        .sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date))),
-    [activeJobs, dateStr],
-  );
-
-  // Truck columns + unassigned-for-today (rare anomaly)
-  const { byTruck, unassignedToday } = useMemo(() => {
+  // Truck columns + two amber strips:
+  //   unassignedToday  — booked for the picker day, no truck (existing alert).
+  //   pastDueOrphans   — scheduled in the past, no truck, never executed.
+  // Past-due is computed against actual today, not the picker, so the alert
+  // stays useful even when Yamin is viewing a future day.
+  const { byTruck, unassignedToday, pastDueOrphans } = useMemo(() => {
     const byT: Record<string, Job[]> = {};
     for (const name of activeTruckNames) byT[name] = [];
     const orphan: Job[] = [];
+    const pastDue: Job[] = [];
+    const isOpenForOps = (j: Job) =>
+      j.status === 'Scheduled' || j.status === 'Notified' || j.status === 'In Delivery';
     for (const job of activeJobs) {
-      if (job.date !== dateStr) continue;
-      if (job.assignedTruck) {
-        if (!byT[job.assignedTruck]) byT[job.assignedTruck] = [];
-        byT[job.assignedTruck].push(job);
-      } else if (job.status === 'Scheduled' || job.status === 'Notified' || job.status === 'In Delivery') {
-        orphan.push(job);
+      if (job.date === dateStr) {
+        if (job.assignedTruck) {
+          if (!byT[job.assignedTruck]) byT[job.assignedTruck] = [];
+          byT[job.assignedTruck].push(job);
+        } else if (isOpenForOps(job)) {
+          orphan.push(job);
+        }
+      } else if (
+        !job.assignedTruck &&
+        isOpenForOps(job) &&
+        job.date &&
+        job.date < todayStr
+      ) {
+        pastDue.push(job);
       }
     }
-    return { byTruck: byT, unassignedToday: orphan };
-  }, [activeJobs, dateStr, activeTruckNames]);
+    pastDue.sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)));
+    return { byTruck: byT, unassignedToday: orphan, pastDueOrphans: pastDue };
+  }, [activeJobs, dateStr, activeTruckNames, todayStr]);
+
+  // Scheduled = master registry of every booked job, regardless of the
+  // day-picker. Yamin's mental model from the May 2 call: "anything that's
+  // already scheduled should be on this list regardless of the day."
+  // We exclude jobs already rendered in another, more-specific bucket on
+  // this same screen — the alert strips above and the truck columns for
+  // the picker day — so dnd-kit never sees the same job.id mounted twice.
+  const scheduledJobs = useMemo(() => {
+    const elsewhere = new Set<string>([
+      ...unassignedToday.map((j) => j.id),
+      ...pastDueOrphans.map((j) => j.id),
+    ]);
+    return activeJobs
+      .filter((j) => {
+        if (j.status !== 'Scheduled' && j.status !== 'Notified') return false;
+        if (elsewhere.has(j.id)) return false;
+        // Truck-assigned for the picker day → already in its truck column.
+        if (j.assignedTruck && j.date === dateStr) return false;
+        return true;
+      })
+      .sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)));
+  }, [activeJobs, unassignedToday, pastDueOrphans, dateStr]);
 
   const truckColumnNames = useMemo(() => Object.keys(byTruck).sort(), [byTruck]);
 
@@ -129,19 +178,17 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
     }
   };
 
-  const handleDragStart = (jobId: string) => {
-    setDraggingId(jobId);
-    const job = activeJobs.find((j) => j.id === jobId);
-    setDraggingFromAccepted(job?.status === 'Accepted');
-  };
-
-  const handleDragEnd = () => {
-    setDraggingId(null);
-    setDraggingFromAccepted(false);
-  };
+  // dnd-kit sensors: pointer (mouse + touch unified) with a 5px activation
+  // distance so taps fire onClick (open job dialog) without starting a drag,
+  // plus keyboard for accessibility.
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE },
+    }),
+    useSensor(KeyboardSensor),
+  );
 
   const handleDropOnTruck = async (jobId: string, targetTruck: TruckId) => {
-    handleDragEnd();
     const job = activeJobs.find((j) => j.id === jobId);
     if (!job) return;
 
@@ -163,7 +210,6 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
   };
 
   const handleDropOnAccepted = async (jobId: string) => {
-    handleDragEnd();
     const job = activeJobs.find((j) => j.id === jobId);
     if (!job) return;
     if (job.status === 'Accepted' && !job.assignedTruck) return;
@@ -180,6 +226,36 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
       toast.error('Failed to move job');
     }
   };
+
+  const handleDndStart = (event: DragStartEvent) => {
+    const jobId = String(event.active.id);
+    const job = activeJobs.find((j) => j.id === jobId);
+    setDraggingId(jobId);
+    setDraggingFromAccepted(job?.status === 'Accepted');
+  };
+
+  const handleDndEnd = (event: DragEndEvent) => {
+    const jobId = String(event.active.id);
+    const dropId = event.over ? String(event.over.id) : null;
+    setDraggingId(null);
+    setDraggingFromAccepted(false);
+    if (!dropId) return;
+    if (dropId === ACCEPTED_KEY) {
+      handleDropOnAccepted(jobId);
+      return;
+    }
+    handleDropOnTruck(jobId, dropId);
+  };
+
+  const handleDndCancel = () => {
+    setDraggingId(null);
+    setDraggingFromAccepted(false);
+  };
+
+  const draggingJob = useMemo(
+    () => (draggingId ? activeJobs.find((j) => j.id === draggingId) ?? null : null),
+    [draggingId, activeJobs],
+  );
 
   // Shared menu handler — covers both pool cards and truck cards.
   const handleMenuAction = async (job: Job, action: JobMenuAction) => {
@@ -231,7 +307,12 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
   };
 
   return (
-    <>
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDndStart}
+      onDragEnd={handleDndEnd}
+      onDragCancel={handleDndCancel}
+    >
       <div className="space-y-4">
         {/* Header / day picker */}
         <div className="flex flex-wrap items-center justify-between gap-3 bg-card rounded-xl border p-3 sm:p-4">
@@ -297,7 +378,7 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
           </div>
         </div>
 
-        {/* Anomaly: jobs on selectedDate with no truck */}
+        {/* Anomaly: jobs on the selectedDate with no truck */}
         {unassignedToday.length > 0 && (
           <Card className="border-amber-200 bg-amber-50/40 shadow-none">
             <CardContent className="p-4 space-y-2">
@@ -321,8 +402,41 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
                     onView={onViewJob}
                     onMenuAction={handleMenuAction}
                     draggable
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Past-due, no truck — scheduled in the past, never executed.
+            Computed against today's actual date so the alert stays useful
+            regardless of where the day-picker is. */}
+        {pastDueOrphans.length > 0 && (
+          <Card className="border-rose-200 bg-rose-50/40 shadow-none">
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <CalendarX className="w-4 h-4 text-rose-600" />
+                <h3 className="font-semibold text-sm text-rose-900">
+                  Past-due, no truck ({pastDueOrphans.length})
+                </h3>
+                <p className="text-[11px] text-rose-800">
+                  Reassign or move back to Accepted.
+                </p>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-2">
+                {pastDueOrphans.map((j) => (
+                  <JobCard
+                    key={j.id}
+                    job={j}
+                    trucks={trucks}
+                    onComplete={setCompleteTarget}
+                    showEnRouteAction={false}
+                    busy={false}
+                    onSendEnRoute={handleSendEnRoute}
+                    onView={onViewJob}
+                    onMenuAction={handleMenuAction}
+                    draggable
                   />
                 ))}
               </div>
@@ -339,26 +453,18 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
             icon={Inbox}
             jobs={acceptedJobs}
             trucks={trucks}
-            onDrop={handleDropOnAccepted}
             isDragSource={!!draggingId}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
             onViewJob={onViewJob}
             onMenuAction={handleMenuAction}
           />
           <PoolColumn
             kind="scheduled"
             label="Scheduled"
-            sublabel="Other days"
+            sublabel="All booked jobs"
             icon={CalendarClock}
             jobs={scheduledJobs}
             trucks={trucks}
-            onDrop={() => {
-              /* read-only column — no drop target */
-            }}
             isDragSource={!!draggingId}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
             onViewJob={onViewJob}
             onMenuAction={handleMenuAction}
             readOnly
@@ -381,11 +487,8 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
                 showEnRouteAction={isTodaySelected}
                 busyId={busyId}
                 onSendEnRoute={handleSendEnRoute}
-                onDropJob={handleDropOnTruck}
                 isDropTarget={!!draggingId}
                 isSuggested={suggestedTruck === truck}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
                 onViewJob={onViewJob}
                 onMenuAction={handleMenuAction}
               />
@@ -394,8 +497,27 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
         </div>
       </div>
 
+      {/* Cursor-following ghost while dragging. Renders in a portal so the
+          card visual stays on top of column scroll containers. */}
+      <DragOverlay dropAnimation={null}>
+        {draggingJob ? <DragGhost job={draggingJob} /> : null}
+      </DragOverlay>
+
       <MarkCompleteDialog job={completeTarget} onClose={() => setCompleteTarget(null)} />
-    </>
+    </DndContext>
+  );
+}
+
+// Simple, low-fidelity ghost — just the customer name + truck/date hint.
+// Rendered above the kanban surface while dnd-kit drives the overlay.
+function DragGhost({ job }: { job: Job }) {
+  return (
+    <div className="rounded-lg border border-rebel-accent bg-card p-2.5 shadow-glow w-[260px] pointer-events-none">
+      <p className="text-xs font-semibold truncate">{job.customerName}</p>
+      <p className="text-[10px] text-muted-foreground truncate">
+        {job.assignedTruck ?? 'No truck'} · {job.date || '—'}
+      </p>
+    </div>
   );
 }
 
@@ -416,10 +538,7 @@ interface PoolColumnProps {
   icon: typeof Inbox;
   jobs: Job[];
   trucks: TruckType[];
-  onDrop: (jobId: string) => void;
   isDragSource: boolean;
-  onDragStart: (jobId: string) => void;
-  onDragEnd: () => void;
   onViewJob?: (job: Job) => void;
   onMenuAction: (job: Job, action: JobMenuAction) => void;
   readOnly?: boolean;
@@ -432,22 +551,26 @@ function PoolColumn({
   icon: Icon,
   jobs,
   trucks,
-  onDrop,
   isDragSource,
-  onDragStart,
-  onDragEnd,
   onViewJob,
   onMenuAction,
   readOnly,
 }: PoolColumnProps) {
-  const [isOver, setIsOver] = useState(false);
   const droppable = !readOnly;
+  // The Scheduled column is read-only — it's a master registry, not a drop
+  // target. Disabling the droppable means dnd-kit won't surface it as a
+  // collision target while the user drags.
+  const { setNodeRef, isOver } = useDroppable({
+    id: kind === 'accepted' ? ACCEPTED_KEY : 'scheduled-readonly',
+    disabled: !droppable,
+  });
 
   return (
     <Card
+      ref={setNodeRef}
       className={cn(
         'flex flex-col w-[260px] min-w-[260px] shrink-0 shadow-none transition-colors',
-        isOver
+        isOver && droppable
           ? 'border-rebel-accent bg-rebel-accent-surface/40'
           : isDragSource && droppable
             ? 'border-dashed border-rebel-accent/40'
@@ -455,20 +578,6 @@ function PoolColumn({
               ? 'border-indigo-100 bg-indigo-50/30'
               : 'border-border bg-card',
       )}
-      onDragOver={(e) => {
-        if (!droppable) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        if (!isOver) setIsOver(true);
-      }}
-      onDragLeave={() => setIsOver(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setIsOver(false);
-        if (!droppable) return;
-        const jobId = e.dataTransfer.getData('text/plain');
-        if (jobId) onDrop(jobId);
-      }}
     >
       <CardContent className="p-3 sm:p-4 space-y-3">
         <div className="flex items-center justify-between border-b pb-2.5">
@@ -511,8 +620,6 @@ function PoolColumn({
                 key={job.id}
                 job={job}
                 trucks={trucks}
-                onDragStart={onDragStart}
-                onDragEnd={onDragEnd}
                 onView={onViewJob}
                 onMenuAction={onMenuAction}
                 showDate={kind === 'scheduled'}
@@ -528,22 +635,24 @@ function PoolColumn({
 function PoolCard({
   job,
   trucks,
-  onDragStart,
-  onDragEnd,
   onView,
   onMenuAction,
   showDate,
 }: {
   job: Job;
   trucks: TruckType[];
-  onDragStart: (jobId: string) => void;
-  onDragEnd: () => void;
   onView?: (job: Job) => void;
   onMenuAction: (job: Job, action: JobMenuAction) => void;
   showDate?: boolean;
 }) {
+  // dnd-kit: setNodeRef on the whole card (so collision detection sees the
+  // full card bounds), but listeners on the GripVertical handle only — that
+  // way the card body keeps tap-to-open and the column scrolls naturally on
+  // touch. Closed jobs aren't draggable but pool cards are always open.
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: job.id });
   return (
     <div
+      ref={setNodeRef}
       role="button"
       tabIndex={0}
       onClick={() => onView?.(job)}
@@ -553,17 +662,22 @@ function PoolCard({
           onView?.(job);
         }
       }}
-      className="rounded-lg border border-rebel-border bg-card p-2.5 space-y-1.5 hover:ring-1 hover:ring-rebel-accent/30 cursor-pointer sm:cursor-grab sm:active:cursor-grabbing"
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', job.id);
-        onDragStart(job.id);
-      }}
-      onDragEnd={onDragEnd}
+      className={cn(
+        'rounded-lg border border-rebel-border bg-card p-2.5 space-y-1.5 hover:ring-1 hover:ring-rebel-accent/30 cursor-pointer',
+        isDragging && 'opacity-40',
+      )}
     >
       <div className="flex items-start gap-1.5">
-        <GripVertical className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/60 hidden sm:block" />
+        <button
+          type="button"
+          aria-label="Drag to move"
+          className="shrink-0 cursor-grab active:cursor-grabbing touch-none p-0.5 -m-0.5 mt-0.5 text-muted-foreground/60 hover:text-rebel-accent"
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="w-3 h-3" />
+        </button>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold truncate">{job.customerName}</p>
           {job.customerPhone ? (
@@ -616,11 +730,8 @@ interface TruckColumnProps {
   showEnRouteAction: boolean;
   busyId: string | null;
   onSendEnRoute: (job: Job) => void;
-  onDropJob: (jobId: string, truck: TruckId) => void;
   isDropTarget: boolean;
   isSuggested: boolean;
-  onDragStart: (jobId: string) => void;
-  onDragEnd: () => void;
   onViewJob?: (job: Job) => void;
   onMenuAction: (job: Job, action: JobMenuAction) => void;
 }
@@ -633,20 +744,18 @@ function TruckColumn({
   showEnRouteAction,
   busyId,
   onSendEnRoute,
-  onDropJob,
   isDropTarget,
   isSuggested,
-  onDragStart,
-  onDragEnd,
   onViewJob,
   onMenuAction,
 }: TruckColumnProps) {
-  const [isOver, setIsOver] = useState(false);
   const overload = jobs.length >= OVERLOAD_THRESHOLD;
   const firstPickup = jobs[0]?.pickupAddress?.split(',')[0]?.trim();
+  const { setNodeRef, isOver } = useDroppable({ id: truck });
 
   return (
     <Card
+      ref={setNodeRef}
       className={cn(
         'flex flex-col w-[300px] min-w-[300px] shrink-0 shadow-none transition-colors',
         isOver
@@ -657,18 +766,6 @@ function TruckColumn({
               ? 'border-dashed border-rebel-accent/40'
               : '',
       )}
-      onDragOver={(e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        if (!isOver) setIsOver(true);
-      }}
-      onDragLeave={() => setIsOver(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setIsOver(false);
-        const jobId = e.dataTransfer.getData('text/plain');
-        if (jobId) onDropJob(jobId, truck);
-      }}
     >
       <CardContent className="p-3 sm:p-4 space-y-3">
         <div className="border-b pb-2.5">
@@ -728,8 +825,6 @@ function TruckColumn({
                 onView={onViewJob}
                 onMenuAction={onMenuAction}
                 draggable
-                onDragStart={onDragStart}
-                onDragEnd={onDragEnd}
               />
             ))}
           </div>
@@ -753,8 +848,6 @@ interface JobCardProps {
   onView?: (job: Job) => void;
   onMenuAction: (job: Job, action: JobMenuAction) => void;
   draggable?: boolean;
-  onDragStart?: (jobId: string) => void;
-  onDragEnd?: () => void;
 }
 
 function detectMissingInfo(job: Job): string[] {
@@ -777,8 +870,6 @@ function JobCard({
   onView,
   onMenuAction,
   draggable,
-  onDragStart,
-  onDragEnd,
 }: JobCardProps) {
   const missing = detectMissingInfo(job);
   const isClosed = job.status === 'Completed' || job.status === 'Invoiced';
@@ -786,9 +877,16 @@ function JobCard({
   const hasPhone = !!job.customerPhone?.trim();
   const enRouteTimeLabel = enRouteSent ? format(parseISO(job.enRouteSmsSentAt!), 'HH:mm') : null;
   const canDrag = !!draggable && !isClosed;
+  // Drag is disabled on closed jobs (Completed / Invoiced) — those should
+  // not be moved. dnd-kit honours `disabled: true` by skipping listeners.
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: job.id,
+    disabled: !canDrag,
+  });
 
   return (
     <div
+      ref={setNodeRef}
       role="button"
       tabIndex={0}
       onClick={() => onView?.(job)}
@@ -801,21 +899,23 @@ function JobCard({
       className={cn(
         'rounded-lg border p-3 space-y-2 cursor-pointer',
         isClosed ? 'bg-green-50/40 border-green-200' : 'bg-card',
-        canDrag && 'hover:ring-1 hover:ring-rebel-accent/30 sm:cursor-grab sm:active:cursor-grabbing',
+        canDrag && 'hover:ring-1 hover:ring-rebel-accent/30',
+        isDragging && 'opacity-40',
       )}
-      draggable={canDrag}
-      onDragStart={(e) => {
-        if (!canDrag) return;
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', job.id);
-        onDragStart?.(job.id);
-      }}
-      onDragEnd={() => onDragEnd?.()}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex items-start gap-1.5">
           {canDrag && (
-            <GripVertical className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/60 hidden sm:block" />
+            <button
+              type="button"
+              aria-label="Drag to move"
+              className="shrink-0 cursor-grab active:cursor-grabbing touch-none p-0.5 -m-0.5 mt-0.5 text-muted-foreground/60 hover:text-rebel-accent"
+              {...attributes}
+              {...listeners}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <GripVertical className="w-3 h-3" />
+            </button>
           )}
           <div className="min-w-0">
             <p className="text-xs font-semibold truncate">{job.customerName}</p>

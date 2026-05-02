@@ -12,6 +12,9 @@ import {
   PackageCheck,
   User,
   Calendar as CalendarIcon,
+  CalendarClock,
+  AlertTriangle,
+  MapPin,
 } from 'lucide-react';
 import {
   addMonths,
@@ -72,14 +75,49 @@ export function TrucksView({ jobs, onViewJob }: TrucksViewProps) {
     return map;
   }, [shifts]);
 
-  const maxJobsInMonth = useMemo(() => {
+  // Planned = jobs assigned to a truck for a date that haven't been
+  // completed/invoiced/declined yet. The Phase-12 fix for the May 2 call:
+  // future bookings now appear on the calendar, not just completed shifts.
+  const plannedByDate = useMemo(() => {
+    const map = new Map<string, Job[]>();
+    for (const job of jobs) {
+      if (!job.assignedTruck || !job.date) continue;
+      if (
+        job.status === 'Completed' ||
+        job.status === 'Invoiced' ||
+        job.status === 'Declined'
+      ) {
+        continue;
+      }
+      const arr = map.get(job.date) ?? [];
+      arr.push(job);
+      map.set(job.date, arr);
+    }
+    return map;
+  }, [jobs]);
+
+  const todayStr = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
+
+  // Heat-map intensity now blends completed + planned counts. A day with
+  // 8 booked-but-not-yet-done jobs is just as "busy" as one with 8 already
+  // completed.
+  const maxActivityInMonth = useMemo(() => {
     let max = 0;
-    for (const arr of shiftsByDate.values()) {
-      const n = arr.reduce((acc, s) => acc + s.jobCount, 0);
-      if (n > max) max = n;
+    const allKeys = new Set<string>([
+      ...shiftsByDate.keys(),
+      ...plannedByDate.keys(),
+    ]);
+    for (const key of allKeys) {
+      const completed = (shiftsByDate.get(key) ?? []).reduce(
+        (acc, s) => acc + s.jobCount,
+        0,
+      );
+      const planned = (plannedByDate.get(key) ?? []).length;
+      const total = completed + planned;
+      if (total > max) max = total;
     }
     return max;
-  }, [shiftsByDate]);
+  }, [shiftsByDate, plannedByDate]);
 
   const handleFind = () => {
     if (!searchDate) return;
@@ -111,6 +149,11 @@ export function TrucksView({ jobs, onViewJob }: TrucksViewProps) {
         j.date === selectedDayStr,
     );
   }, [jobs, selectedDayStr]);
+  const selectedPlanned = useMemo(() => {
+    if (!selectedDayStr) return [];
+    const list = plannedByDate.get(selectedDayStr) ?? [];
+    return searchTruck ? list.filter((j) => j.assignedTruck === searchTruck) : list;
+  }, [plannedByDate, selectedDayStr, searchTruck]);
 
   return (
     <div className="space-y-4">
@@ -206,24 +249,83 @@ export function TrucksView({ jobs, onViewJob }: TrucksViewProps) {
             {days.map((day) => {
               const dateStr = format(day, 'yyyy-MM-dd');
               const dayShifts = shiftsByDate.get(dateStr) ?? [];
-              const totalJobs = dayShifts.reduce((acc, s) => acc + s.jobCount, 0);
+              const dayPlanned = plannedByDate.get(dateStr) ?? [];
+              const completedCount = dayShifts.reduce((acc, s) => acc + s.jobCount, 0);
+              const plannedCount = dayPlanned.length;
+              const totalActivity = completedCount + plannedCount;
+
+              // Group planned jobs by truck so the chip says "Truck XV (3)"
+              // instead of three identical chips.
+              const plannedByTruck = (() => {
+                const m = new Map<string, number>();
+                for (const job of dayPlanned) {
+                  if (!job.assignedTruck) continue;
+                  m.set(job.assignedTruck, (m.get(job.assignedTruck) ?? 0) + 1);
+                }
+                return Array.from(m.entries());
+              })();
+
               const inMonth = isSameMonth(day, cursor);
               const isSelected = selectedDay ? isSameDay(day, selectedDay) : false;
               const isToday_ = isToday(day);
               const matchesSearch = searchDate === dateStr;
-              const heatLevel = heatLevelFor(totalJobs, maxJobsInMonth);
+              const heatLevel = heatLevelFor(totalActivity, maxActivityInMonth);
+              // Past-due = planned-but-not-executed for a date that's already
+              // gone. The amber border is the "fix this" cue.
+              const isPastDue = plannedCount > 0 && dateStr < todayStr;
+
+              const tooltip = totalActivity === 0
+                ? format(day, 'd MMM yyyy')
+                : `${format(day, 'd MMM yyyy')} — ${completedCount} completed · ${plannedCount} planned`;
+
+              const completedChips = dayShifts.slice(0, 3).map((s) => (
+                <div
+                  key={`done-${s.id}`}
+                  className="min-w-0 inline-flex items-center gap-1 text-[9px] sm:text-[10px] rounded px-1 py-0.5 bg-card/70 border border-rebel-border text-rebel-text"
+                >
+                  <TruckIcon className="w-2.5 h-2.5 shrink-0 text-rebel-accent" />
+                  <span className="truncate font-semibold min-w-0">{s.truckName}</span>
+                  <span className="truncate text-muted-foreground hidden sm:inline">
+                    · {s.driverName}
+                  </span>
+                </div>
+              ));
+
+              const plannedChips = plannedByTruck.slice(0, Math.max(0, 3 - completedChips.length))
+                .map(([truckName, count]) => (
+                  <div
+                    key={`plan-${truckName}`}
+                    className={cn(
+                      'min-w-0 inline-flex items-center gap-1 text-[9px] sm:text-[10px] rounded px-1 py-0.5 bg-transparent border border-dashed text-rebel-accent',
+                      isPastDue ? 'border-amber-500' : 'border-rebel-accent/50',
+                    )}
+                  >
+                    <CalendarClock className="w-2.5 h-2.5 shrink-0" />
+                    <span className="truncate font-semibold min-w-0">{truckName}</span>
+                    {count > 1 && (
+                      <span className="text-[9px] tabular-nums">·{count}</span>
+                    )}
+                  </div>
+                ));
+
+              const totalChipsShown = completedChips.length + plannedChips.length;
+              const totalChipSources = dayShifts.length + plannedByTruck.length;
+              const overflow = totalChipSources - totalChipsShown;
 
               return (
                 <button
                   key={dateStr}
                   type="button"
                   onClick={() => setSelectedDay(day)}
+                  title={tooltip}
                   className={cn(
                     'min-h-[72px] sm:min-h-[88px] rounded-lg border p-1.5 sm:p-2 text-left transition-all flex flex-col gap-1',
                     !inMonth && 'opacity-40',
                     isSelected
                       ? 'border-rebel-accent ring-1 ring-rebel-accent/40'
-                      : 'border-rebel-border hover:border-rebel-accent/50',
+                      : isPastDue
+                        ? 'border-amber-400 ring-1 ring-amber-400/30'
+                        : 'border-rebel-border hover:border-rebel-accent/50',
                     matchesSearch && !isSelected && 'border-amber-400 ring-1 ring-amber-400/40',
                     heatLevel === 0 ? 'bg-card' : '',
                     heatLevel === 1 && 'bg-rebel-accent-surface/40',
@@ -241,28 +343,21 @@ export function TrucksView({ jobs, onViewJob }: TrucksViewProps) {
                     >
                       {format(day, 'd')}
                     </span>
-                    {totalJobs > 0 && (
-                      <span className="text-[9px] font-bold text-muted-foreground tabular-nums">
-                        {totalJobs}
+                    {totalActivity > 0 && (
+                      <span className="text-[9px] font-bold text-muted-foreground tabular-nums inline-flex items-center gap-0.5">
+                        {isPastDue && (
+                          <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                        )}
+                        {totalActivity}
                       </span>
                     )}
                   </div>
                   <div className="flex flex-col gap-0.5 overflow-hidden min-w-0">
-                    {dayShifts.slice(0, 3).map((s) => (
-                      <div
-                        key={s.id}
-                        className="min-w-0 inline-flex items-center gap-1 text-[9px] sm:text-[10px] rounded px-1 py-0.5 bg-card/70 border border-rebel-border text-rebel-text"
-                      >
-                        <TruckIcon className="w-2.5 h-2.5 shrink-0 text-rebel-accent" />
-                        <span className="truncate font-semibold min-w-0">{s.truckName}</span>
-                        <span className="truncate text-muted-foreground hidden sm:inline">
-                          · {s.driverName}
-                        </span>
-                      </div>
-                    ))}
-                    {dayShifts.length > 3 && (
+                    {completedChips}
+                    {plannedChips}
+                    {overflow > 0 && (
                       <p className="text-[9px] text-muted-foreground">
-                        +{dayShifts.length - 3} more
+                        +{overflow} more
                       </p>
                     )}
                   </div>
@@ -272,23 +367,40 @@ export function TrucksView({ jobs, onViewJob }: TrucksViewProps) {
           </div>
 
           {/* Legend */}
-          <div className="flex items-center gap-3 mt-3 pt-2 border-t flex-wrap">
-            <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Activity</p>
-            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-              <span className="w-3 h-3 rounded bg-card border border-rebel-border" /> 0
-              <span className="w-3 h-3 rounded bg-rebel-accent-surface/40 ml-2" /> 1–2
-              <span className="w-3 h-3 rounded bg-rebel-accent-surface/70 ml-2" /> 3–4
-              <span className="w-3 h-3 rounded bg-rebel-accent/15 ml-2" /> 5–7
-              <span className="w-3 h-3 rounded bg-rebel-accent/25 ml-2" /> 8+
+          <div className="flex items-start gap-4 mt-3 pt-2 border-t flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Activity</p>
+              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                <span className="w-3 h-3 rounded bg-card border border-rebel-border" /> 0
+                <span className="w-3 h-3 rounded bg-rebel-accent-surface/40 ml-2" /> 1–2
+                <span className="w-3 h-3 rounded bg-rebel-accent-surface/70 ml-2" /> 3–4
+                <span className="w-3 h-3 rounded bg-rebel-accent/15 ml-2" /> 5–7
+                <span className="w-3 h-3 rounded bg-rebel-accent/25 ml-2" /> 8+
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Chips</p>
+              <span className="inline-flex items-center gap-1 text-[10px] rounded px-1 py-0.5 bg-card/70 border border-rebel-border">
+                <TruckIcon className="w-2.5 h-2.5 text-rebel-accent" />
+                Completed
+              </span>
+              <span className="inline-flex items-center gap-1 text-[10px] rounded px-1 py-0.5 bg-transparent border border-dashed border-rebel-accent/50 text-rebel-accent">
+                <CalendarClock className="w-2.5 h-2.5" />
+                Planned
+              </span>
+              <span className="inline-flex items-center gap-1 text-[10px] rounded px-1 py-0.5 bg-transparent border border-dashed border-amber-500 text-amber-700">
+                <AlertTriangle className="w-2.5 h-2.5" />
+                Past-due
+              </span>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Day side panel */}
+      {/* Day side panel — split into Completed + Planned. */}
       {selectedDay && (
         <Card className="border-border shadow-none bg-card">
-          <CardContent className="p-4 sm:p-5 space-y-3">
+          <CardContent className="p-4 sm:p-5 space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
                 <p className="text-[11px] text-muted-foreground uppercase tracking-wider">
@@ -296,34 +408,141 @@ export function TrucksView({ jobs, onViewJob }: TrucksViewProps) {
                 </p>
                 <h3 className="font-bold text-base">{format(selectedDay, 'd MMMM yyyy')}</h3>
               </div>
-              <Badge variant="secondary" className="bg-muted text-muted-foreground border-none">
-                {selectedShifts.length} truck{selectedShifts.length === 1 ? '' : 's'} on duty
-              </Badge>
+              <div className="flex items-center gap-2 flex-wrap">
+                {selectedShifts.length > 0 && (
+                  <Badge variant="secondary" className="bg-muted text-muted-foreground border-none">
+                    {selectedShifts.length} on duty
+                  </Badge>
+                )}
+                {selectedPlanned.length > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className={cn(
+                      'border-none',
+                      selectedDayStr && selectedDayStr < todayStr
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-rebel-accent-surface text-rebel-accent',
+                    )}
+                  >
+                    {selectedPlanned.length} planned
+                  </Badge>
+                )}
+              </div>
             </div>
 
-            {selectedShifts.length === 0 ? (
+            {/* Completed section */}
+            {selectedShifts.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1.5">
+                  <PackageCheck className="w-3 h-3 text-green-600" />
+                  Completed ({selectedShifts.length})
+                </h4>
+                <div className="space-y-3">
+                  {selectedShifts.map((s) => (
+                    <ShiftRow
+                      key={s.id}
+                      shift={s}
+                      jobs={selectedJobs.filter(
+                        (j) => j.assignedTruck === s.truckName && j.completedByDriverName === s.driverName,
+                      )}
+                      onViewJob={onViewJob}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Planned section */}
+            {selectedPlanned.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1.5">
+                  <CalendarClock className="w-3 h-3 text-rebel-accent" />
+                  Planned ({selectedPlanned.length})
+                  {selectedDayStr && selectedDayStr < todayStr && (
+                    <span className="inline-flex items-center gap-1 text-amber-700 font-bold">
+                      <AlertTriangle className="w-3 h-3" />
+                      Past-due
+                    </span>
+                  )}
+                </h4>
+                <div className="space-y-2">
+                  {Array.from(
+                    selectedPlanned.reduce((map, j) => {
+                      const truck = j.assignedTruck ?? 'No truck';
+                      const arr = map.get(truck) ?? [];
+                      arr.push(j);
+                      map.set(truck, arr);
+                      return map;
+                    }, new Map<string, Job[]>()),
+                  ).map(([truckName, jobsForTruck]) => (
+                    <PlannedTruckGroup
+                      key={truckName}
+                      truckName={truckName}
+                      jobs={jobsForTruck}
+                      onViewJob={onViewJob}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedShifts.length === 0 && selectedPlanned.length === 0 && (
               <p className="text-xs text-muted-foreground py-4 text-center">
                 {searchTruck
-                  ? `No record of ${searchTruck} running on this day.`
-                  : 'No trucks recorded on this day.'}
+                  ? `Nothing on ${searchTruck} on this day.`
+                  : 'Nothing on the books for this day.'}
               </p>
-            ) : (
-              <div className="space-y-3">
-                {selectedShifts.map((s) => (
-                  <ShiftRow
-                    key={s.id}
-                    shift={s}
-                    jobs={selectedJobs.filter(
-                      (j) => j.assignedTruck === s.truckName && j.completedByDriverName === s.driverName,
-                    )}
-                    onViewJob={onViewJob}
-                  />
-                ))}
-              </div>
             )}
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+function PlannedTruckGroup({
+  truckName,
+  jobs,
+  onViewJob,
+}: {
+  truckName: string;
+  jobs: Job[];
+  onViewJob?: (job: Job) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-dashed border-rebel-accent/50 bg-rebel-accent-surface/30 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-rebel-accent-surface flex items-center justify-center shrink-0">
+            <CalendarClock className="w-4 h-4 text-rebel-accent" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-bold truncate">{truckName}</p>
+            <p className="text-[11px] text-muted-foreground">Planned, not started yet</p>
+          </div>
+        </div>
+        <Badge variant="secondary" className="bg-rebel-accent-surface text-rebel-accent border-none text-[10px]">
+          {jobs.length} stop{jobs.length === 1 ? '' : 's'}
+        </Badge>
+      </div>
+      <div className="space-y-1 pl-9">
+        {jobs.map((j) => (
+          <button
+            key={j.id}
+            type="button"
+            onClick={() => onViewJob?.(j)}
+            className="text-left w-full inline-flex items-start gap-1.5 text-[11px] text-muted-foreground hover:text-rebel-accent"
+          >
+            <MapPin className="w-3 h-3 mt-0.5 text-rebel-accent shrink-0" />
+            <span className="truncate">
+              <span className="font-semibold text-foreground">{j.customerName}</span>
+              {j.deliveryAddress && (
+                <span className="ml-1">· {j.deliveryAddress.split(',')[0]}</span>
+              )}
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

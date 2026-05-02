@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Table,
   TableBody,
@@ -8,12 +8,26 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Job, JobStatus } from '@/lib/types';
-import { Plus, Check, X, PackageCheck, Copy, Eye, Star, Truck as TruckIcon, AlertTriangle } from 'lucide-react';
+import {
+  Plus,
+  Check,
+  X,
+  PackageCheck,
+  Copy,
+  Eye,
+  Star,
+  Truck as TruckIcon,
+  AlertTriangle,
+  CheckSquare,
+  Square,
+  Trash2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StatusPill } from '@/components/ui/status-pill';
 import { NewQuoteDialog } from '@/components/jobs/NewQuoteDialog';
 import { useCan } from '@/hooks/useCan';
-import { useCustomers } from '@/hooks/useSupabaseData';
+import { useCustomers, useBulkDeleteJobs } from '@/hooks/useSupabaseData';
+import { toast } from 'sonner';
 import { AcceptDialog } from '@/components/jobs/AcceptDialog';
 import { AssignTruckDialog } from '@/components/jobs/AssignTruckDialog';
 import { DeclineDialog } from '@/components/jobs/DeclineDialog';
@@ -57,7 +71,9 @@ export function JobsTable({
   const [completeTarget, setCompleteTarget] = useState<Job | null>(null);
   const [viewTarget, setViewTarget] = useState<Job | null>(null);
   const [filter, setFilter] = useState<StatusFilter>('all');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const canSeeRevenue = useCan('view_revenue');
+  const bulkDelete = useBulkDeleteJobs();
   const { data: customers = [] } = useCustomers();
   const vipCustomerIds = useMemo(() => {
     const set = new Set<string>();
@@ -79,6 +95,56 @@ export function JobsTable({
     if (filter === 'open') return jobs.filter((j) => OPEN_STATUSES.includes(j.status));
     return jobs.filter((j) => j.status === filter);
   }, [jobs, filter]);
+
+  // Drop selections that aren't visible anymore (e.g. after a filter change
+  // or a bulk delete that succeeded). Keeps the bulk-action bar honest.
+  useEffect(() => {
+    setSelected((prev) => {
+      const visible = new Set(visibleJobs.map((j) => j.id));
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (visible.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [visibleJobs]);
+
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const allVisibleSelected =
+    visibleJobs.length > 0 && visibleJobs.every((j) => selected.has(j.id));
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) setSelected(new Set());
+    else setSelected(new Set(visibleJobs.map((j) => j.id)));
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (
+      !confirm(
+        `Move ${ids.length} job${ids.length === 1 ? '' : 's'} to Trash?\n\nRestore from Settings → Trash within 30 days.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await bulkDelete.mutateAsync(ids);
+      toast.success(`${ids.length} moved to Trash`);
+      setSelected(new Set());
+    } catch (err) {
+      console.error(err);
+      toast.error('Bulk delete failed');
+    }
+  };
 
   const unassignedAcceptedCount = useMemo(
     () => jobs.filter((j) => j.status === 'Accepted' && !j.assignedTruck).length,
@@ -174,11 +240,53 @@ export function JobsTable({
             })}
           </div>
         )}
+        {selected.size > 0 && (
+          <div className="sticky top-16 z-20 flex items-center justify-between gap-2 rounded-xl bg-rebel-accent px-4 py-2.5 text-white shadow-glow mb-3">
+            <span className="text-[12px] font-bold">
+              {selected.size} selected
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-white hover:bg-white/20 gap-1.5"
+                onClick={handleBulkDelete}
+                disabled={bulkDelete.isPending}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {bulkDelete.isPending ? 'Deleting…' : 'Move to Trash'}
+              </Button>
+              <button
+                type="button"
+                onClick={() => setSelected(new Set())}
+                className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-white/20"
+                aria-label="Clear selection"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="border-b border-rebel-border hover:bg-transparent">
-              <TableHead className="text-[10px] uppercase font-bold text-rebel-text-tertiary tracking-[0.08em] py-3 px-5">Status</TableHead>
+              <TableHead className="w-8 py-3 pl-5 pr-1">
+                <button
+                  type="button"
+                  onClick={toggleSelectAll}
+                  className="text-rebel-text-tertiary hover:text-rebel-accent"
+                  aria-label={allVisibleSelected ? 'Deselect all' : 'Select all'}
+                  title={allVisibleSelected ? 'Deselect all' : 'Select all'}
+                >
+                  {allVisibleSelected ? (
+                    <CheckSquare className="w-3.5 h-3.5 text-rebel-accent" />
+                  ) : (
+                    <Square className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </TableHead>
+              <TableHead className="text-[10px] uppercase font-bold text-rebel-text-tertiary tracking-[0.08em] py-3">Status</TableHead>
               <TableHead className="text-[10px] uppercase font-bold text-rebel-text-tertiary tracking-[0.08em]">Customer</TableHead>
               <TableHead className="text-[10px] uppercase font-bold text-rebel-text-tertiary tracking-[0.08em] hidden md:table-cell">Type</TableHead>
               <TableHead className="text-[10px] uppercase font-bold text-rebel-text-tertiary tracking-[0.08em] hidden md:table-cell">Truck</TableHead>
@@ -191,7 +299,7 @@ export function JobsTable({
           <TableBody>
             {visibleJobs.length === 0 && (
               <TableRow>
-                <TableCell colSpan={canSeeRevenue ? 6 : 5} className="text-center text-[12px] text-rebel-text-tertiary py-12">
+                <TableCell colSpan={canSeeRevenue ? 7 : 6} className="text-center text-[12px] text-rebel-text-tertiary py-12">
                   {jobs.length === 0
                     ? 'No jobs yet. Click New Quote to add one.'
                     : `No jobs match the "${FILTER_LABELS.find((f) => f.id === filter)?.label ?? filter}" filter.`}
@@ -200,13 +308,31 @@ export function JobsTable({
             )}
             {visibleJobs.map((job) => {
               const total = job.fee + (job.fuelLevy ?? 0);
+              const isSelected = selected.has(job.id);
               return (
                 <TableRow
                   key={job.id}
                   onClick={() => setViewTarget(job)}
-                  className="border-b border-rebel-border last:border-0 hover:bg-rebel-surface-sunken transition-colors h-[60px] cursor-pointer"
+                  className={cn(
+                    'border-b border-rebel-border last:border-0 hover:bg-rebel-surface-sunken transition-colors h-[60px] cursor-pointer',
+                    isSelected && 'bg-rebel-accent-surface/40',
+                  )}
                 >
-                  <TableCell className="px-5">
+                  <TableCell className="pl-5 pr-1" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => toggleSelect(job.id)}
+                      className="text-rebel-text-tertiary hover:text-rebel-accent"
+                      aria-label={isSelected ? 'Deselect job' : 'Select job'}
+                    >
+                      {isSelected ? (
+                        <CheckSquare className="w-3.5 h-3.5 text-rebel-accent" />
+                      ) : (
+                        <Square className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </TableCell>
+                  <TableCell>
                     <StatusPill status={job.status} size="sm" />
                   </TableCell>
                   <TableCell>

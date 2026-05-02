@@ -3,8 +3,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useTeam } from '@/hooks/useTeam';
+import { useDrivers, useDeleteDriver } from '@/hooks/useDrivers';
 import { useTrucks, useDeleteTruck } from '@/hooks/useTrucks';
-import { Profile, Truck, UserRole } from '@/lib/types';
+import { Driver, Profile, Truck, UserRole } from '@/lib/types';
 import {
   Users,
   Truck as TruckIcon,
@@ -19,9 +20,14 @@ import {
   MessageSquare,
   FileSpreadsheet,
   Link2,
+  KeyRound,
+  Info,
 } from 'lucide-react';
+import { TrashSection } from './TrashSection';
 import { AddDriverDialog } from './AddDriverDialog';
+import { AddEditDriverDialog } from './AddEditDriverDialog';
 import { EditTeamMemberDialog } from './EditTeamMemberDialog';
+import { GenerateTruckLoginDialog } from './GenerateTruckLoginDialog';
 import { TruckDialog } from './TruckDialog';
 import { SmsTemplatesSection } from './SmsTemplatesSection';
 import { CustomerImportSection } from './CustomerImportSection';
@@ -32,7 +38,7 @@ import { DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-type Section = 'team' | 'trucks' | 'pricing' | 'sms' | 'import' | 'export' | 'integrations';
+type Section = 'team' | 'trucks' | 'pricing' | 'sms' | 'import' | 'export' | 'integrations' | 'trash';
 
 export function SettingsView() {
   const [section, setSection] = useState<Section>('team');
@@ -94,6 +100,13 @@ export function SettingsView() {
           >
             Integrations
           </TabButton>
+          <TabButton
+            active={section === 'trash'}
+            onClick={() => setSection('trash')}
+            icon={Trash2}
+          >
+            Trash
+          </TabButton>
         </div>
       </div>
 
@@ -109,6 +122,8 @@ export function SettingsView() {
         <CustomerImportSection />
       ) : section === 'export' ? (
         <BackupExportSection />
+      ) : section === 'trash' ? (
+        <TrashSection />
       ) : (
         <IntegrationsSection />
       )}
@@ -147,22 +162,49 @@ function TabButton({
 // ---------------- Team ----------------
 
 function TeamSection() {
-  const { data: team = [], isLoading } = useTeam();
+  return (
+    <div className="space-y-6">
+      <DriversSubsection />
+      <TruckLoginsSubsection />
+      <OwnersAdminsSubsection />
+    </div>
+  );
+}
+
+function DriversSubsection() {
+  const { data: drivers = [], isLoading } = useDrivers();
+  const deleteDriver = useDeleteDriver();
   const [addOpen, setAddOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<Profile | null>(null);
+  const [editTarget, setEditTarget] = useState<Driver | null>(null);
+
+  const handleDelete = async (driver: Driver) => {
+    if (!confirm(`Remove ${driver.name}?\n\nIf they're attributed to past jobs they'll be deactivated instead so the audit trail stays intact.`)) return;
+    try {
+      const res = await deleteDriver.mutateAsync(driver.id);
+      toast.success(res.mode === 'deactivated' ? `${driver.name} deactivated` : `${driver.name} removed`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to remove driver');
+    }
+  };
+
+  const activeCount = drivers.filter((d) => d.active).length;
 
   return (
-    <>
+    <section className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-bold text-base">Team members</h3>
+          <h3 className="font-bold text-base">Drivers</h3>
           <p className="text-xs text-muted-foreground">
-            {team.length} member{team.length === 1 ? '' : 's'} · drivers see only their assigned truck's jobs
+            {activeCount} active · picked from the truck portal dropdown each shift. No login.
           </p>
         </div>
         <Button
           className="bg-rebel-accent hover:bg-rebel-accent-hover text-white gap-1.5"
-          onClick={() => setAddOpen(true)}
+          onClick={() => {
+            setEditTarget(null);
+            setAddOpen(true);
+          }}
         >
           <Plus className="w-4 h-4" />
           Add driver
@@ -170,15 +212,200 @@ function TeamSection() {
       </div>
 
       {isLoading ? (
-        <LoadingRow message="Loading team…" />
-      ) : team.length === 0 ? (
+        <LoadingRow message="Loading drivers…" />
+      ) : drivers.length === 0 ? (
         <EmptyCard
           icon={Users}
-          message="No team members yet. Add a driver to get started."
+          message="No drivers yet. Add one so the truck portal can record who drove each job."
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {team.map((member) => (
+          {drivers.map((driver) => (
+            <Card
+              key={driver.id}
+              className={cn('border-border shadow-none bg-card', !driver.active && 'opacity-60')}
+            >
+              <CardContent className="p-4 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold truncate">{driver.name}</p>
+                      <Badge
+                        variant="secondary"
+                        className={cn(
+                          'border-none text-[10px]',
+                          driver.active
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-muted text-muted-foreground',
+                        )}
+                      >
+                        {driver.active ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </div>
+                    {driver.phone ? (
+                      <a
+                        href={`tel:${driver.phone}`}
+                        className="text-xs text-muted-foreground hover:text-rebel-accent inline-flex items-center gap-1.5 mt-1"
+                      >
+                        <Phone className="w-3 h-3 shrink-0" />
+                        {driver.phone}
+                      </a>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-1">No phone</p>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setEditTarget(driver);
+                        setAddOpen(true);
+                      }}
+                      aria-label="Edit"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={() => handleDelete(driver)}
+                      aria-label="Remove"
+                      className="text-rose-600 hover:text-rose-700"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <AddEditDriverDialog
+        open={addOpen}
+        onOpenChange={(open) => {
+          setAddOpen(open);
+          if (!open) setEditTarget(null);
+        }}
+        driver={editTarget}
+      />
+    </section>
+  );
+}
+
+function TruckLoginsSubsection() {
+  const { data: trucks = [], isLoading } = useTrucks();
+  const [generateTarget, setGenerateTarget] = useState<Truck | null>(null);
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-bold text-base">Truck logins</h3>
+          <p className="text-xs text-muted-foreground">
+            Each truck's tablet logs in with its own credentials. The driver is picked from the dropdown after login.
+          </p>
+        </div>
+      </div>
+
+      <Card className="border-rebel-border bg-muted/20 shadow-none">
+        <CardContent className="p-3 flex items-start gap-2 text-xs">
+          <Info className="w-4 h-4 text-rebel-accent shrink-0 mt-0.5" />
+          <p>
+            Login emails use the format{' '}
+            <code className="bg-white/80 px-1 rounded text-[11px]">truck-&lt;slug&gt;@rebellogistics.com.au</code>.
+            Make sure email confirmation is <span className="font-semibold">off</span> in
+            Supabase → Authentication → Providers → Email before generating, otherwise the
+            login won't activate.
+          </p>
+        </CardContent>
+      </Card>
+
+      {isLoading ? (
+        <LoadingRow message="Loading trucks…" />
+      ) : trucks.length === 0 ? (
+        <EmptyCard icon={TruckIcon} message="No trucks yet. Add one in the Trucks tab." />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {trucks.filter((t) => t.active).map((truck) => (
+            <Card key={truck.id} className="border-border shadow-none bg-card">
+              <CardContent className="p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-rebel-accent-surface flex items-center justify-center shrink-0">
+                    <TruckIcon className="w-4 h-4 text-rebel-accent" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold truncate">{truck.name}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      {truck.userId ? 'Login provisioned' : 'No login yet'}
+                    </p>
+                  </div>
+                </div>
+                {truck.userId ? (
+                  <Badge variant="secondary" className="bg-green-100 text-green-800 border-none text-[10px] gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Provisioned
+                  </Badge>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 shrink-0"
+                    onClick={() => setGenerateTarget(truck)}
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    Generate login
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <GenerateTruckLoginDialog truck={generateTarget} onClose={() => setGenerateTarget(null)} />
+    </section>
+  );
+}
+
+function OwnersAdminsSubsection() {
+  // Profiles minus 'driver' role — drivers now live in the dedicated table.
+  // Pending profiles still show here so an invitee with role='pending'
+  // can be promoted via Edit.
+  const { data: team = [], isLoading } = useTeam();
+  const [addOpen, setAddOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<Profile | null>(null);
+  const nonDrivers = team.filter((m) => m.role !== 'driver');
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-bold text-base">Owners & admins</h3>
+          <p className="text-xs text-muted-foreground">
+            {nonDrivers.length} member{nonDrivers.length === 1 ? '' : 's'} · accounts that log in to the dashboard.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          className="gap-1.5"
+          onClick={() => setAddOpen(true)}
+          title="Invite a new admin / dispatcher (creates an email login)"
+        >
+          <Plus className="w-4 h-4" />
+          Invite
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <LoadingRow message="Loading admins…" />
+      ) : nonDrivers.length === 0 ? (
+        <EmptyCard icon={Users} message="No owners or admins yet." />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {nonDrivers.map((member) => (
             <MemberCard
               key={member.userId}
               member={member}
@@ -190,7 +417,7 @@ function TeamSection() {
 
       <AddDriverDialog open={addOpen} onOpenChange={setAddOpen} />
       <EditTeamMemberDialog member={editTarget} onClose={() => setEditTarget(null)} />
-    </>
+    </section>
   );
 }
 
@@ -244,6 +471,7 @@ function RoleBadge({ role }: { role: UserRole }) {
   const map: Record<UserRole, string> = {
     owner: 'bg-amber-100 text-amber-800',
     driver: 'bg-rebel-accent-surface text-rebel-accent',
+    truck: 'bg-rebel-accent-surface text-rebel-accent',
     dispatcher: 'bg-indigo-100 text-indigo-800',
     admin: 'bg-purple-100 text-purple-800',
     pending: 'bg-muted text-muted-foreground',

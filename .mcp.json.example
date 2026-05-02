@@ -1,0 +1,17 @@
+{
+  "_comment": "Template for .mcp.json. Copy this file to .mcp.json and replace the placeholder values. .mcp.json is gitignored — never commit your real access token.",
+  "_setup": "1) Generate a Supabase Personal Access Token at https://supabase.com/dashboard/account/tokens. 2) Find your project ref at https://supabase.com/dashboard/project/_/settings/general (the random string in the URL). 3) Paste both below and rename this file to .mcp.json. 4) Restart Claude Code and run /mcp to verify the server connects.",
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--project-ref=YOUR_PROJECT_REF"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "sbp_YOUR_TOKEN_HERE"
+      }
+    }
+  }
+}

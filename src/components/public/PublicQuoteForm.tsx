@@ -5,6 +5,7 @@ import { JobLocation, JobType } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
 import { Card, CardContent } from '@/components/ui/card';
 import { CheckCircle2, Phone, Mail, MapPin, Package, Sparkles, Info, DollarSign } from 'lucide-react';
 import { Logo } from '@/components/ui/logo';
@@ -222,18 +223,18 @@ export function PublicQuoteForm() {
 
           <Section icon={MapPin} title="Where & when">
             <Field label="Pickup address" required>
-              <Input
+              <AddressAutocomplete
                 value={form.pickupAddress}
-                onChange={(e) => update('pickupAddress', e.target.value)}
+                onChange={(v) => update('pickupAddress', v)}
                 placeholder="123 Smith St, Footscray VIC 3011"
                 className="h-11"
                 autoComplete="street-address"
               />
             </Field>
             <Field label="Delivery address" required>
-              <Input
+              <AddressAutocomplete
                 value={form.deliveryAddress}
-                onChange={(e) => update('deliveryAddress', e.target.value)}
+                onChange={(v) => update('deliveryAddress', v)}
                 placeholder="456 Sydney Rd, Brunswick VIC 3056"
                 className="h-11"
               />

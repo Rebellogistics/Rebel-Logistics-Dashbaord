@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
 import { useCreateJob } from '@/hooks/useSupabaseData';
 import { usePricingRates } from '@/hooks/usePricingRates';
 import { useRepeatCustomerLookup, type RepeatCustomerInfo } from '@/hooks/useRepeatCustomer';
@@ -217,18 +218,18 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
           <RepeatCustomerBanner info={repeatInfo} />
 
           <Field label="Pickup address">
-            <Input
+            <AddressAutocomplete
               value={form.pickupAddress}
-              onChange={(e) => update('pickupAddress', e.target.value)}
-              placeholder="Footscray"
+              onChange={(v) => update('pickupAddress', v)}
+              placeholder="Start typing — e.g. 'Footscray'"
             />
           </Field>
 
           <Field label="Delivery address">
-            <Input
+            <AddressAutocomplete
               value={form.deliveryAddress}
-              onChange={(e) => update('deliveryAddress', e.target.value)}
-              placeholder="Brunswick"
+              onChange={(v) => update('deliveryAddress', v)}
+              placeholder="Start typing — e.g. 'Brunswick'"
             />
           </Field>
 
