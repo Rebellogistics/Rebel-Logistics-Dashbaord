@@ -8,8 +8,8 @@
 // the client.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { exchangeAuthCode, fetchGoogleUserInfo } from '../../_lib/google-oauth';
-import { supabaseAdmin, getUserFromAuthHeader } from '../../_lib/supabase-admin';
+import { exchangeAuthCode, fetchGoogleUserInfo } from '../../_lib/google-oauth.js';
+import { supabaseAdmin, getUserFromAuthHeader } from '../../_lib/supabase-admin.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

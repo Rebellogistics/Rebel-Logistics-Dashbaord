@@ -16,8 +16,8 @@
 // user's stored refresh_token. The refresh token never leaves the server.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { refreshAccessToken } from '../_lib/google-oauth';
-import { supabaseAdmin, getUserFromAuthHeader } from '../_lib/supabase-admin';
+import { refreshAccessToken } from '../_lib/google-oauth.js';
+import { supabaseAdmin, getUserFromAuthHeader } from '../_lib/supabase-admin.js';
 
 const GCAL_BASE = 'https://www.googleapis.com/calendar/v3';
 

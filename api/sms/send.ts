@@ -7,7 +7,7 @@
 // caller can persist it for delivery-receipt callbacks later.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getUserFromAuthHeader } from '../_lib/supabase-admin';
+import { getUserFromAuthHeader } from '../_lib/supabase-admin.js';
 
 function requireEnv(name: string): string {
   const v = process.env[name];

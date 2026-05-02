@@ -3,8 +3,8 @@
 // `integrations`. Idempotent.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { revokeToken } from '../../_lib/google-oauth';
-import { supabaseAdmin, getUserFromAuthHeader } from '../../_lib/supabase-admin';
+import { revokeToken } from '../../_lib/google-oauth.js';
+import { supabaseAdmin, getUserFromAuthHeader } from '../../_lib/supabase-admin.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
