@@ -357,6 +357,8 @@ export type Database = {
           regional_minimum_aud: number
           updated_at: string
           updated_by: string | null
+          wg_metro_per_cube_aud: number
+          wg_regional_minimum_aud: number
         }
         Insert: {
           gst_percent?: number
@@ -367,6 +369,8 @@ export type Database = {
           regional_minimum_aud?: number
           updated_at?: string
           updated_by?: string | null
+          wg_metro_per_cube_aud?: number
+          wg_regional_minimum_aud?: number
         }
         Update: {
           gst_percent?: number
@@ -377,6 +381,8 @@ export type Database = {
           regional_minimum_aud?: number
           updated_at?: string
           updated_by?: string | null
+          wg_metro_per_cube_aud?: number
+          wg_regional_minimum_aud?: number
         }
         Relationships: []
       }

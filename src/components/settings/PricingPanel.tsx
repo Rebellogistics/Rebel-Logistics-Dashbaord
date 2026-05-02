@@ -24,6 +24,8 @@ export function PricingPanel() {
   const isDirty = rates && (
     draft.metroPerCubeAud !== rates.metroPerCubeAud ||
     draft.regionalMinimumAud !== rates.regionalMinimumAud ||
+    draft.wgMetroPerCubeAud !== rates.wgMetroPerCubeAud ||
+    draft.wgRegionalMinimumAud !== rates.wgRegionalMinimumAud ||
     draft.hourlyRateAud !== rates.hourlyRateAud ||
     draft.minimumHours !== rates.minimumHours ||
     draft.gstPercent !== rates.gstPercent
@@ -76,7 +78,7 @@ export function PricingPanel() {
       <Card className="border-border shadow-none bg-card">
         <CardContent className="p-5 space-y-5">
           <Section
-            title="Standard delivery & White Glove"
+            title="Standard delivery"
             subtitle="Per-cube for metro jobs, flat minimum for regional jobs."
           >
             <FieldRow>
@@ -93,6 +95,30 @@ export function PricingPanel() {
                 onChange={setNum('regionalMinimumAud')}
                 disabled={!canEdit}
                 hint="Flat charge regardless of volume."
+              />
+            </FieldRow>
+          </Section>
+
+          <Divider />
+
+          <Section
+            title="White Glove"
+            subtitle="Separate rates for careful-handling / inside-placement jobs. Defaults to Standard rates until you bump them."
+          >
+            <FieldRow>
+              <RateField
+                label="Metro — per m³ (AUD)"
+                value={draft.wgMetroPerCubeAud}
+                onChange={setNum('wgMetroPerCubeAud')}
+                disabled={!canEdit}
+                hint="Used when the quote's job type is White Glove + Metro."
+              />
+              <RateField
+                label="Regional — minimum (AUD)"
+                value={draft.wgRegionalMinimumAud}
+                onChange={setNum('wgRegionalMinimumAud')}
+                disabled={!canEdit}
+                hint="Used when the quote's job type is White Glove + Regional."
               />
             </FieldRow>
           </Section>
@@ -160,11 +186,13 @@ export function PricingPanel() {
           <DollarSign className="w-5 h-5 text-rebel-accent shrink-0 mt-0.5" />
           <div className="text-xs text-muted-foreground space-y-1">
             <p className="font-semibold text-foreground">How quotes are calculated</p>
-            <p>· <span className="font-semibold">Standard / White Glove + Metro</span> — cubic metres × metro rate.</p>
-            <p>· <span className="font-semibold">Standard / White Glove + Regional</span> — flat regional minimum.</p>
+            <p>· <span className="font-semibold">Standard + Metro</span> — cubic metres × Standard metro rate.</p>
+            <p>· <span className="font-semibold">Standard + Regional</span> — Standard regional minimum.</p>
+            <p>· <span className="font-semibold">White Glove + Metro</span> — cubic metres × White Glove metro rate.</p>
+            <p>· <span className="font-semibold">White Glove + Regional</span> — White Glove regional minimum.</p>
             <p>· <span className="font-semibold">House Move</span> — max(estimated hours, minimum) × hourly rate.</p>
             <p>· GST is added on top of the subtotal at the percentage above.</p>
-            <p>· A specific customer can override the metro per-cube and the hourly rate from their customer page.</p>
+            <p>· A specific customer can override the metro per-cube and the hourly rate from their customer page — applies to whatever type they book.</p>
           </div>
         </CardContent>
       </Card>

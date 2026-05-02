@@ -26,6 +26,16 @@ export function usePricingRates() {
       return {
         metroPerCubeAud: Number(data.metro_per_cube_aud),
         regionalMinimumAud: Number(data.regional_minimum_aud),
+        // Phase 15: separate White Glove rates. Falls back to Standard if the
+        // backfill hasn't run yet (defensive — the migration sets defaults).
+        wgMetroPerCubeAud: Number(
+          (data as { wg_metro_per_cube_aud?: number | null }).wg_metro_per_cube_aud ??
+            data.metro_per_cube_aud,
+        ),
+        wgRegionalMinimumAud: Number(
+          (data as { wg_regional_minimum_aud?: number | null }).wg_regional_minimum_aud ??
+            data.regional_minimum_aud,
+        ),
         hourlyRateAud: Number(data.hourly_rate_aud),
         minimumHours: Number(data.minimum_hours),
         gstPercent: Number(data.gst_percent),
@@ -45,6 +55,8 @@ export function useUpdatePricingRates() {
         .update({
           metro_per_cube_aud: rates.metroPerCubeAud,
           regional_minimum_aud: rates.regionalMinimumAud,
+          wg_metro_per_cube_aud: rates.wgMetroPerCubeAud,
+          wg_regional_minimum_aud: rates.wgRegionalMinimumAud,
           hourly_rate_aud: rates.hourlyRateAud,
           minimum_hours: rates.minimumHours,
           gst_percent: rates.gstPercent,

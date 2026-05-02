@@ -12,8 +12,16 @@ export type JobLocation = 'Metro' | 'Regional';
 export type TruckId = string;
 
 export interface PricingRates {
+  /** Standard delivery — per-cubic-metre rate for metro jobs. */
   metroPerCubeAud: number;
+  /** Standard delivery — flat minimum for regional jobs. */
   regionalMinimumAud: number;
+  /** White Glove — per-cubic-metre rate for metro jobs (separate from Standard). */
+  wgMetroPerCubeAud: number;
+  /** White Glove — flat minimum for regional jobs (separate from Standard). */
+  wgRegionalMinimumAud: number;
+  /** House Move — hourly rate. Same for both Standard and White Glove handling
+   *  styles since House Move is its own job type. */
   hourlyRateAud: number;
   minimumHours: number;
   gstPercent: number;

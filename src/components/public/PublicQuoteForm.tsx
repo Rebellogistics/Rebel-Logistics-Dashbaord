@@ -293,7 +293,13 @@ export function PublicQuoteForm() {
                 ) : (
                   <div className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground inline-flex items-start gap-2">
                     <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                    Regional jobs use a flat minimum charge of {rates ? formatAud(rates.regionalMinimumAud) : '—'} +GST.
+                    Regional jobs use a flat minimum charge of{' '}
+                    {rates
+                      ? formatAud(
+                          form.type === 'White Glove' ? rates.wgRegionalMinimumAud : rates.regionalMinimumAud,
+                        )
+                      : '—'}{' '}
+                    +GST.
                   </div>
                 )}
                 <Field label="Items">

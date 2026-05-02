@@ -736,7 +736,12 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
                 {isRegional && (
                   <div className="rounded-lg bg-muted/40 p-2 text-[11px] text-muted-foreground">
                     Regional jobs use a flat minimum charge of{' '}
-                    {rates ? formatAud(rates.regionalMinimumAud) : '—'}.
+                    {rates
+                      ? formatAud(
+                          draft.type === 'White Glove' ? rates.wgRegionalMinimumAud : rates.regionalMinimumAud,
+                        )
+                      : '—'}{' '}
+                    ({draft.type === 'White Glove' ? 'White Glove rate' : 'Standard rate'}).
                   </div>
                 )}
               </div>

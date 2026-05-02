@@ -3,6 +3,10 @@ import { JobLocation, JobType, PricingRates } from './types';
 export const DEFAULT_RATES: PricingRates = {
   metroPerCubeAud: 90,
   regionalMinimumAud: 480,
+  // White Glove defaults match Standard so first-install behaviour is
+  // unchanged. Yamin can bump them upward in Settings → Pricing.
+  wgMetroPerCubeAud: 90,
+  wgRegionalMinimumAud: 480,
   hourlyRateAud: 180,
   minimumHours: 3,
   gstPercent: 10,
@@ -40,13 +44,24 @@ export interface QuoteBreakdown {
  * Compute the price for a quote based on its type, location, dimensions/hours,
  * the active rate book, and optional per-customer overrides.
  *
- * Standard / White Glove + Metro    → cubicMetres × metroRate
- * Standard / White Glove + Regional → flat regionalMinimum (not per cube)
- * House Move                        → max(estimatedHours, minHours) × hourlyRate
+ * Standard + Metro     → cubicMetres × metroPerCubeAud
+ * Standard + Regional  → flat regionalMinimumAud
+ * White Glove + Metro  → cubicMetres × wgMetroPerCubeAud
+ * White Glove + Regional → flat wgRegionalMinimumAud
+ * House Move           → max(estimatedHours, minHours) × hourlyRateAud
+ *
+ * The customer-level `overrideMetroRate` is intentionally type-agnostic: a
+ * special-rate customer pays their negotiated per-cube regardless of whether
+ * the booking is Standard or White Glove. Same for `overrideHourlyRate` on
+ * House Move bookings.
  */
 export function calculateQuote(input: QuoteInput): QuoteBreakdown {
   const { type, location, cubicMetres = 0, estimatedHours = 0, rates } = input;
-  const metroRate = input.overrideMetroRate ?? rates.metroPerCubeAud;
+  const isWhiteGlove = type === 'White Glove';
+  // Pick the right rate-book figures for this job type.
+  const baseMetroRate = isWhiteGlove ? rates.wgMetroPerCubeAud : rates.metroPerCubeAud;
+  const baseRegional = isWhiteGlove ? rates.wgRegionalMinimumAud : rates.regionalMinimumAud;
+  const metroRate = input.overrideMetroRate ?? baseMetroRate;
   const hourlyRate = input.overrideHourlyRate ?? rates.hourlyRateAud;
   const billedHours = Math.max(estimatedHours, rates.minimumHours);
 
@@ -57,14 +72,17 @@ export function calculateQuote(input: QuoteInput): QuoteBreakdown {
     subtotal = billedHours * hourlyRate;
     explainer = `${billedHours} h × $${hourlyRate}`;
   } else if (location === 'Regional') {
-    subtotal = rates.regionalMinimumAud;
-    explainer = `Regional minimum charge`;
+    subtotal = baseRegional;
+    explainer = isWhiteGlove
+      ? 'White Glove regional minimum'
+      : 'Regional minimum charge';
   } else {
     // Standard / White Glove + Metro (default if no location)
     subtotal = cubicMetres * metroRate;
+    const tag = isWhiteGlove ? ' (White Glove)' : '';
     explainer = cubicMetres > 0
-      ? `${cubicMetres} m³ × $${metroRate}`
-      : `0 m³ × $${metroRate}`;
+      ? `${cubicMetres} m³ × $${metroRate}${tag}`
+      : `0 m³ × $${metroRate}${tag}`;
   }
 
   const gst = round2(subtotal * (rates.gstPercent / 100));
