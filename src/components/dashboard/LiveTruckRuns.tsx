@@ -1,4 +1,5 @@
 import { Job, JobStatus, Customer } from '@/lib/types';
+import { customerDisplay } from '@/lib/jobDisplay';
 import { Truck, Clock, ArrowRight, MapPin, Flame, MessageSquare, Star, Calendar } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format, parseISO, isToday, isTomorrow } from 'date-fns';
@@ -141,7 +142,7 @@ function RunCard({ job, customer }: RunCardProps) {
       <div className="p-3.5 space-y-2">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
-            <h3 className="text-[13px] font-bold text-rebel-text truncate">{job.customerName}</h3>
+            <h3 className="text-[13px] font-bold text-rebel-text truncate">{customerDisplay(job).primary}</h3>
             {customer.vip && (
               <span
                 className="shrink-0 inline-flex items-center justify-center h-4 w-4 rounded-full bg-amber-400"

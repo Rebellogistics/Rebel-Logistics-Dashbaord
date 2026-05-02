@@ -12,6 +12,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { Job, JobStatus, Customer } from '@/lib/types';
+import { customerDisplay } from '@/lib/jobDisplay';
 import { useUpdateJob } from '@/hooks/useSupabaseData';
 import { useTrucks } from '@/hooks/useTrucks';
 import { useSendSmsForJob } from '@/hooks/useSms';
@@ -333,9 +334,10 @@ export function BoardView({ jobs, customers = [], onViewJob }: BoardViewProps) {
 }
 
 function BoardDragGhost({ job }: { job: Job }) {
+  const display = customerDisplay(job);
   return (
     <div className="rounded-xl border border-rebel-accent bg-rebel-surface p-2.5 shadow-glow w-[240px] pointer-events-none">
-      <p className="text-[11.5px] font-semibold text-rebel-text truncate">{job.customerName}</p>
+      <p className="text-[11.5px] font-semibold text-rebel-text truncate">{display.primary}</p>
       <p className="text-[9px] text-rebel-text-tertiary truncate">
         {job.status}{job.assignedTruck ? ` · ${job.assignedTruck}` : ''}
       </p>
@@ -498,9 +500,21 @@ function CompactJobCard({
           </button>
         )}
         <div className="flex-1 min-w-0">
-          <p className="text-[11.5px] font-semibold text-rebel-text truncate">
-            {job.customerName}
-          </p>
+          {(() => {
+            const display = customerDisplay(job);
+            return (
+              <>
+                <p className="text-[11.5px] font-semibold text-rebel-text truncate">
+                  {display.primary}
+                </p>
+                {display.secondary && (
+                  <p className="text-[9.5px] text-rebel-text-tertiary truncate">
+                    {display.secondary}
+                  </p>
+                )}
+              </>
+            );
+          })()}
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <StatusPill status={job.status} size="xs" />
             {job.assignedTruck && (

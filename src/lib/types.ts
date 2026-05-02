@@ -93,7 +93,13 @@ export type CustomerSource =
 
 export interface Job {
   id: string;
+  /** Contact person, or — for individual customers — the customer themselves.
+   *  When a company name is set, this is the contact-person sub-line. */
   customerName: string;
+  /** Phase 16: business / company name. NULL for individuals. When present,
+   *  this is the primary identity displayed on the quote; customerName is
+   *  shown as the secondary contact-person line. */
+  customerCompanyName?: string | null;
   /** Phone is optional from Phase 14 onwards — Yamin's "name only" rule. */
   customerPhone?: string | null;
   pickupAddress: string;

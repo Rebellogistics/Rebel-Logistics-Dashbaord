@@ -27,6 +27,7 @@ import { StatusPill } from '@/components/ui/status-pill';
 import { NewQuoteDialog } from '@/components/jobs/NewQuoteDialog';
 import { useCan } from '@/hooks/useCan';
 import { useCustomers, useBulkDeleteJobs } from '@/hooks/useSupabaseData';
+import { customerDisplay } from '@/lib/jobDisplay';
 import { toast } from 'sonner';
 import { AcceptDialog } from '@/components/jobs/AcceptDialog';
 import { AssignTruckDialog } from '@/components/jobs/AssignTruckDialog';
@@ -336,33 +337,43 @@ export function JobsTable({
                     <StatusPill status={job.status} size="sm" />
                   </TableCell>
                   <TableCell>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-[12.5px] font-semibold text-rebel-text truncate">{job.customerName}</p>
-                        {job.customerId && vipCustomerIds.has(job.customerId) && (
-                          <span
-                            className="shrink-0 inline-flex items-center justify-center h-4 w-4 rounded-full bg-amber-400"
-                            aria-label="VIP"
-                            title="VIP customer"
-                          >
-                            <Star className="w-2.5 h-2.5 text-white fill-white" />
-                          </span>
-                        )}
-                      </div>
-                      {job.customerPhone ? (
-                        <a
-                          href={`tel:${job.customerPhone}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="block text-[10.5px] font-mono text-rebel-text-tertiary mt-0.5 hover:text-rebel-accent"
-                        >
-                          {job.customerPhone}
-                        </a>
-                      ) : null}
-                      <p className="text-[10px] text-rebel-text-tertiary md:hidden mt-0.5">
-                        {job.type}
-                        {job.assignedTruck ? ` · ${job.assignedTruck}` : ''}
-                      </p>
-                    </div>
+                    {(() => {
+                      const display = customerDisplay(job);
+                      return (
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-[12.5px] font-semibold text-rebel-text truncate">{display.primary}</p>
+                            {job.customerId && vipCustomerIds.has(job.customerId) && (
+                              <span
+                                className="shrink-0 inline-flex items-center justify-center h-4 w-4 rounded-full bg-amber-400"
+                                aria-label="VIP"
+                                title="VIP customer"
+                              >
+                                <Star className="w-2.5 h-2.5 text-white fill-white" />
+                              </span>
+                            )}
+                          </div>
+                          {display.secondary && (
+                            <p className="text-[10.5px] text-rebel-text-tertiary mt-0.5 truncate">
+                              Contact: {display.secondary}
+                            </p>
+                          )}
+                          {job.customerPhone ? (
+                            <a
+                              href={`tel:${job.customerPhone}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="block text-[10.5px] font-mono text-rebel-text-tertiary mt-0.5 hover:text-rebel-accent"
+                            >
+                              {job.customerPhone}
+                            </a>
+                          ) : null}
+                          <p className="text-[10px] text-rebel-text-tertiary md:hidden mt-0.5">
+                            {job.type}
+                            {job.assignedTruck ? ` · ${job.assignedTruck}` : ''}
+                          </p>
+                        </div>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell className="text-[12px] text-rebel-text-secondary hidden md:table-cell">{job.type}</TableCell>
                   <TableCell className="text-[12px] text-rebel-text-secondary hidden md:table-cell">

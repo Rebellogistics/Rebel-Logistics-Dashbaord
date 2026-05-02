@@ -34,6 +34,7 @@ function defaultValidUntil() {
 function formFromJob(job: Job): typeof initial {
   return {
     customerName: job.customerName ?? '',
+    customerCompanyName: job.customerCompanyName ?? '',
     customerPhone: job.customerPhone ?? '',
     pickupAddress: job.pickupAddress ?? '',
     deliveryAddress: job.deliveryAddress ?? '',
@@ -49,6 +50,7 @@ function formFromJob(job: Job): typeof initial {
 
 const initial = {
   customerName: '',
+  customerCompanyName: '',
   customerPhone: '',
   pickupAddress: '',
   deliveryAddress: '',
@@ -122,11 +124,10 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
     (isHouseMove && repeatInfo.overrideHourlyRate != null) ||
     (isMetro && repeatInfo.overrideMetroRate != null);
 
-  const baseValid =
-    form.customerName.trim() &&
-    form.customerPhone.trim() &&
-    form.pickupAddress.trim() &&
-    form.deliveryAddress.trim();
+  // Phase 14/16: customer name is the only required identity field. Phone,
+  // addresses, and company name are all optional — Yamin will fill them in
+  // later from his desk after a phone-call quote.
+  const baseValid = form.customerName.trim().length > 0;
 
   const pricingValid = (() => {
     if (!breakdown) return false;
@@ -144,7 +145,8 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
     return {
       id: `RL-${Date.now().toString(36).toUpperCase()}`,
       customerName: form.customerName.trim(),
-      customerPhone: form.customerPhone.trim(),
+      customerCompanyName: form.customerCompanyName.trim() || undefined,
+      customerPhone: form.customerPhone.trim() || undefined,
       pickupAddress: form.pickupAddress.trim(),
       deliveryAddress: form.deliveryAddress.trim(),
       type: form.type,
@@ -195,18 +197,35 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
         </DialogHeader>
 
         <div className="grid gap-3 py-2 max-h-[60vh] overflow-y-auto pr-1">
+          <Field
+            label="Company name (optional)"
+            hint="For business customers — e.g. 'Bayliss Rugs'. Leave blank for individuals; their name below is enough."
+          >
+            <Input
+              value={form.customerCompanyName}
+              onChange={(e) => update('customerCompanyName', e.target.value)}
+              placeholder="Bayliss Rugs"
+            />
+          </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Customer name">
+            <Field
+              label={form.customerCompanyName.trim() ? 'Contact person' : 'Customer name'}
+              hint={
+                form.customerCompanyName.trim()
+                  ? 'Who at the company is making the booking. Optional.'
+                  : "Required. For individuals, this is them."
+              }
+            >
               <Input
                 value={form.customerName}
                 onChange={(e) => {
                   setNameTouched(true);
                   update('customerName', e.target.value);
                 }}
-                placeholder="Jane Smith"
+                placeholder={form.customerCompanyName.trim() ? 'Jane Smith (optional)' : 'Jane Smith'}
               />
             </Field>
-            <Field label="Phone">
+            <Field label="Phone (optional)">
               <Input
                 value={form.customerPhone}
                 onChange={(e) => update('customerPhone', e.target.value)}

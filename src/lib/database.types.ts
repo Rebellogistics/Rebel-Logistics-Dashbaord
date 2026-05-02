@@ -188,6 +188,7 @@ export type Database = {
           completed_by_driver_name: string | null
           created_at: string
           cubic_metres: number | null
+          customer_company_name: string | null
           customer_id: string | null
           customer_name: string
           customer_phone: string | null
@@ -230,9 +231,10 @@ export type Database = {
           completed_by_driver_name?: string | null
           created_at?: string
           cubic_metres?: number | null
+          customer_company_name?: string | null
           customer_id?: string | null
           customer_name: string
-          customer_phone: string | null
+          customer_phone?: string | null
           date: string
           day_prior_sms_sent_at?: string | null
           decline_reason?: string | null
@@ -272,9 +274,10 @@ export type Database = {
           completed_by_driver_name?: string | null
           created_at?: string
           cubic_metres?: number | null
+          customer_company_name?: string | null
           customer_id?: string | null
           customer_name?: string
-          customer_phone?: string
+          customer_phone?: string | null
           date?: string
           day_prior_sms_sent_at?: string | null
           decline_reason?: string | null

@@ -34,6 +34,7 @@ import {
 import { addDays, format, subDays, isToday, isTomorrow, parseISO, compareAsc } from 'date-fns';
 import { MarkCompleteDialog } from '@/components/jobs/MarkCompleteDialog';
 import { JobActionMenu, type JobMenuAction } from '@/components/jobs/JobActionMenu';
+import { customerDisplay } from '@/lib/jobDisplay';
 import { useSendSmsForJob } from '@/hooks/useSms';
 import { useUpdateJob } from '@/hooks/useSupabaseData';
 import { useTrucks } from '@/hooks/useTrucks';
@@ -511,9 +512,10 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
 // Simple, low-fidelity ghost — just the customer name + truck/date hint.
 // Rendered above the kanban surface while dnd-kit drives the overlay.
 function DragGhost({ job }: { job: Job }) {
+  const display = customerDisplay(job);
   return (
     <div className="rounded-lg border border-rebel-accent bg-card p-2.5 shadow-glow w-[260px] pointer-events-none">
-      <p className="text-xs font-semibold truncate">{job.customerName}</p>
+      <p className="text-xs font-semibold truncate">{display.primary}</p>
       <p className="text-[10px] text-muted-foreground truncate">
         {job.assignedTruck ?? 'No truck'} · {job.date || '—'}
       </p>
@@ -679,7 +681,17 @@ function PoolCard({
           <GripVertical className="w-3 h-3" />
         </button>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold truncate">{job.customerName}</p>
+          {(() => {
+            const display = customerDisplay(job);
+            return (
+              <>
+                <p className="text-xs font-semibold truncate">{display.primary}</p>
+                {display.secondary ? (
+                  <p className="text-[9.5px] text-muted-foreground truncate">{display.secondary}</p>
+                ) : null}
+              </>
+            );
+          })()}
           {job.customerPhone ? (
             <a
               href={`tel:${job.customerPhone}`}
@@ -688,9 +700,7 @@ function PoolCard({
             >
               {job.customerPhone}
             </a>
-          ) : (
-            <p className="text-[10px] text-muted-foreground truncate">—</p>
-          )}
+          ) : null}
         </div>
         <Badge variant="secondary" className="bg-muted text-muted-foreground border-none text-[9px] shrink-0">
           {job.type}
@@ -918,7 +928,17 @@ function JobCard({
             </button>
           )}
           <div className="min-w-0">
-            <p className="text-xs font-semibold truncate">{job.customerName}</p>
+            {(() => {
+              const display = customerDisplay(job);
+              return (
+                <>
+                  <p className="text-xs font-semibold truncate">{display.primary}</p>
+                  {display.secondary ? (
+                    <p className="text-[9.5px] text-muted-foreground truncate">{display.secondary}</p>
+                  ) : null}
+                </>
+              );
+            })()}
             {job.customerPhone ? (
               <a
                 href={`tel:${job.customerPhone}`}

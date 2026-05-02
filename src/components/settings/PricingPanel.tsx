@@ -56,7 +56,9 @@ export function PricingPanel() {
         <div>
           <h3 className="font-bold text-base">Pricing</h3>
           <p className="text-xs text-muted-foreground">
-            These rates apply to every new quote. Existing quotes keep their original price.
+            All rates below are <span className="font-semibold text-foreground">ex-GST</span>.
+            GST is added on top of the subtotal at the percentage shown in the Tax section.
+            These rates apply to every new quote — existing quotes keep their original price.
           </p>
         </div>
         {rates?.updatedAt && (
@@ -83,14 +85,14 @@ export function PricingPanel() {
           >
             <FieldRow>
               <RateField
-                label="Metro — per m³ (AUD)"
+                label="Metro — per m³ (AUD ex-GST)"
                 value={draft.metroPerCubeAud}
                 onChange={setNum('metroPerCubeAud')}
                 disabled={!canEdit}
                 hint="Multiplied by the cubic-metres value on the quote."
               />
               <RateField
-                label="Regional — minimum (AUD)"
+                label="Regional — minimum (AUD ex-GST)"
                 value={draft.regionalMinimumAud}
                 onChange={setNum('regionalMinimumAud')}
                 disabled={!canEdit}
@@ -107,14 +109,14 @@ export function PricingPanel() {
           >
             <FieldRow>
               <RateField
-                label="Metro — per m³ (AUD)"
+                label="Metro — per m³ (AUD ex-GST)"
                 value={draft.wgMetroPerCubeAud}
                 onChange={setNum('wgMetroPerCubeAud')}
                 disabled={!canEdit}
                 hint="Used when the quote's job type is White Glove + Metro."
               />
               <RateField
-                label="Regional — minimum (AUD)"
+                label="Regional — minimum (AUD ex-GST)"
                 value={draft.wgRegionalMinimumAud}
                 onChange={setNum('wgRegionalMinimumAud')}
                 disabled={!canEdit}
@@ -131,7 +133,7 @@ export function PricingPanel() {
           >
             <FieldRow>
               <RateField
-                label="Hourly rate (AUD)"
+                label="Hourly rate (AUD ex-GST)"
                 value={draft.hourlyRateAud}
                 onChange={setNum('hourlyRateAud')}
                 disabled={!canEdit}

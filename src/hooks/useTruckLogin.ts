@@ -6,18 +6,22 @@ const TRUCK_LOGIN_DOMAIN = 'rebellogistics.com.au';
 
 /**
  * Build a synthetic email for a truck account, e.g.
- *   "XV 98 GC"  →  "truck-xv-98-gc@rebellogistics.com.au"
+ *   "XV 98 GC"  →  "truck-xv98gc@rebellogistics.com.au"
  *
- * Yamin owns the domain (confirmed May 2). The email isn't expected to receive
- * mail; it's just an identity for Supabase auth. If email confirmation is on
- * in the project, the link won't be deliverable — turn confirmation off or
- * configure a catch-all on the domain.
+ * Slug is alphanumeric only — no hyphens, no dots, no spaces. Yamin asked
+ * for "no special characters" so spaces / non-alphanumerics are stripped
+ * entirely rather than collapsed to hyphens. The fixed `truck-` prefix
+ * keeps a single separator between the role and the rego identifier.
+ *
+ * Yamin owns rebellogistics.com.au (confirmed May 2). The email isn't
+ * expected to receive mail; it's just an identity for Supabase auth. If
+ * email confirmation is on in the project, the link won't be deliverable —
+ * turn confirmation off or configure a catch-all on the domain.
  */
 export function truckLoginEmail(truckName: string): string {
   const slug = truckName
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .replace(/[^a-z0-9]+/g, '')
     .slice(0, 40) || 'unknown';
   return `truck-${slug}@${TRUCK_LOGIN_DOMAIN}`;
 }

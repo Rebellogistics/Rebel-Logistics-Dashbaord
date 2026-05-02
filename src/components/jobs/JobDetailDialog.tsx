@@ -51,6 +51,7 @@ import { useJobHistory, useAppendJobHistory } from '@/hooks/useJobHistory';
 import { usePricingRates } from '@/hooks/usePricingRates';
 import { useRepeatCustomerLookup } from '@/hooks/useRepeatCustomer';
 import { calculateQuote, formatAud } from '@/lib/pricing';
+import { customerDisplay } from '@/lib/jobDisplay';
 import { exportJobProofZip, jobZipName, triggerDownload } from '@/lib/export';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -74,6 +75,7 @@ function round2(n: number): number {
 function buildDraftFromJob(job: Job) {
   return {
     customerName: job.customerName ?? '',
+    customerCompanyName: job.customerCompanyName ?? '',
     date: job.date ?? '',
     pickupAddress: job.pickupAddress ?? '',
     deliveryAddress: job.deliveryAddress ?? '',
@@ -103,6 +105,7 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
   // don't silently overwrite their override.
   const [draft, setDraft] = useState({
     customerName: '',
+    customerCompanyName: '',
     date: '',
     pickupAddress: '',
     deliveryAddress: '',
@@ -270,20 +273,32 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
       });
     };
 
-    // Customer name — text NOT NULL, so reject empty trims (but allow rename
-    // through, which only updates this job's stored name, not the linked
-    // customer record on the Customers page).
+    // Customer name — text NOT NULL on jobs. Either the company name or the
+    // contact name must be present (mirrors the new-quote rule). Editing is
+    // local to this job; the linked customer record on Customers tab is not
+    // touched here.
     const newName = draft.customerName.trim();
-    if (!newName) {
-      toast.error('Customer name cannot be empty');
+    const newCompany = draft.customerCompanyName.trim();
+    if (!newName && !newCompany) {
+      toast.error('Customer name or company name is required');
       return;
     }
     if (newName !== (job.customerName ?? '')) {
-      changes.customerName = newName;
+      // customer_name stays NOT NULL — fall back to company name if blank.
+      const persisted = newName || newCompany;
+      changes.customerName = persisted;
       historyEntries.push({
         field: 'customer_name',
         oldValue: job.customerName ?? null,
-        newValue: newName,
+        newValue: persisted,
+      });
+    }
+    if (newCompany !== (job.customerCompanyName ?? '')) {
+      changes.customerCompanyName = newCompany || undefined;
+      historyEntries.push({
+        field: 'customer_company_name',
+        oldValue: job.customerCompanyName ?? null,
+        newValue: newCompany || null,
       });
     }
 
@@ -445,16 +460,40 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
             <div className="min-w-0 flex-1">
               <DialogTitle className="flex items-center gap-2 flex-wrap">
                 {editing ? (
-                  <Input
-                    value={draft.customerName}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, customerName: e.target.value }))
-                    }
-                    placeholder="Customer name"
-                    className="h-9 text-base font-bold flex-1 min-w-0 max-w-full"
-                  />
+                  <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                    <Input
+                      value={draft.customerCompanyName}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, customerCompanyName: e.target.value }))
+                      }
+                      placeholder="Company name (optional)"
+                      className="h-9 text-base font-bold"
+                    />
+                    <Input
+                      value={draft.customerName}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, customerName: e.target.value }))
+                      }
+                      placeholder={
+                        draft.customerCompanyName.trim() ? 'Contact person (optional)' : 'Customer name'
+                      }
+                      className="h-8 text-sm"
+                    />
+                  </div>
                 ) : (
-                  <span className="truncate min-w-0 max-w-full">{job.customerName}</span>
+                  (() => {
+                    const display = customerDisplay(job);
+                    return (
+                      <div className="min-w-0 flex-1">
+                        <span className="truncate block max-w-full">{display.primary}</span>
+                        {display.secondary && (
+                          <span className="block text-[11px] font-normal text-muted-foreground truncate max-w-full">
+                            Contact: {display.secondary}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()
                 )}
                 {isVip && (
                   <span
@@ -1108,6 +1147,8 @@ function fieldLabel(field: string): string {
       return 'Delivery address';
     case 'customer_name':
       return 'Customer name';
+    case 'customer_company_name':
+      return 'Company name';
     case 'customer_phone':
       return 'Phone';
     case 'notes':
