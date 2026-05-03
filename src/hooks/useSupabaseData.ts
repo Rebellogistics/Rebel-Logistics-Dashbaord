@@ -123,9 +123,13 @@ export function useCreateJob() {
       if (error) throw error;
       return toCamelCase<Job>(data);
     },
-    onSuccess: () => {
+    onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });
+      // Phase 20: new jobs are syncable too. The endpoint decides
+      // create-vs-noop based on the job's current state (only Accepted+
+      // truck triggers an event), so pushing for every create is safe.
+      if (created?.id) fireCalendarSync(created.id);
     },
   });
 }
@@ -218,10 +222,15 @@ export function useRestoreJobs() {
         .update({ deleted_at: null })
         .in('id', ids);
       if (error) throw error;
+      return ids;
     },
-    onSuccess: () => {
+    onSuccess: (ids) => {
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       queryClient.invalidateQueries({ queryKey: ['trashed_jobs'] });
+      // Phase 20: a restored job that's still on a truck should reappear
+      // on the calendar. The sync endpoint reads the job's CURRENT state
+      // and recreates the event when shouldSync flips back to true.
+      for (const id of ids ?? []) fireCalendarSync(id);
     },
   });
 }
