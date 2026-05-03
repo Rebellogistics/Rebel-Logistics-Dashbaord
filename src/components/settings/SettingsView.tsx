@@ -349,10 +349,21 @@ function TruckLoginsSubsection() {
                   </div>
                 </div>
                 {truck.userId ? (
-                  <Badge variant="secondary" className="bg-green-100 text-green-800 border-none text-[10px] gap-1">
-                    <CheckCircle2 className="w-3 h-3" />
-                    Provisioned
-                  </Badge>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant="secondary" className="bg-green-100 text-green-800 border-none text-[10px] gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Provisioned
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={() => setGenerateTarget(truck)}
+                    >
+                      <KeyRound className="w-3.5 h-3.5" />
+                      Manage
+                    </Button>
+                  </div>
                 ) : (
                   <Button
                     size="sm"

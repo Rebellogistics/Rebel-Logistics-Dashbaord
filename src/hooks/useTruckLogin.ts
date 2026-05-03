@@ -1,6 +1,7 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { apiPostJson } from '@/lib/apiClient';
 
 const TRUCK_LOGIN_DOMAIN = 'rebellogistics.com.au';
 
@@ -124,6 +125,20 @@ export function useCreateTruckLogin() {
         );
       }
 
+      // Phase 18: persist the password so the owner can reveal it later
+      // (the dialog still shows it once on creation; this is the backup).
+      const { error: credErr } = await supabase
+        .from('truck_credentials')
+        .upsert(
+          { truck_id: truckId, password, updated_at: new Date().toISOString() },
+          { onConflict: 'truck_id' },
+        );
+      if (credErr) {
+        // Soft-fail — the owner already has the password from the dialog.
+        // They can use Reset → Reveal later if they lose track.
+        console.warn('truck_credentials upsert failed', credErr);
+      }
+
       try {
         await tempClient.auth.signOut();
       } catch {
@@ -135,6 +150,74 @@ export function useCreateTruckLogin() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['trucks'] });
       qc.invalidateQueries({ queryKey: ['team'] });
+      qc.invalidateQueries({ queryKey: ['truck_credential'] });
+    },
+  });
+}
+
+/**
+ * Phase 18: read the persisted password for a truck. Returns null if no
+ * credential row exists (truck never had a login generated, or the
+ * persistence failed). RLS restricts SELECT to owner/admin — non-owners
+ * get an empty result regardless.
+ *
+ * The query is `enabled` only when `truckId` is truthy AND the caller
+ * explicitly opts in via `enabled: true`, since this returns sensitive
+ * data and shouldn't run on every dashboard mount.
+ */
+export function useTruckCredential(truckId: string | null, opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['truck_credential', truckId],
+    enabled: !!truckId && opts?.enabled !== false,
+    queryFn: async () => {
+      if (!truckId) return null;
+      const { data, error } = await supabase
+        .from('truck_credentials')
+        .select('password, updated_at')
+        .eq('truck_id', truckId)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? { password: data.password, updatedAt: data.updated_at } : null;
+    },
+    // Don't keep the password in cache forever — refetch each time the
+    // owner opens the dialog so a stale password doesn't show after a
+    // reset on another tab.
+    staleTime: 0,
+    gcTime: 30_000,
+  });
+}
+
+interface ResetTruckPasswordParams {
+  truckId: string;
+  /** When omitted, the server generates a random alphanumeric password. */
+  password?: string;
+}
+
+interface ResetTruckPasswordResult {
+  password: string;
+  truckName: string;
+}
+
+/**
+ * Phase 18: rotate a truck's tablet password.
+ * - No `password` field → server generates a fresh random alphanumeric one.
+ * - `password` field → owner-supplied custom value (min 8 chars).
+ *
+ * Hits /api/trucks/reset-password which uses the service-role key to
+ * update Supabase auth's stored hash, then mirrors the plaintext into
+ * truck_credentials for future reveal.
+ */
+export function useResetTruckPassword() {
+  const qc = useQueryClient();
+  return useMutation<ResetTruckPasswordResult, Error, ResetTruckPasswordParams>({
+    mutationFn: async ({ truckId, password }) => {
+      return await apiPostJson<ResetTruckPasswordResult>('/api/trucks/reset-password', {
+        truckId,
+        password,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['truck_credential'] });
     },
   });
 }

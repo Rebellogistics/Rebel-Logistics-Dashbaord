@@ -559,6 +559,32 @@ export type Database = {
         }
         Relationships: []
       }
+      truck_credentials: {
+        Row: {
+          truck_id: string
+          password: string
+          updated_at: string
+        }
+        Insert: {
+          truck_id: string
+          password: string
+          updated_at?: string
+        }
+        Update: {
+          truck_id?: string
+          password?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "truck_credentials_truck_id_fkey"
+            columns: ["truck_id"]
+            isOneToOne: true
+            referencedRelation: "trucks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trucks: {
         Row: {
           active: boolean
