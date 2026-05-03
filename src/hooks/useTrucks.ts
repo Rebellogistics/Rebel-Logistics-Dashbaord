@@ -18,9 +18,12 @@ export function useTrucks() {
   return useQuery<Truck[]>({
     queryKey: ['trucks'],
     queryFn: async () => {
+      // Phase 17: filter out soft-deleted trucks. Trash view uses
+      // useTrashedTrucks below.
       const { data, error } = await supabase
         .from('trucks')
         .select('*')
+        .is('deleted_at', null)
         .order('name', { ascending: true });
       if (error) throw error;
       return toCamelCase<Truck[]>(data || []);
@@ -94,11 +97,63 @@ export function useDeleteTruck() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('trucks').delete().eq('id', id);
+      // Phase 17: soft-delete. Restore from Settings → Trash.
+      const { error } = await supabase
+        .from('trucks')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trucks'] });
+      queryClient.invalidateQueries({ queryKey: ['trashed_trucks'] });
+    },
+  });
+}
+
+export function useTrashedTrucks() {
+  return useQuery<Truck[]>({
+    queryKey: ['trashed_trucks'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('trucks')
+        .select('*')
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', { ascending: false });
+      if (error) throw error;
+      return toCamelCase<Truck[]>(data || []);
+    },
+  });
+}
+
+export function useRestoreTrucks() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (ids.length === 0) return;
+      const { error } = await supabase
+        .from('trucks')
+        .update({ deleted_at: null })
+        .in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trucks'] });
+      queryClient.invalidateQueries({ queryKey: ['trashed_trucks'] });
+    },
+  });
+}
+
+export function usePurgeTrucks() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (ids.length === 0) return;
+      const { error } = await supabase.from('trucks').delete().in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trashed_trucks'] });
     },
   });
 }

@@ -178,10 +178,15 @@ function DriversSubsection() {
   const [editTarget, setEditTarget] = useState<Driver | null>(null);
 
   const handleDelete = async (driver: Driver) => {
-    if (!confirm(`Remove ${driver.name}?\n\nIf they're attributed to past jobs they'll be deactivated instead so the audit trail stays intact.`)) return;
+    if (
+      !confirm(
+        `Move ${driver.name} to Trash?\n\nRestore from Settings → Trash within 30 days. Past job attributions stay intact.`,
+      )
+    )
+      return;
     try {
-      const res = await deleteDriver.mutateAsync(driver.id);
-      toast.success(res.mode === 'deactivated' ? `${driver.name} deactivated` : `${driver.name} removed`);
+      await deleteDriver.mutateAsync(driver.id);
+      toast.success(`${driver.name} moved to Trash`);
     } catch (err) {
       console.error(err);
       toast.error('Failed to remove driver');
@@ -501,12 +506,16 @@ function TrucksSection() {
   const [editTarget, setEditTarget] = useState<Truck | null>(null);
 
   const handleDelete = async (truck: Truck) => {
-    if (!confirm(`Delete ${truck.name}? This cannot be undone and will affect any jobs still assigned to it.`)) {
+    if (
+      !confirm(
+        `Move ${truck.name} to Trash?\n\nRestore from Settings → Trash within 30 days. Jobs assigned to this truck keep their assignment by name; the link comes back automatically when you restore.`,
+      )
+    ) {
       return;
     }
     try {
       await deleteTruck.mutateAsync(truck.id);
-      toast.success(`${truck.name} deleted`);
+      toast.success(`${truck.name} moved to Trash`);
     } catch (err) {
       console.error(err);
       toast.error('Failed to delete truck');

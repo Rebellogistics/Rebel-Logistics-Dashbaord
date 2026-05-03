@@ -10,12 +10,31 @@ import {
   usePurgeJobs,
   usePurgeCustomers,
 } from '@/hooks/useSupabaseData';
-import { Trash2, Undo2, AlertTriangle, Briefcase, User as UserIcon, Clock } from 'lucide-react';
+import {
+  useTrashedTrucks,
+  useRestoreTrucks,
+  usePurgeTrucks,
+} from '@/hooks/useTrucks';
+import {
+  useTrashedDrivers,
+  useRestoreDrivers,
+  usePurgeDrivers,
+} from '@/hooks/useDrivers';
+import {
+  Trash2,
+  Undo2,
+  AlertTriangle,
+  Briefcase,
+  User as UserIcon,
+  Clock,
+  Truck as TruckIcon,
+  Users as UsersIcon,
+} from 'lucide-react';
 import { format, parseISO, formatDistanceToNow, differenceInDays } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-type Tab = 'jobs' | 'customers';
+type Tab = 'jobs' | 'customers' | 'trucks' | 'drivers';
 
 const PURGE_AFTER_DAYS = 30;
 
@@ -29,10 +48,16 @@ export function TrashSection() {
   const [tab, setTab] = useState<Tab>('jobs');
   const { data: trashedJobs = [], isLoading: jobsLoading } = useTrashedJobs();
   const { data: trashedCustomers = [], isLoading: customersLoading } = useTrashedCustomers();
+  const { data: trashedTrucks = [], isLoading: trucksLoading } = useTrashedTrucks();
+  const { data: trashedDrivers = [], isLoading: driversLoading } = useTrashedDrivers();
   const restoreJobs = useRestoreJobs();
   const restoreCustomers = useRestoreCustomers();
+  const restoreTrucks = useRestoreTrucks();
+  const restoreDrivers = useRestoreDrivers();
   const purgeJobs = usePurgeJobs();
   const purgeCustomers = usePurgeCustomers();
+  const purgeTrucks = usePurgeTrucks();
+  const purgeDrivers = usePurgeDrivers();
 
   const handleRestoreJob = async (id: string, label: string) => {
     try {
@@ -83,8 +108,57 @@ export function TrashSection() {
     }
   };
 
+  const handleRestoreTruck = async (id: string, label: string) => {
+    try {
+      await restoreTrucks.mutateAsync([id]);
+      toast.success(`Restored ${label}`);
+    } catch {
+      toast.error('Restore failed');
+    }
+  };
+  const handlePurgeTruck = async (id: string, label: string) => {
+    if (
+      !confirm(
+        `Permanently delete ${label}? Jobs assigned to this truck keep the assignment by name; the linkage is lost forever.`,
+      )
+    )
+      return;
+    try {
+      await purgeTrucks.mutateAsync([id]);
+      toast.success(`Permanently deleted ${label}`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Permanent delete failed');
+    }
+  };
+  const handleRestoreDriver = async (id: string, label: string) => {
+    try {
+      await restoreDrivers.mutateAsync([id]);
+      toast.success(`Restored ${label}`);
+    } catch {
+      toast.error('Restore failed');
+    }
+  };
+  const handlePurgeDriver = async (id: string, label: string) => {
+    if (
+      !confirm(
+        `Permanently delete ${label}? Past job attributions keep the driver name (denormalised on truck_shifts), but the driver row is lost forever.`,
+      )
+    )
+      return;
+    try {
+      await purgeDrivers.mutateAsync([id]);
+      toast.success(`Permanently deleted ${label}`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Permanent delete failed');
+    }
+  };
+
   const jobsCount = trashedJobs.length;
   const customersCount = trashedCustomers.length;
+  const trucksCount = trashedTrucks.length;
+  const driversCount = trashedDrivers.length;
 
   return (
     <div className="space-y-4">
@@ -95,7 +169,7 @@ export function TrashSection() {
         </p>
       </div>
 
-      <div className="flex items-center gap-2 border-b border-rebel-border">
+      <div className="flex items-center gap-2 border-b border-rebel-border overflow-x-auto">
         <TabButton active={tab === 'jobs'} onClick={() => setTab('jobs')} icon={Briefcase}>
           Jobs
           <Badge variant="secondary" className="ml-1.5 bg-muted text-muted-foreground border-none text-[10px]">
@@ -110,6 +184,18 @@ export function TrashSection() {
           Customers
           <Badge variant="secondary" className="ml-1.5 bg-muted text-muted-foreground border-none text-[10px]">
             {customersCount}
+          </Badge>
+        </TabButton>
+        <TabButton active={tab === 'trucks'} onClick={() => setTab('trucks')} icon={TruckIcon}>
+          Trucks
+          <Badge variant="secondary" className="ml-1.5 bg-muted text-muted-foreground border-none text-[10px]">
+            {trucksCount}
+          </Badge>
+        </TabButton>
+        <TabButton active={tab === 'drivers'} onClick={() => setTab('drivers')} icon={UsersIcon}>
+          Drivers
+          <Badge variant="secondary" className="ml-1.5 bg-muted text-muted-foreground border-none text-[10px]">
+            {driversCount}
           </Badge>
         </TabButton>
       </div>
@@ -145,6 +231,38 @@ export function TrashSection() {
           onPurge={(id, label) => handlePurgeCustomer(id, label)}
           isRestoring={restoreCustomers.isPending}
           isPurging={purgeCustomers.isPending}
+        />
+      )}
+      {tab === 'trucks' && (
+        <TrashList
+          isLoading={trucksLoading}
+          empty={{ icon: TruckIcon, label: 'No trucks in Trash.' }}
+          rows={trashedTrucks.map((t) => ({
+            id: t.id,
+            primary: t.name,
+            secondary: t.description ?? (t.userId ? 'Has login' : 'No login'),
+            deletedAt: t.deletedAt ?? null,
+          }))}
+          onRestore={(id, label) => handleRestoreTruck(id, label)}
+          onPurge={(id, label) => handlePurgeTruck(id, label)}
+          isRestoring={restoreTrucks.isPending}
+          isPurging={purgeTrucks.isPending}
+        />
+      )}
+      {tab === 'drivers' && (
+        <TrashList
+          isLoading={driversLoading}
+          empty={{ icon: UsersIcon, label: 'No drivers in Trash.' }}
+          rows={trashedDrivers.map((d) => ({
+            id: d.id,
+            primary: d.name,
+            secondary: d.phone ?? '—',
+            deletedAt: d.deletedAt ?? null,
+          }))}
+          onRestore={(id, label) => handleRestoreDriver(id, label)}
+          onPurge={(id, label) => handlePurgeDriver(id, label)}
+          isRestoring={restoreDrivers.isPending}
+          isPurging={purgeDrivers.isPending}
         />
       )}
     </div>

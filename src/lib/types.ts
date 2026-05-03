@@ -37,6 +37,8 @@ export interface Truck {
   /** Phase 11: optional auth.users account for the tablet login. NULL means
    *  the truck has no login yet — Yamin can generate one from Settings. */
   userId?: string | null;
+  /** Phase 17 soft-delete (see Job.deletedAt). */
+  deletedAt?: string | null;
 }
 
 /**
@@ -52,6 +54,10 @@ export interface Driver {
   active: boolean;
   createdAt: string;
   createdBy?: string | null;
+  /** Phase 17 soft-delete (see Job.deletedAt). Distinct from `active` — a
+   *  driver can be active=true but soft-deleted (in Trash), or active=false
+   *  but not deleted (on leave / paused). The picker filters both. */
+  deletedAt?: string | null;
 }
 
 export interface JobPhoto {

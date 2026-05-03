@@ -11,9 +11,12 @@ export function useDrivers(opts?: { activeOnly?: boolean }) {
   return useQuery<Driver[]>({
     queryKey: ['drivers', { activeOnly: !!opts?.activeOnly }],
     queryFn: async () => {
+      // Phase 17: filter out soft-deleted rows. Trash view uses
+      // useTrashedDrivers below.
       let q = supabase
         .from('drivers')
         .select('*')
+        .is('deleted_at', null)
         .order('name', { ascending: true });
       if (opts?.activeOnly) q = q.eq('active', true);
       const { data, error } = await q;
@@ -25,6 +28,7 @@ export function useDrivers(opts?: { activeOnly?: boolean }) {
         active: row.active,
         createdAt: row.created_at,
         createdBy: row.created_by,
+        deletedAt: row.deleted_at,
       }));
     },
   });
@@ -88,25 +92,75 @@ export function useDeleteDriver() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      // Soft-deactivate first if any shifts reference this driver. Hard delete
-      // would orphan `truck_shifts.driver_user_id` and `jobs.completed_by_driver_id`,
-      // which we want to preserve for fine lookups (Phase 3 use case).
-      const { count, error: countErr } = await supabase
-        .from('truck_shifts')
-        .select('id', { head: true, count: 'exact' })
-        .eq('driver_user_id', id);
-      if (countErr) throw countErr;
-      if ((count ?? 0) > 0) {
-        const { error } = await supabase.from('drivers').update({ active: false }).eq('id', id);
-        if (error) throw error;
-        return { mode: 'deactivated' as const };
-      }
-      const { error } = await supabase.from('drivers').delete().eq('id', id);
+      // Phase 17: always soft-delete. The previous logic conditionally
+      // hard-deleted drivers with no shift history; that loophole is gone
+      // now that Trash is the universal recovery path. Restore from
+      // Settings → Trash.
+      const { error } = await supabase
+        .from('drivers')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
       if (error) throw error;
-      return { mode: 'deleted' as const };
+      return { mode: 'soft-deleted' as const };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['drivers'] });
+      qc.invalidateQueries({ queryKey: ['trashed_drivers'] });
+    },
+  });
+}
+
+export function useTrashedDrivers() {
+  return useQuery<Driver[]>({
+    queryKey: ['trashed_drivers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('drivers')
+        .select('*')
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map((row): Driver => ({
+        id: row.id,
+        name: row.name,
+        phone: row.phone,
+        active: row.active,
+        createdAt: row.created_at,
+        createdBy: row.created_by,
+        deletedAt: row.deleted_at,
+      }));
+    },
+  });
+}
+
+export function useRestoreDrivers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (ids.length === 0) return;
+      const { error } = await supabase
+        .from('drivers')
+        .update({ deleted_at: null })
+        .in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['drivers'] });
+      qc.invalidateQueries({ queryKey: ['trashed_drivers'] });
+    },
+  });
+}
+
+export function usePurgeDrivers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (ids.length === 0) return;
+      const { error } = await supabase.from('drivers').delete().in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['trashed_drivers'] });
     },
   });
 }

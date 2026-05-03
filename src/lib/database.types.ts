@@ -85,6 +85,7 @@ export type Database = {
           active: boolean
           created_at: string
           created_by: string | null
+          deleted_at: string | null
           id: string
           name: string
           phone: string | null
@@ -93,6 +94,7 @@ export type Database = {
           active?: boolean
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           id?: string
           name: string
           phone?: string | null
@@ -101,6 +103,7 @@ export type Database = {
           active?: boolean
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           id?: string
           name?: string
           phone?: string | null
@@ -560,6 +563,7 @@ export type Database = {
         Row: {
           active: boolean
           created_at: string
+          deleted_at: string | null
           description: string | null
           id: string
           name: string
@@ -568,6 +572,7 @@ export type Database = {
         Insert: {
           active?: boolean
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           id?: string
           name: string
@@ -576,6 +581,7 @@ export type Database = {
         Update: {
           active?: boolean
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           id?: string
           name?: string
