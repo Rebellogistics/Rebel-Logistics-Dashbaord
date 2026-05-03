@@ -33,8 +33,13 @@ import { TwilioTestSendCard } from './TwilioTestSendCard';
 // Google Calendar — dynamic connect/disconnect/switch
 // ──────────────────────────────────────────────────────────────────
 
+// Phase 19: switched from `calendar.events` (sensitive — needs Google
+// verification or test-users gating) to `calendar.app.created` (non-
+// sensitive — anyone can connect without verification). The app gets a
+// dedicated "Rebel Logistics" secondary calendar and can only see / edit
+// events it created. Yamin's other appointments are not exposed to us.
 const GOOGLE_SCOPES = [
-  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar.app.created',
   'https://www.googleapis.com/auth/userinfo.email',
 ].join(' ');
 
