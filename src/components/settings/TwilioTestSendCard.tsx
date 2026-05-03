@@ -72,27 +72,17 @@ export function TwilioTestSendCard() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h4 className="font-bold text-sm text-rebel-text">Test SMS send</h4>
-              <span
-                className={
-                  'inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider ' +
-                  (isLive
-                    ? 'bg-rebel-success-surface text-rebel-success'
-                    : 'bg-amber-100 text-amber-800')
-                }
-                title={
-                  isLive
-                    ? 'VITE_SMS_PROVIDER=twilio — sends will hit your Twilio account.'
-                    : 'VITE_SMS_PROVIDER unset — sends are stubbed and never leave the dashboard.'
-                }
-              >
-                {isLive ? 'Twilio live' : 'Stub'}
-              </span>
+              {!isLive && (
+                <span
+                  className="inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800"
+                  title="SMS provider is not live — test sends won't actually deliver."
+                >
+                  Sandbox
+                </span>
+              )}
             </div>
             <p className="text-[11.5px] text-muted-foreground mt-1">
-              Fire a real SMS to verify the Twilio wiring before going live to customers. Uses the
-              existing <code className="text-[10.5px]">/api/sms/send</code> endpoint, so the auth
-              token stays server-side. <span className="font-semibold">Requires <code>vercel dev</code></span>{' '}
-              locally — plain Vite returns 404 here.
+              Send a real SMS to verify the connection before texting customers.
             </p>
           </div>
         </div>

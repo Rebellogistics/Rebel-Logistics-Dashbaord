@@ -1039,7 +1039,9 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
                 <span className="truncate">{exporting ? 'Exporting…' : 'Export proof'}</span>
               </Button>
             )}
-            {(xeroEligible || xeroAlreadySent) && (
+            {/* Xero button shows only when connected or already sent — keeps the
+                action bar clean for the day-to-day flow. */}
+            {(xeroAlreadySent || (xeroEligible && xeroConnected)) && (
               <Button
                 variant="outline"
                 size="sm"
@@ -1049,21 +1051,16 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
                     ? 'text-rebel-success border-rebel-success/40 hover:bg-rebel-success-surface'
                     : '')
                 }
-                disabled={!xeroAlreadySent && !xeroConnected}
                 title={
                   xeroAlreadySent
                     ? `Already sent to Xero (invoice ${job.xeroInvoiceId})`
-                    : xeroConnected
-                      ? 'Send a draft invoice to Xero'
-                      : 'Connect Xero from Settings → Integrations to enable. See DEFERRED.md.'
+                    : 'Send a draft invoice to Xero'
                 }
               >
                 {xeroAlreadySent ? (
                   <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                ) : xeroConnected ? (
-                  <FileText className="w-3.5 h-3.5 shrink-0" />
                 ) : (
-                  <Lock className="w-3.5 h-3.5 shrink-0" />
+                  <FileText className="w-3.5 h-3.5 shrink-0" />
                 )}
                 <span className="truncate">{xeroAlreadySent ? 'Sent to Xero' : 'Send to Xero'}</span>
               </Button>

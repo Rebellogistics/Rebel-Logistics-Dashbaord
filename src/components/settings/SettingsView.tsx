@@ -315,19 +315,6 @@ function TruckLoginsSubsection() {
         </div>
       </div>
 
-      <Card className="border-rebel-border bg-muted/20 shadow-none">
-        <CardContent className="p-3 flex items-start gap-2 text-xs">
-          <Info className="w-4 h-4 text-rebel-accent shrink-0 mt-0.5" />
-          <p>
-            Login emails use the format{' '}
-            <code className="bg-white/80 px-1 rounded text-[11px]">truck-&lt;slug&gt;@rebellogistics.com.au</code>.
-            Make sure email confirmation is <span className="font-semibold">off</span> in
-            Supabase → Authentication → Providers → Email before generating, otherwise the
-            login won't activate.
-          </p>
-        </CardContent>
-      </Card>
-
       {isLoading ? (
         <LoadingRow message="Loading trucks…" />
       ) : trucks.length === 0 ? (

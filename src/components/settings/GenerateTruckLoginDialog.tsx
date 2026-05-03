@@ -19,7 +19,6 @@ import type { Truck } from '@/lib/types';
 import {
   Copy,
   KeyRound,
-  AlertTriangle,
   CheckCircle2,
   Eye,
   EyeOff,
@@ -158,27 +157,12 @@ export function GenerateTruckLoginDialog({ truck, onClose }: GenerateTruckLoginD
                 Login email
               </p>
               <p className="text-sm font-mono break-all">{proposedEmail}</p>
-              <p className="text-[11px] text-muted-foreground">
-                Synthetic — uses Yamin's domain alias. The address doesn't need a real inbox.
-              </p>
             </div>
             <div className="rounded-lg border border-rebel-border p-3 space-y-1">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
                 Password
               </p>
-              <p className="text-sm">14-character random alphanumeric, generated on save.</p>
-              <p className="text-[11px] text-muted-foreground">
-                Stored in the dashboard so you can reveal or rotate it later.
-              </p>
-            </div>
-            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900 flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-              <p>
-                If your Supabase project has{' '}
-                <span className="font-semibold">email confirmation</span> turned on, the login
-                won't activate until the link is clicked. Turn confirmation off in
-                Supabase → Authentication → Providers → Email before generating.
-              </p>
+              <p className="text-sm">A 14-character random password will be generated and shown once you click below. You can reveal or rotate it later from this dialog.</p>
             </div>
           </div>
         )}
@@ -241,12 +225,10 @@ export function GenerateTruckLoginDialog({ truck, onClose }: GenerateTruckLoginD
             )}
 
             {!credentialQuery.isLoading && !livePassword && (
-              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900 flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
                 <p>
-                  No saved password for this truck — it was provisioned before the dashboard started
-                  storing them. Hit <span className="font-semibold">Reset to random</span> to mint
-                  a new one and save it for next time.
+                  No saved password for this truck. Hit{' '}
+                  <span className="font-semibold">Reset to random</span> to set a new one.
                 </p>
               </div>
             )}
@@ -264,12 +246,9 @@ export function GenerateTruckLoginDialog({ truck, onClose }: GenerateTruckLoginD
               missing={false}
               updatedAt={null}
             />
-            <div className="rounded-lg bg-rebel-success-surface border border-rebel-success/30 p-3 text-xs text-rebel-success flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-              <p>
-                Saved to the dashboard. You can reveal or rotate this password anytime from the
-                same Manage login dialog.
-              </p>
+            <div className="rounded-lg bg-rebel-success-surface border border-rebel-success/30 p-3 text-xs text-rebel-success flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <p>Login saved. Reveal or rotate it anytime from this dialog.</p>
             </div>
           </div>
         )}
