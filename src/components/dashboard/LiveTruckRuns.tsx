@@ -1,5 +1,6 @@
 import { Job, JobStatus, Customer } from '@/lib/types';
 import { customerDisplay } from '@/lib/jobDisplay';
+import { jobTotalIncGst } from '@/lib/pricing';
 import { Truck, Clock, ArrowRight, MapPin, Flame, MessageSquare, Star, Calendar } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format, parseISO, isToday, isTomorrow } from 'date-fns';
@@ -95,7 +96,7 @@ function RunCard({ job, customer }: RunCardProps) {
   const [smsOpen, setSmsOpen] = useState(false);
   const shortRoute = (addr: string) => addr.split(',')[0];
   const isUrgent = job.status === 'In Delivery' || job.status === 'Notified';
-  const total = job.fee + (job.fuelLevy ?? 0);
+  const total = jobTotalIncGst(job);
   const [from, to] = statusGradient(job.status);
 
   return (

@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Job } from '@/lib/types';
+import { jobTotalIncGst } from '@/lib/pricing';
 import {
   ClipboardList,
   AlertTriangle,
@@ -293,7 +294,7 @@ interface QuoteRowProps {
 }
 
 function QuoteRow({ job, onAccept, onDecline }: QuoteRowProps) {
-  const total = job.fee + (job.fuelLevy ?? 0);
+  const total = jobTotalIncGst(job);
   return (
     <div className="flex items-center justify-between gap-2 py-2 border-b last:border-b-0">
       <div className="min-w-0 flex-1">

@@ -28,6 +28,7 @@ import { NewQuoteDialog } from '@/components/jobs/NewQuoteDialog';
 import { useCan } from '@/hooks/useCan';
 import { useCustomers, useBulkDeleteJobs } from '@/hooks/useSupabaseData';
 import { customerDisplay } from '@/lib/jobDisplay';
+import { jobTotalIncGst } from '@/lib/pricing';
 import { toast } from 'sonner';
 import { AcceptDialog } from '@/components/jobs/AcceptDialog';
 import { AssignTruckDialog } from '@/components/jobs/AssignTruckDialog';
@@ -292,7 +293,7 @@ export function JobsTable({
               <TableHead className="text-[10px] uppercase font-bold text-rebel-text-tertiary tracking-[0.08em] hidden md:table-cell">Type</TableHead>
               <TableHead className="text-[10px] uppercase font-bold text-rebel-text-tertiary tracking-[0.08em] hidden md:table-cell">Truck</TableHead>
               {canSeeRevenue && (
-                <TableHead className="text-[10px] uppercase font-bold text-rebel-text-tertiary tracking-[0.08em]">Fee</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold text-rebel-text-tertiary tracking-[0.08em]" title="Includes fuel levy + GST">Total inc-GST</TableHead>
               )}
               <TableHead className="text-[10px] uppercase font-bold text-rebel-text-tertiary tracking-[0.08em] text-right pr-5">Action</TableHead>
             </TableRow>
@@ -308,7 +309,7 @@ export function JobsTable({
               </TableRow>
             )}
             {visibleJobs.map((job) => {
-              const total = job.fee + (job.fuelLevy ?? 0);
+              const total = jobTotalIncGst(job);
               const isSelected = selected.has(job.id);
               return (
                 <TableRow

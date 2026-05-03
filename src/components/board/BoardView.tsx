@@ -13,6 +13,7 @@ import {
 } from '@dnd-kit/core';
 import { Job, JobStatus, Customer } from '@/lib/types';
 import { customerDisplay } from '@/lib/jobDisplay';
+import { jobTotalIncGst } from '@/lib/pricing';
 import { useUpdateJob } from '@/hooks/useSupabaseData';
 import { useTrucks } from '@/hooks/useTrucks';
 import { useSendSmsForJob } from '@/hooks/useSms';
@@ -443,7 +444,7 @@ function CompactJobCard({
   onMenuAction: (action: JobMenuAction) => void;
   trucks: import('@/lib/types').Truck[];
 }) {
-  const total = (job.fee ?? 0) + (job.fuelLevy ?? 0);
+  const total = jobTotalIncGst(job);
   // Listeners attached to the GripVertical handle, not the whole card —
   // keeps tap-to-open and column scroll free of drag interference.
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({

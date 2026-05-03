@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { Job } from '@/lib/types';
 import { format, parseISO } from 'date-fns';
 import { supabase } from '@/lib/supabase';
+import { jobTotalIncGst } from '@/lib/pricing';
+import { customerDisplay } from '@/lib/jobDisplay';
 
 interface PrintReceiptProps {
   job: Job;
@@ -37,7 +39,13 @@ export function PrintReceipt({ job }: PrintReceiptProps) {
 
   if (typeof document === 'undefined') return null;
 
-  const total = job.fee + (job.fuelLevy ?? 0);
+  // Subtotal (ex-GST) is fee + fuel levy. GST is stored alongside on
+  // Phase-1+ quotes; pre-Phase-1 jobs (gstAmount null) print without
+  // a GST line — same as the legacy receipt format.
+  const subtotal = (job.fee ?? 0) + (job.fuelLevy ?? 0);
+  const gstAmount = job.gstAmount ?? null;
+  const total = jobTotalIncGst(job);
+  const display = customerDisplay(job);
   const receiptDate = (() => {
     try {
       return job.date ? format(parseISO(job.date), 'd MMMM yyyy') : '—';
@@ -91,7 +99,12 @@ export function PrintReceipt({ job }: PrintReceiptProps) {
           >
             Customer
           </h2>
-          <p style={{ margin: 0, fontSize: '14px', fontWeight: 700 }}>{job.customerName}</p>
+          <p style={{ margin: 0, fontSize: '14px', fontWeight: 700 }}>{display.primary}</p>
+          {display.secondary && (
+            <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#5B6477' }}>
+              Contact: {display.secondary}
+            </p>
+          )}
           {job.customerPhone && (
             <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#5B6477', fontFamily: 'monospace' }}>
               {job.customerPhone}
@@ -133,12 +146,23 @@ export function PrintReceipt({ job }: PrintReceiptProps) {
           </h2>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
             <tbody>
-              <FeeRow label={`${job.type} fee`} value={`$${job.fee.toFixed(2)}`} />
+              <FeeRow label={`${job.type} fee (ex-GST)`} value={`$${(job.fee ?? 0).toFixed(2)}`} />
               {job.fuelLevy > 0 && (
-                <FeeRow label="Fuel levy" value={`$${job.fuelLevy.toFixed(2)}`} />
+                <FeeRow label="Fuel levy (ex-GST)" value={`$${job.fuelLevy.toFixed(2)}`} />
+              )}
+              {gstAmount != null && (
+                <>
+                  <tr style={{ borderTop: '1px dashed #C0C5D2' }}>
+                    <td style={{ padding: '6px 0 4px 0', color: '#5B6477' }}>Subtotal</td>
+                    <td style={{ padding: '6px 0 4px 0', textAlign: 'right', fontFamily: 'monospace' }}>${subtotal.toFixed(2)}</td>
+                  </tr>
+                  <FeeRow label="GST (10%)" value={`$${gstAmount.toFixed(2)}`} />
+                </>
               )}
               <tr style={{ borderTop: '2px solid #0D1220' }}>
-                <td style={{ padding: '10px 0 0 0', fontWeight: 800, fontSize: '14px' }}>Total</td>
+                <td style={{ padding: '10px 0 0 0', fontWeight: 800, fontSize: '14px' }}>
+                  {gstAmount != null ? 'Total inc. GST' : 'Total'}
+                </td>
                 <td style={{ padding: '10px 0 0 0', textAlign: 'right', fontWeight: 800, fontSize: '14px', fontFamily: 'monospace' }}>
                   ${total.toFixed(2)}
                 </td>

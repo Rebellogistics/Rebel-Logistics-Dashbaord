@@ -1,4 +1,5 @@
 import { Job } from '@/lib/types';
+import { jobTotalIncGst } from '@/lib/pricing';
 import {
   ClipboardList,
   Calendar,
@@ -92,7 +93,7 @@ function buildEvents(job: Job): TimelineEvent[] {
       id: 'created',
       icon: ClipboardList,
       title: 'Quote created',
-      description: `${job.type} · ${formatMoney(job.fee + (job.fuelLevy ?? 0))}`,
+      description: `${job.type} · ${formatMoney(jobTotalIncGst(job))} inc-GST`,
       timestamp: formatStamp(job.createdAt),
       tone: 'neutral',
     });

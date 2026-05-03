@@ -107,3 +107,20 @@ function round2(n: number): number {
 export function formatAud(amount: number): string {
   return `$${amount.toFixed(2)}`;
 }
+
+/**
+ * Canonical inc-GST total for a job. Use this in every render site that
+ * shows a single "total" number for a job. For Phase-1+ jobs (gstAmount
+ * stored) the result is fee + fuelLevy + gst. For pre-Phase-1 jobs
+ * (gstAmount null) it falls back to fee + fuelLevy — the same number
+ * Yamin saw historically, so we don't retroactively bump invoices.
+ */
+export function jobTotalIncGst(job: {
+  fee: number;
+  fuelLevy?: number;
+  gstAmount?: number | null;
+}): number {
+  return (
+    (Number(job.fee) || 0) + (Number(job.fuelLevy) || 0) + (Number(job.gstAmount) || 0)
+  );
+}

@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Customer, Job } from '@/lib/types';
+import { jobTotalIncGst } from '@/lib/pricing';
 import { Pencil, Trash2, Star, Phone, Mail, Briefcase, ChevronRight, MessageSquare } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { JobDetailDialog } from '@/components/jobs/JobDetailDialog';
@@ -48,7 +49,7 @@ export function CustomerDetailDialog({
     );
     return {
       jobCount: billable.length,
-      revenue: billable.reduce((sum, j) => sum + j.fee + (j.fuelLevy ?? 0), 0),
+      revenue: billable.reduce((sum, j) => sum + jobTotalIncGst(j), 0),
       outstandingQuotes: customerJobs.filter((j) => j.status === 'Quote').length,
     };
   }, [customerJobs]);
@@ -164,8 +165,8 @@ export function CustomerDetailDialog({
                       </p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-xs font-semibold">
-                        ${(job.fee + (job.fuelLevy ?? 0)).toFixed(2)}
+                      <span className="text-xs font-semibold" title="Inc. GST">
+                        ${jobTotalIncGst(job).toFixed(2)}
                       </span>
                       <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
                     </div>

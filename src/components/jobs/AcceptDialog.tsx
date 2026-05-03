@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useJobs, useUpdateJob } from '@/hooks/useSupabaseData';
+import { usePricingRates } from '@/hooks/usePricingRates';
 import { Job, PricingType } from '@/lib/types';
 import { format, parseISO, subDays, isAfter } from 'date-fns';
 import { toast } from 'sonner';
@@ -54,6 +55,10 @@ function initialFromJob(job: Job): FormState {
 interface PricingSuggestion {
   value: number;
   label: string;
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
 }
 
 function buildSuggestion(job: Job, allJobs: Job[]): PricingSuggestion | null {
@@ -112,6 +117,8 @@ export function AcceptDialog({ job, onClose, onAccepted, mode = 'accept' }: Acce
   );
   const updateJob = useUpdateJob();
   const { data: allJobs = [] } = useJobs();
+  const { data: rates } = usePricingRates();
+  const gstPercent = rates?.gstPercent ?? 10;
 
   useEffect(() => {
     if (job) {
@@ -153,17 +160,22 @@ export function AcceptDialog({ job, onClose, onAccepted, mode = 'accept' }: Acce
   const handleAccept = async () => {
     if (!canSubmit) return;
     try {
+      // GST is computed against the subtotal (fee, ex-GST). Mirrors the
+      // breakdown the user sees below the form.
+      const gstAmount = round2(computedFee * (gstPercent / 100));
       const updated = await updateJob.mutateAsync({
         id: job.id,
         status: 'Accepted',
         date: form.date,
         fee: computedFee,
         fuelLevy: derivedFuelLevy,
+        gstAmount,
         pricingType: form.pricingType,
         hourlyRate: form.pricingType === 'hourly' ? parseFloat(form.hourlyRate) || 0 : undefined,
         hoursEstimated: form.pricingType === 'hourly' ? parseFloat(form.hoursEstimated) || 0 : undefined,
       });
-      toast.success(`Accepted — ${job.customerName}, $${computedFee.toFixed(0)}`);
+      const totalIncGst = computedFee + derivedFuelLevy + gstAmount;
+      toast.success(`Accepted — ${job.customerName}, $${totalIncGst.toFixed(0)} inc GST`);
       if (mode === 'accept-and-assign' && onAccepted) {
         onAccepted(updated);
       } else {
@@ -209,7 +221,7 @@ export function AcceptDialog({ job, onClose, onAccepted, mode = 'accept' }: Acce
           </Field>
 
           {form.pricingType === 'fixed' ? (
-            <Field label="Fee (AUD)">
+            <Field label="Fee (AUD ex-GST)">
               <Input
                 type="number"
                 inputMode="decimal"
@@ -230,7 +242,7 @@ export function AcceptDialog({ job, onClose, onAccepted, mode = 'accept' }: Acce
             </Field>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Hourly rate (AUD)">
+              <Field label="Hourly rate (AUD ex-GST)">
                 <Input
                   type="number"
                   inputMode="decimal"
@@ -251,7 +263,7 @@ export function AcceptDialog({ job, onClose, onAccepted, mode = 'accept' }: Acce
             </div>
           )}
 
-          <Field label="Fuel levy (AUD)">
+          <Field label="Fuel levy (AUD ex-GST)">
             <Input
               type="number"
               inputMode="decimal"
@@ -266,20 +278,32 @@ export function AcceptDialog({ job, onClose, onAccepted, mode = 'accept' }: Acce
             </p>
           </Field>
 
-          <div className="rounded-lg bg-muted p-3 text-xs space-y-1">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Fee</span>
-              <span className="font-semibold tabular-nums">${computedFee.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Fuel levy</span>
-              <span className="font-semibold tabular-nums">${derivedFuelLevy.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between pt-1 border-t border-border">
-              <span className="font-semibold">Total</span>
-              <span className="font-bold tabular-nums">${(computedFee + derivedFuelLevy).toFixed(2)}</span>
-            </div>
-          </div>
+          {(() => {
+            const gstAmount = round2(computedFee * (gstPercent / 100));
+            const totalIncGst = round2(computedFee + derivedFuelLevy + gstAmount);
+            return (
+              <div className="rounded-lg bg-muted p-3 text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subtotal (ex-GST)</span>
+                  <span className="font-semibold tabular-nums">${computedFee.toFixed(2)}</span>
+                </div>
+                {derivedFuelLevy > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Fuel levy (ex-GST)</span>
+                    <span className="font-semibold tabular-nums">${derivedFuelLevy.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">GST ({gstPercent}%)</span>
+                  <span className="font-semibold tabular-nums">${gstAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-border">
+                  <span className="font-semibold">Total inc. GST</span>
+                  <span className="font-bold text-base tabular-nums">${totalIncGst.toFixed(2)}</span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         <DialogFooter>
