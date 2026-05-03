@@ -12,7 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useJobs, useUpdateJob } from '@/hooks/useSupabaseData';
 import { usePricingRates } from '@/hooks/usePricingRates';
-import { Job, PricingType } from '@/lib/types';
+import { calculateQuote } from '@/lib/pricing';
+import { Job, JobLocation, PricingRates, PricingType } from '@/lib/types';
 import { format, parseISO, subDays, isAfter } from 'date-fns';
 import { toast } from 'sonner';
 import { Sparkles, Info } from 'lucide-react';
@@ -61,32 +62,79 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function buildSuggestion(job: Job, allJobs: Job[]): PricingSuggestion | null {
+/**
+ * Pick a sensible default fee for the AcceptDialog.
+ *
+ * Order of preference:
+ *   1. Rate book — for Standard/White Glove + Regional, that's the flat
+ *      minimum charge for the right type. For Standard/White Glove + Metro
+ *      with cubic_metres known, that's cubes × per-cube rate. Always wins
+ *      when it gives a positive value because it's the "right" answer
+ *      according to the price list Yamin set himself.
+ *   2. Last same-customer + same-type + same-location job. Falls back when
+ *      the rate book doesn't apply (e.g. Metro with no cubes recorded yet).
+ *   3. Average of recent same-type + same-location jobs (last 60d, ≥2 rows).
+ *
+ * Critically, every historical lookup is filtered by BOTH type AND location.
+ * A White Glove Metro 1m³ history of $120 must NOT bleed into a White Glove
+ * Regional booking where the floor is $480.
+ */
+function buildSuggestion(
+  job: Job,
+  allJobs: Job[],
+  rates: PricingRates | undefined,
+): PricingSuggestion | null {
+  // 1. Rate-book answer — strongest signal when it applies.
+  if (rates) {
+    const breakdown = calculateQuote({
+      type: job.type,
+      location: job.location as JobLocation | undefined,
+      cubicMetres: job.cubicMetres ?? 0,
+      estimatedHours: job.hoursEstimated ?? 0,
+      rates,
+    });
+    // For Regional, breakdown.subtotal is the flat minimum (always positive).
+    // For Metro, it's only useful if cubic_metres is set (otherwise = 0).
+    const isRegional = job.type !== 'House Move' && job.location === 'Regional';
+    const isMetroWithCubes =
+      job.type !== 'House Move' && job.location === 'Metro' && (job.cubicMetres ?? 0) > 0;
+    if (breakdown.subtotal > 0 && (isRegional || isMetroWithCubes)) {
+      const tag = job.type === 'White Glove' ? ' (White Glove rate)' : '';
+      const label = isRegional
+        ? `Rate book: $${breakdown.subtotal.toFixed(0)} flat ${job.location} minimum${tag}`
+        : `Rate book: ${job.cubicMetres} m³ × $${breakdown.metroRate} = $${breakdown.subtotal.toFixed(0)}${tag}`;
+      return { value: breakdown.subtotal, label };
+    }
+  }
+
+  // 2. Same-customer history — but only when type + location agree.
   const cutoff = subDays(new Date(), SMART_SUGGESTION_LOOKBACK_DAYS);
-  // Prefer same customer + same type, most recent
+  const matchesProfile = (j: Job): boolean =>
+    j.id !== job.id &&
+    j.type === job.type &&
+    (job.type === 'House Move' ? true : (j.location ?? null) === (job.location ?? null)) &&
+    j.pricingType === 'fixed' &&
+    j.fee > 0;
+
   const sameCustomer = allJobs
     .filter(
       (j) =>
-        j.id !== job.id &&
-        j.type === job.type &&
-        j.pricingType === 'fixed' &&
-        j.fee > 0 &&
+        matchesProfile(j) &&
         ((job.customerId && j.customerId === job.customerId) ||
           (!!job.customerPhone && j.customerPhone === job.customerPhone)),
     )
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   if (sameCustomer[0]) {
+    const locTag = job.location ? ` ${job.location}` : '';
     return {
       value: sameCustomer[0].fee,
-      label: `Last ${job.type} for ${job.customerName}: $${sameCustomer[0].fee.toFixed(0)}`,
+      label: `Last ${job.type}${locTag} for ${job.customerName}: $${sameCustomer[0].fee.toFixed(0)}`,
     };
   }
 
+  // 3. Recent average of the same type + location.
   const typeRecent = allJobs.filter((j) => {
-    if (j.id === job.id) return false;
-    if (j.type !== job.type) return false;
-    if (j.pricingType !== 'fixed') return false;
-    if (j.fee <= 0) return false;
+    if (!matchesProfile(j)) return false;
     if (!j.date) return false;
     try {
       return isAfter(parseISO(j.date), cutoff);
@@ -96,9 +144,10 @@ function buildSuggestion(job: Job, allJobs: Job[]): PricingSuggestion | null {
   });
   if (typeRecent.length >= 2) {
     const avg = typeRecent.reduce((sum, j) => sum + j.fee, 0) / typeRecent.length;
+    const locTag = job.location ? ` ${job.location}` : '';
     return {
       value: Math.round(avg),
-      label: `Avg ${job.type} (${typeRecent.length} jobs, last ${SMART_SUGGESTION_LOOKBACK_DAYS}d): $${Math.round(avg)}`,
+      label: `Avg ${job.type}${locTag} (${typeRecent.length} jobs, last ${SMART_SUGGESTION_LOOKBACK_DAYS}d): $${Math.round(avg)}`,
     };
   }
   return null;
@@ -131,8 +180,8 @@ export function AcceptDialog({ job, onClose, onAccepted, mode = 'accept' }: Acce
 
   const suggestion = useMemo(() => {
     if (!job || form.pricingType !== 'fixed') return null;
-    return buildSuggestion(job, allJobs);
-  }, [job, allJobs, form.pricingType]);
+    return buildSuggestion(job, allJobs, rates);
+  }, [job, allJobs, form.pricingType, rates]);
 
   const computedFee = useMemo(() => {
     if (form.pricingType === 'hourly') {
