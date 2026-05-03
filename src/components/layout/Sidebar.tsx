@@ -23,6 +23,9 @@ import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Logo } from '@/components/ui/logo';
 import { useCan } from '@/hooks/useCan';
+import { useJobs, useMessages } from '@/hooks/useSupabaseData';
+import { useMemo } from 'react';
+import { format } from 'date-fns';
 
 interface NavItem {
   label: string;
@@ -36,30 +39,37 @@ interface NavSection {
   items: NavItem[];
 }
 
-const baseSections: NavSection[] = [
-  {
-    title: 'Operations',
-    items: [
-      { label: 'Dashboard', icon: LayoutDashboard },
-      { label: 'Board', icon: KanbanSquare },
-      { label: 'Truck Runs', icon: Truck, badge: 3 },
-      { label: 'Trucks', icon: CalendarDays },
-      { label: 'Jobs', icon: ClipboardList },
-      { label: 'Customers', icon: Users },
-      { label: 'Reviews', icon: Star },
-    ],
-  },
-  {
-    title: 'Communication',
-    items: [
-      { label: 'SMS Log', icon: MessageSquare, dot: 'red' },
-    ],
-  },
-  {
-    title: 'Account',
-    items: [{ label: 'Settings', icon: Settings }],
-  },
-];
+function buildSections(opts: { truckRunsCount: number; smsUnread: boolean }): NavSection[] {
+  const { truckRunsCount, smsUnread } = opts;
+  return [
+    {
+      title: 'Operations',
+      items: [
+        { label: 'Dashboard', icon: LayoutDashboard },
+        { label: 'Board', icon: KanbanSquare },
+        {
+          label: 'Truck Runs',
+          icon: Truck,
+          badge: truckRunsCount > 0 ? truckRunsCount : undefined,
+        },
+        { label: 'Trucks', icon: CalendarDays },
+        { label: 'Jobs', icon: ClipboardList },
+        { label: 'Customers', icon: Users },
+        { label: 'Reviews', icon: Star },
+      ],
+    },
+    {
+      title: 'Communication',
+      items: [
+        { label: 'SMS Log', icon: MessageSquare, dot: smsUnread ? 'red' : undefined },
+      ],
+    },
+    {
+      title: 'Account',
+      items: [{ label: 'Settings', icon: Settings }],
+    },
+  ];
+}
 
 interface SidebarProps {
   activeTab: string;
@@ -80,9 +90,47 @@ export function Sidebar({
 }: SidebarProps) {
   const navigate = useNavigate();
   const canSeeSettings = useCan('view_settings');
+  const { data: jobs = [] } = useJobs();
+  const { data: messages = [] } = useMessages();
+
+  const todayStr = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
+
+  // Truck Runs badge = open delivery rows that need eyes today: Scheduled /
+  // Notified / In Delivery dated today, plus anything in those statuses still
+  // unfinished from a past day (mirrors the past-due strip in TruckRunsView).
+  const truckRunsCount = useMemo(() => {
+    return jobs.filter((j) => {
+      if (j.status !== 'Scheduled' && j.status !== 'Notified' && j.status !== 'In Delivery')
+        return false;
+      return !j.date || j.date <= todayStr;
+    }).length;
+  }, [jobs, todayStr]);
+
+  // Today's Brief — same scheduled-today count, plus how many of those still
+  // need an en-route SMS sent (Scheduled, not yet Notified).
+  const todayScheduled = useMemo(
+    () =>
+      jobs.filter(
+        (j) =>
+          j.date === todayStr &&
+          (j.status === 'Scheduled' || j.status === 'Notified' || j.status === 'In Delivery'),
+      ).length,
+    [jobs, todayStr],
+  );
+  const todayToNotify = useMemo(
+    () => jobs.filter((j) => j.date === todayStr && j.status === 'Scheduled').length,
+    [jobs, todayStr],
+  );
+
+  const smsUnread = useMemo(() => messages.some((m) => m.unread), [messages]);
+
+  const allSections = useMemo(
+    () => buildSections({ truckRunsCount, smsUnread }),
+    [truckRunsCount, smsUnread],
+  );
   const sections = canSeeSettings
-    ? baseSections
-    : baseSections.filter((s) => s.title !== 'Account');
+    ? allSections
+    : allSections.filter((s) => s.title !== 'Account');
 
   const handleTabClick = (label: string) => {
     onTabChange(label);
@@ -223,7 +271,13 @@ export function Sidebar({
                   Today's Brief
                 </div>
                 <p className="mt-2 text-[13px] leading-snug font-medium text-rebel-text">
-                  6 jobs scheduled · 4 to notify.
+                  {todayScheduled === 0
+                    ? 'No jobs scheduled today.'
+                    : `${todayScheduled} job${todayScheduled === 1 ? '' : 's'} scheduled${
+                        todayToNotify > 0
+                          ? ` · ${todayToNotify} to notify`
+                          : ''
+                      }.`}
                 </p>
                 <button
                   type="button"
