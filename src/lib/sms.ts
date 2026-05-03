@@ -203,6 +203,7 @@ export function computeSmsSegments(body: string): SmsSegmentInfo {
 // directly with the auth token in-flight. See DEFERRED.md §2.
 
 import { normalizeToE164 } from './phone';
+import { apiFetch } from './apiClient';
 
 export interface SendSmsParams {
   to: string;
@@ -246,9 +247,13 @@ const twilioProvider: SmsProvider = {
       };
     }
     try {
-      const res = await fetch('/api/sms/send', {
+      // Phase 21 fix: must use apiFetch (not raw fetch) so the user's
+      // Supabase JWT lands in the Authorization header. The /api/sms/send
+      // endpoint guards on getUserFromAuthHeader and returns 401 without
+      // a token — which is exactly the "Not authenticated" error the test
+      // send card was surfacing.
+      const res = await apiFetch('/api/sms/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to: normalized, body: params.body }),
       });
       if (!res.ok) {
