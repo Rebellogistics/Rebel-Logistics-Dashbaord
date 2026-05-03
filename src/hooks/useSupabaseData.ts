@@ -98,11 +98,17 @@ export function useCreateJob() {
 
   return useMutation({
     mutationFn: async (job: Omit<Job, 'id' | 'createdAt'>) => {
-      const customerId = await upsertCustomerByPhone({
-        name: job.customerName,
-        phone: job.customerPhone,
-        source: 'phone',
-      });
+      // Phase 19: if the caller already linked an existing customer
+      // (CustomerCombobox pick), trust their customerId and skip the
+      // upsert. Otherwise fall back to find-or-create by phone.
+      let customerId = job.customerId ?? null;
+      if (!customerId) {
+        customerId = await upsertCustomerByPhone({
+          name: job.customerName,
+          phone: job.customerPhone ?? undefined,
+          source: 'phone',
+        });
+      }
 
       const payload: Partial<Job> & { id?: string } = { ...job };
       if (customerId) payload.customerId = customerId;

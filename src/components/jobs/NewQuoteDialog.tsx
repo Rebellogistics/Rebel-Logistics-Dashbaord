@@ -15,6 +15,8 @@ import { useCreateJob } from '@/hooks/useSupabaseData';
 import { usePricingRates } from '@/hooks/usePricingRates';
 import { useRepeatCustomerLookup, type RepeatCustomerInfo } from '@/hooks/useRepeatCustomer';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
+import { CustomerCombobox } from '@/components/customers/CustomerCombobox';
+import type { Customer } from '@/lib/types';
 import { Job, JobLocation, JobType } from '@/lib/types';
 import { calculateQuote, formatAud } from '@/lib/pricing';
 import { format, addDays } from 'date-fns';
@@ -36,6 +38,7 @@ function formFromJob(job: Job): typeof initial {
     customerName: job.customerName ?? '',
     customerCompanyName: job.customerCompanyName ?? '',
     customerPhone: job.customerPhone ?? '',
+    customerId: job.customerId ?? '',
     pickupAddress: job.pickupAddress ?? '',
     deliveryAddress: job.deliveryAddress ?? '',
     type: job.type,
@@ -52,6 +55,9 @@ const initial = {
   customerName: '',
   customerCompanyName: '',
   customerPhone: '',
+  /** Phase 19: when set, the quote re-uses an existing customer record
+   *  instead of triggering upsertCustomerByPhone. Empty = "create new". */
+  customerId: '',
   pickupAddress: '',
   deliveryAddress: '',
   type: 'Standard' as JobType,
@@ -66,6 +72,13 @@ const initial = {
 export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialogProps) {
   const [form, setForm] = useState(initial);
   const [nameTouched, setNameTouched] = useState(false);
+  // Phase 19: when set, the combobox is showing the user picked an
+  // existing customer record. We hold the full Customer here so the
+  // "Linked to X" badge has the latest companyName / VIP status.
+  const [linkedCustomer, setLinkedCustomer] = useState<Customer | null>(null);
+  // The combobox query is the visible "search" string. It's the same as
+  // companyName when picked, or whatever the user typed when no match.
+  const [searchQuery, setSearchQuery] = useState('');
   const createJob = useCreateJob();
   const { data: rates } = usePricingRates();
 
@@ -76,13 +89,54 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
 
   useEffect(() => {
     if (open && prefillJob) {
-      setForm(formFromJob(prefillJob));
+      const next = formFromJob(prefillJob);
+      setForm(next);
+      setSearchQuery(next.customerCompanyName || next.customerName);
+      setLinkedCustomer(null);
       setNameTouched(true);
     } else if (!open) {
       setForm({ ...initial, validUntil: defaultValidUntil() });
+      setSearchQuery('');
+      setLinkedCustomer(null);
       setNameTouched(false);
     }
   }, [open, prefillJob]);
+
+  const handlePickCustomer = (c: Customer) => {
+    setLinkedCustomer(c);
+    setSearchQuery(c.companyName ?? c.name);
+    setForm((prev) => ({
+      ...prev,
+      customerId: c.id,
+      customerName: c.name,
+      customerCompanyName: c.companyName ?? '',
+      customerPhone: c.phone ?? '',
+    }));
+    setNameTouched(true);
+  };
+
+  const handleClearPick = () => {
+    setLinkedCustomer(null);
+    setForm((prev) => ({ ...prev, customerId: '' }));
+    // We deliberately leave the typed name + phone in the form — the
+    // user is editing details to create a fresh customer. They can
+    // clear the inputs themselves if they want a blank slate.
+  };
+
+  const handleSearchChange = (next: string) => {
+    setSearchQuery(next);
+    // Mirror the typed text into the right field so the form-state and
+    // the visible combobox stay coherent. If the customer is currently
+    // linked, detaching is handled by the combobox via onClearPick.
+    setNameTouched(true);
+    setForm((prev) => {
+      const looksLikeCompany = next.trim().length > 0 && /[A-Z][a-z]+\s+[A-Z]/.test(next);
+      // We can't reliably tell "company vs person" from a single string —
+      // so on free-text typing we always store it as customerName. The
+      // user can move it to the Company field manually if needed.
+      return { ...prev, customerName: next };
+    });
+  };
 
   useEffect(() => {
     if (repeatInfo.found && repeatInfo.customerName && !nameTouched && !form.customerName) {
@@ -144,6 +198,9 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
     if (!breakdown) throw new Error('Pricing rates not loaded');
     return {
       id: `RL-${Date.now().toString(36).toUpperCase()}`,
+      // Phase 19: skip the customer upsert in useCreateJob when a record
+      // was picked from the combobox.
+      customerId: form.customerId || undefined,
       customerName: form.customerName.trim(),
       customerCompanyName: form.customerCompanyName.trim() || undefined,
       customerPhone: form.customerPhone.trim() || undefined,
@@ -198,8 +255,21 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
 
         <div className="grid gap-3 py-2 max-h-[60vh] overflow-y-auto pr-1">
           <Field
+            label="Customer"
+            hint="Pick an existing customer to auto-fill, or type a new name to create one. Search by name, company, or phone."
+          >
+            <CustomerCombobox
+              value={searchQuery}
+              onChange={handleSearchChange}
+              onPick={handlePickCustomer}
+              onClearPick={handleClearPick}
+              linkedCustomer={linkedCustomer}
+            />
+          </Field>
+
+          <Field
             label="Company name (optional)"
-            hint="For business customers — e.g. 'Bayliss Rugs'. Leave blank for individuals; their name below is enough."
+            hint="For business customers — e.g. 'Bayliss Rugs'. Leave blank for individuals."
           >
             <Input
               value={form.customerCompanyName}
@@ -213,7 +283,7 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
               hint={
                 form.customerCompanyName.trim()
                   ? 'Who at the company is making the booking. Optional.'
-                  : "Required. For individuals, this is them."
+                  : 'Required. For individuals, this is them.'
               }
             >
               <Input
@@ -221,6 +291,9 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
                 onChange={(e) => {
                   setNameTouched(true);
                   update('customerName', e.target.value);
+                  // Keep the combobox query mirrored unless the user has
+                  // an active link (in which case they'd need to detach).
+                  if (!linkedCustomer) setSearchQuery(e.target.value);
                 }}
                 placeholder={form.customerCompanyName.trim() ? 'Jane Smith (optional)' : 'Jane Smith'}
               />
