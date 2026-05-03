@@ -146,6 +146,8 @@ export interface Job {
   isDraft?: boolean;
   /** GST amount snapshotted at quote-create time. */
   gstAmount?: number;
+  /** Phase 21: timestamp of the auto-fired delivery-complete SMS. */
+  completionSmsSentAt?: string;
   /** TRUE when the fee was set manually in the job dialog (Phase 10). When
    *  false, the fee is whatever the rate book + inputs (type / cubes /
    *  hours) computed at save time. Used to gate the recompute prompt: if

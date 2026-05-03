@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Job, Customer, SmsLogEntry, SmsType } from '../lib/types';
-import { renderTemplate, defaultBodyForType, sendSms } from '../lib/sms';
+import { renderTemplate, defaultBodyForType, sendSms, DEFAULT_TEMPLATES } from '../lib/sms';
 
 function toCamelCase<T>(obj: any): T {
   if (Array.isArray(obj)) {
@@ -93,6 +93,82 @@ export function useSendSmsForJob() {
       queryClient.invalidateQueries({ queryKey: ['sms_log'] });
     },
   });
+}
+
+/**
+ * Phase 21: fire SMS automatically on a status transition.
+ *
+ * Two events covered today:
+ *   - status flips to "In Delivery" → en-route SMS (template: en_route)
+ *   - status flips to "Completed"   → delivery confirmation (template: completed)
+ *
+ * Each is deduped against the relevant timestamp column so a re-mark
+ * (e.g. driver hits Complete twice, owner re-completes after rework)
+ * never re-spams the customer. No-ops cleanly when:
+ *   - the customer phone is missing
+ *   - VITE_SMS_PROVIDER isn't 'twilio' (stub provider returns "sent" but
+ *     no real SMS leaves; we still log it for parity)
+ *   - the dedup column is already populated
+ *
+ * Called from useUpdateJob.onSuccess where we know the new status.
+ */
+export async function maybeAutoFireStatusSms(job: Job): Promise<void> {
+  if (!job.customerPhone?.trim()) return;
+  const newStatus = job.status;
+  if (newStatus !== 'In Delivery' && newStatus !== 'Completed') return;
+
+  const isEnRoute = newStatus === 'In Delivery';
+  const alreadySent = isEnRoute ? !!job.enRouteSmsSentAt : !!job.completionSmsSentAt;
+  if (alreadySent) return;
+
+  // Pick the right template. The DEFAULT_TEMPLATES list has dedicated
+  // 'en_route' and 'completed' bodies; the SmsType union doesn't have
+  // 'completed' so we tag it as 'other' in sms_log.
+  const templateKey = isEnRoute ? 'en_route' : 'completed';
+  const template = DEFAULT_TEMPLATES.find((t) => t.key === templateKey);
+  const body = template ? template.body : defaultBodyForType('other');
+  const messageBody = renderTemplate(body, { job, customer: null, owner: null });
+  const smsType: SmsType = isEnRoute ? 'en_route' : 'other';
+
+  let result;
+  try {
+    result = await sendSms({ to: job.customerPhone, body: messageBody });
+  } catch (err) {
+    console.warn('[auto-sms] send threw', err);
+    return;
+  }
+
+  // Log every attempt (sent or failed) so the SMS log has a paper trail.
+  try {
+    await supabase.from('sms_log').insert([
+      {
+        job_id: job.id,
+        type: smsType,
+        recipient_name: job.customerName,
+        recipient_phone: job.customerPhone,
+        message_body: messageBody,
+        status: result.status,
+        sent_at: result.sentAt,
+        error_message: result.errorMessage ?? null,
+      } as never,
+    ]);
+  } catch (err) {
+    console.warn('[auto-sms] log insert failed', err);
+  }
+
+  // Stamp the dedup column on success only — a transient failure should
+  // be allowed to retry on the next status mutation.
+  if (result.status === 'sent') {
+    const column = isEnRoute ? 'en_route_sms_sent_at' : 'completion_sms_sent_at';
+    try {
+      await supabase
+        .from('jobs')
+        .update({ [column]: result.sentAt } as never)
+        .eq('id', job.id);
+    } catch (err) {
+      console.warn('[auto-sms] dedup column update failed', err);
+    }
+  }
 }
 
 interface SendCustomSmsParams {

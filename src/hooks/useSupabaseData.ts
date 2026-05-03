@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { upsertCustomerByPhone } from '../lib/customerUpsert';
 import { apiPostJson } from '../lib/apiClient';
+import { maybeAutoFireStatusSms } from './useSms';
 import type { Job, Customer, Message } from '../lib/types';
 
 /**
@@ -155,6 +156,15 @@ export function useUpdateJob() {
       // Push the updated job into the connected Google Calendar. Server
       // decides the action based on the row (create / update / delete).
       if (vars?.id) fireCalendarSync(vars.id);
+      // Phase 21: auto-fire SMS on status transitions. The helper dedups
+      // against existing timestamp columns so a re-mark never re-spams.
+      // Only runs when the caller explicitly set a status (vars.status).
+      if (vars?.status && _data) {
+        void maybeAutoFireStatusSms(_data).catch((err) => {
+          console.warn('[auto-sms] failed', err);
+        });
+        queryClient.invalidateQueries({ queryKey: ['sms_log'] });
+      }
     },
   });
 }
