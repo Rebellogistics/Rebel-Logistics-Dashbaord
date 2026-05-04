@@ -1,7 +1,63 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Job, Customer, SmsLogEntry, SmsType } from '../lib/types';
-import { renderTemplate, defaultBodyForType, sendSms, DEFAULT_TEMPLATES } from '../lib/sms';
+import { renderTemplate, sendSms, DEFAULT_TEMPLATES } from '../lib/sms';
+
+/**
+ * V4 hot-fix May 4 (round 2) — single source of truth for "what's the
+ * body for template <key>?" Every SMS send path goes through this so
+ * Yamin's edits in Settings → SMS Templates take effect everywhere
+ * (auto-fired status SMS, day-prior bulk, per-job re-send, ad-hoc).
+ *
+ *   1. SELECT body FROM sms_templates WHERE key = <key> AND active.
+ *   2. On miss / error, fall back to the matching DEFAULT_TEMPLATES row.
+ *   3. Last-ditch: first hardcoded template (so we never throw).
+ *
+ * Async — adds one DB roundtrip per send. The roundtrip is cheap and
+ * reliable; we explicitly do NOT cache here because Yamin needs his
+ * edits to take effect on the very next send, not after a TTL.
+ */
+export async function resolveTemplateBody(key: string): Promise<string> {
+  try {
+    const client = supabase as unknown as {
+      from: (table: string) => {
+        select: (cols: string) => {
+          eq: (col: string, val: string) => {
+            eq: (col: string, val: boolean) => {
+              maybeSingle: () => Promise<{ data: { body?: string } | null; error: unknown }>;
+            };
+          };
+        };
+      };
+    };
+    const { data, error } = await client
+      .from('sms_templates')
+      .select('body')
+      .eq('key', key)
+      .eq('active', true)
+      .maybeSingle();
+    if (!error && data?.body && typeof data.body === 'string') {
+      return data.body;
+    }
+  } catch (err) {
+    console.warn(`[sms] template lookup for "${key}" threw — using default`, err);
+  }
+  const fallback = DEFAULT_TEMPLATES.find((t) => t.key === key);
+  if (fallback) return fallback.body;
+  return DEFAULT_TEMPLATES[0]?.body ?? '';
+}
+
+// Map an SmsType (used for sms_log categorisation + the auto-fire
+// trigger) to the template KEY a caller would expect by default. The
+// completed-SMS auto-fire uses key='completed' but logs as type='other'
+// because SmsType doesn't include 'completed'; that mapping is handled
+// at the call site below.
+function templateKeyForType(type: SmsType): string {
+  if (type === 'day_prior') return 'day_prior';
+  if (type === 'en_route') return 'en_route';
+  if (type === 'auto_reply') return 'auto_reply';
+  return 'other';
+}
 
 function toCamelCase<T>(obj: any): T {
   if (Array.isArray(obj)) {
@@ -52,7 +108,11 @@ export function useSendSmsForJob() {
         throw new Error('Job has no phone number');
       }
 
-      const templateBody = body ?? defaultBodyForType(type);
+      // V4 hot-fix May 4 (round 2): always source the template body from
+      // the DB row first so Yamin's Settings edits actually fire. The
+      // explicit `body` arg still wins (used by SendSmsDialog when the
+      // operator typed a custom message).
+      const templateBody = body ?? (await resolveTemplateBody(templateKeyForType(type)));
       const messageBody = renderTemplate(templateBody, { job, customer, owner });
       const result = await sendSms({ to: job.customerPhone, body: messageBody });
 
@@ -129,29 +189,7 @@ export async function maybeAutoFireStatusSms(job: Job): Promise<void> {
   // 'en_route' and 'completed' bodies; the SmsType union doesn't have
   // 'completed' so we tag it as 'other' in sms_log.
   const templateKey = isEnRoute ? 'en_route' : 'completed';
-  // V4 hot-fix (May 4): auto-fired SMS was always reading from the
-  // hardcoded DEFAULT_TEMPLATES, so Yamin's edits in Settings → SMS
-  // Templates never reached customers. Read the DB row first and only
-  // fall back to defaults when none exists / fetch errors.
-  let body: string | null = null;
-  try {
-    const client = supabase as any;
-    const { data: tplRow, error: tplErr } = await client
-      .from('sms_templates')
-      .select('body')
-      .eq('key', templateKey)
-      .eq('active', true)
-      .maybeSingle();
-    if (!tplErr && tplRow?.body) {
-      body = tplRow.body as string;
-    }
-  } catch (err) {
-    console.warn('[auto-sms] template lookup threw, using default', err);
-  }
-  if (!body) {
-    const fallback = DEFAULT_TEMPLATES.find((t) => t.key === templateKey);
-    body = fallback ? fallback.body : defaultBodyForType('other');
-  }
+  const body = await resolveTemplateBody(templateKey);
   const messageBody = renderTemplate(body, { job, customer: null, owner: null });
   const smsType: SmsType = isEnRoute ? 'en_route' : 'other';
 
@@ -232,7 +270,10 @@ export function useSendDayPriorBulk() {
         failures: [],
       };
       if (jobs.length === 0) return result;
-      const messageBody = defaultBodyForType('day_prior');
+      // V4 hot-fix May 4 (round 2): pull the live day-prior body from
+      // sms_templates, not the hardcoded default. One DB roundtrip per
+      // bulk fire — cheap, but ensures Yamin's edits reach customers.
+      const messageBody = await resolveTemplateBody('day_prior');
 
       // Run in parallel — Twilio handles per-account concurrency fine and
       // typical Rebel batches are <30 jobs/day.
