@@ -5,7 +5,47 @@ Rolling status log. New phase sections appended at the top so the most recent wo
 - Plan: [`V4_PHASED_PLAN.md`](V4_PHASED_PLAN.md)
 - Source transcript: [`TRANSCRIPT_MAY04.md`](TRANSCRIPT_MAY04.md)
 - Prior cycle: [`V3_STATUS.md`](V3_STATUS.md), [`V3_PHASED_PLAN.md`](V3_PHASED_PLAN.md)
-- **Single SQL guide:** [`SUPABASE-RUN-THIS.md`](SUPABASE-RUN-THIS.md) — Blocks 7 and 8 are V4's migrations. **Both have been applied to Yamin's project on 2026-05-04** via the Supabase MCP (no manual run needed).
+- **Single SQL guide:** [`SUPABASE-RUN-THIS.md`](SUPABASE-RUN-THIS.md) — Blocks 7, 8 and 9 are V4's migrations. **All three have been applied to Yamin's project on 2026-05-04** via the Supabase MCP (no manual run needed).
+
+---
+
+## Phase 7 — Twilio AU alphanumeric sender (infra ready, awaiting bundle)
+_Implemented: 2026-05-04. Source: V4_PHASED_PLAN.md §Phase 7._
+
+### Why it's not flipped tonight
+The AU alphanumeric-sender bundle was submitted on 2026-04-26. Twilio's typical turnaround is 2–3 weeks → ETA 2026-05-10 to 2026-05-17. Until it lands, outbound SMS continues to come from the AU phone number (`+61485055666`).
+
+### What's done (✅) — so the cutover is one env var
+- **`TWILIO_SENDER_ID` env override** wired in `api/sms/send.ts`. When set (e.g. to `REBEL`), every outbound message uses that as the `From` value. Falls back to `TWILIO_FROM` (the AU number) when unset. Vercel hot-loads env vars on next request — no redeploy is required to flip.
+- **New `GET /api/sms/config`** endpoint returns the public bits (current sender, inbound number, alphanumeric flag) — no secrets. Authenticated via the user's Supabase JWT, so dispatchers can also see the active config.
+- **Settings → Integrations → "SMS sender" card** (`SmsSenderCard`) reads the endpoint and shows a two-tile readout:
+  - *Outbound from* — the live sender (e.g. `REBEL` or the AU number) with a one-line note about replies.
+  - *Inbound to* — the Twilio AU number that catches replies via `/api/sms/inbound`.
+  An amber info banner explains the alphanumeric reply gotcha when the override is active. A muted hint appears when the override is empty, telling Yamin exactly what to set.
+- **`.env.example`** updated with the new var + a comment block tying it back to the bundle approval.
+
+### What needs Yamin (⏳) — the cutover
+1. **Approval lands in your Twilio inbox** — usually an email titled "Sender ID approved".
+2. **Vercel → Project → Settings → Environment Variables** → add `TWILIO_SENDER_ID` with value `REBEL` (or whatever the approved string is). Set scope to **Production** (and **Preview** if you want preview deploys to use it too).
+3. Vercel applies env on the next request — **no redeploy needed**. Refresh Settings → Integrations and the *Outbound from* tile flips to `REBEL` with the alphanumeric chip.
+4. **Test send** from the Twilio Test Send card to a real phone — message arrives showing `REBEL` as sender.
+5. **Tweak the en-route / day-prior templates** if you want to mention the inbound phone explicitly: add `Reply to {{owner.phone}}` so customers know how to reach back. Variables fall back to `VITE_REBEL_SUPPORT_PHONE` when no per-job context is set.
+
+### What's deferred (🕐)
+- **Per-truck phone numbers** (7.2 +1 in the plan). Yamin teased this on the call — every truck gets its own Twilio number under Rebel Logistics. Adds ~$1/month/number plus a routing layer. Defer until he asks; the alphanumeric flip already covers the brand-recognition value.
+- **Two-sender split** (use `REBEL` for promo / brand, AU number for transactional with replies). Single sender is simpler; flag if Yamin actually misses replies.
+
+### How to verify it's wired now (without the approval)
+- Settings → Integrations → see the new *SMS sender* card. *Overbound from* should show your AU number; the muted info banner explains how to flip.
+- `curl -H "Authorization: Bearer <JWT>" https://<your-domain>/api/sms/config` returns `{ "sender": "+61...", "isAlphanumeric": false, "overrideActive": false, ... }`.
+
+### Files touched
+- `api/sms/send.ts` — TWILIO_SENDER_ID override
+- `api/sms/config.ts` (new) — read-only sender indicator
+- `src/hooks/useSmsConfig.ts` (new)
+- `src/components/settings/SmsSenderCard.tsx` (new)
+- `src/components/settings/IntegrationsSection.tsx`
+- `.env.example`
 
 ---
 

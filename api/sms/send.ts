@@ -38,7 +38,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     accountSid = requireEnv('TWILIO_ACCOUNT_SID');
     authToken = requireEnv('TWILIO_AUTH_TOKEN');
-    from = requireEnv('TWILIO_FROM');
+    // V4 Phase 7.1: TWILIO_SENDER_ID is the alphanumeric "REBEL" sender
+    // once the AU bundle is approved (2026-05-26 submission, ~2 week
+    // turnaround). When set, outbound goes from REBEL; falls back to
+    // TWILIO_FROM (the AU phone number) until then. The AU number stays
+    // in Twilio either way — it's the inbound webhook target.
+    const senderOverride = process.env.TWILIO_SENDER_ID?.trim();
+    from = senderOverride || requireEnv('TWILIO_FROM');
   } catch (err) {
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Twilio config missing',

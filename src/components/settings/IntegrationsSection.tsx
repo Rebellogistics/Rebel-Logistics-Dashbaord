@@ -32,6 +32,7 @@ import { useJobs } from '@/hooks/useSupabaseData';
 import { apiPostJson } from '@/lib/apiClient';
 import { Job } from '@/lib/types';
 import { TwilioTestSendCard } from './TwilioTestSendCard';
+import { SmsSenderCard } from './SmsSenderCard';
 
 // ──────────────────────────────────────────────────────────────────
 // Google Calendar — dynamic connect/disconnect/switch
@@ -647,6 +648,7 @@ export function IntegrationsSection() {
 
       <EmbedSnippetCard />
       <GoogleCalendarCard />
+      <SmsSenderCard />
       <TwilioTestSendCard />
     </div>
   );
