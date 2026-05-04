@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCreateCustomer, useUpdateCustomer } from '@/hooks/useSupabaseData';
 import { Customer, CustomerType } from '@/lib/types';
+import { sanitiseDecimal } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Info } from 'lucide-react';
 
@@ -256,21 +257,21 @@ export function CustomerDialog({ open, onOpenChange, customer }: CustomerDialogP
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Metro per m³ (AUD)">
                 <Input
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  step="0.01"
+                  pattern="[0-9]*\.?[0-9]*"
                   value={form.overrideMetroRate}
-                  onChange={(e) => update('overrideMetroRate', e.target.value)}
+                  onChange={(e) => update('overrideMetroRate', sanitiseDecimal(e.target.value))}
                   placeholder="Leave blank to use default"
                 />
               </Field>
               <Field label="Hourly rate (AUD)">
                 <Input
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  step="0.01"
+                  pattern="[0-9]*\.?[0-9]*"
                   value={form.overrideHourlyRate}
-                  onChange={(e) => update('overrideHourlyRate', e.target.value)}
+                  onChange={(e) => update('overrideHourlyRate', sanitiseDecimal(e.target.value))}
                   placeholder="Leave blank to use default"
                 />
               </Field>

@@ -58,6 +58,11 @@ export function CustomerCombobox({
     return () => document.removeEventListener('mousedown', handler);
   }, [isOpen]);
 
+  // V4 2.7: rows now carry a `matchReason` so the dropdown can render a
+  // little "matched: phone" chip — Yamin asked for trust signals after his
+  // May 4 confusion about which customer record was being surfaced.
+  type MatchReason = 'company' | 'contact' | 'phone' | 'email' | null;
+
   // Filter + sort the customer book by the typed query. VIPs first,
   // then most-recently-created. We cap to 8 results to keep the
   // dropdown finger-friendly on mobile.
@@ -66,31 +71,43 @@ export function CustomerCombobox({
     const qDigits = normalizePhone(value);
     const scored = customers
       .filter((c) => !c.deletedAt) // soft-deleted Phase 14 hides
-      .map((c): { customer: Customer; score: number } => {
-        const haystack = [c.name, c.companyName, c.email, c.phone]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
+      .map((c): { customer: Customer; score: number; reason: MatchReason } => {
+        const company = (c.companyName ?? '').toLowerCase();
+        const name = (c.name ?? '').toLowerCase();
+        const email = (c.email ?? '').toLowerCase();
+        const phoneDigits = c.phone ? normalizePhone(c.phone) : '';
         let score = 0;
+        let reason: MatchReason = null;
         if (q) {
-          if (!haystack.includes(q) && !(qDigits.length >= 3 && c.phone && normalizePhone(c.phone).includes(qDigits))) {
-            return { customer: c, score: -1 };
+          const phoneMatch = qDigits.length >= 3 && phoneDigits.includes(qDigits);
+          const companyMatch = company.includes(q);
+          const nameMatch = name.includes(q);
+          const emailMatch = email.includes(q);
+          if (!phoneMatch && !companyMatch && !nameMatch && !emailMatch) {
+            return { customer: c, score: -1, reason: null };
           }
-          // Prefer exact-prefix matches on name/company.
-          if ((c.name ?? '').toLowerCase().startsWith(q)) score += 10;
-          if ((c.companyName ?? '').toLowerCase().startsWith(q)) score += 10;
-          if (qDigits && c.phone && normalizePhone(c.phone).startsWith(qDigits)) score += 5;
+          // First-match wins for the chip — order reflects what Yamin will
+          // most often be searching by (company > contact > phone > email).
+          reason = companyMatch
+            ? 'company'
+            : nameMatch
+              ? 'contact'
+              : phoneMatch
+                ? 'phone'
+                : 'email';
+          if (company.startsWith(q)) score += 10;
+          if (name.startsWith(q)) score += 10;
+          if (qDigits && phoneDigits.startsWith(qDigits)) score += 5;
         }
         if (c.vip) score += 3;
-        return { customer: c, score };
+        return { customer: c, score, reason };
       })
       .filter((s) => s.score >= 0)
       .sort((a, b) => {
         if (a.score !== b.score) return b.score - a.score;
         return (b.customer.createdAt ?? '').localeCompare(a.customer.createdAt ?? '');
       })
-      .slice(0, 8)
-      .map((s) => s.customer);
+      .slice(0, 8);
     return scored;
   }, [customers, value]);
 
@@ -123,7 +140,7 @@ export function CustomerCombobox({
     } else if (e.key === 'Enter' && matches.length > 0) {
       e.preventDefault();
       const m = matches[highlight];
-      if (m) handlePick(m);
+      if (m) handlePick(m.customer);
     } else if (e.key === 'Escape') {
       setIsOpen(false);
     }
@@ -170,7 +187,7 @@ export function CustomerCombobox({
           role="listbox"
           className="absolute z-50 mt-1 w-full max-h-72 overflow-y-auto rounded-lg border border-rebel-border bg-card shadow-lg"
         >
-          {matches.map((c, idx) => {
+          {matches.map(({ customer: c, reason }, idx) => {
             const primary = c.companyName ?? c.name;
             const secondary = [
               c.companyName ? `Contact: ${c.name}` : null,
@@ -208,6 +225,14 @@ export function CustomerCombobox({
                     <p className="text-sm font-semibold truncate">{primary}</p>
                     {c.vip && (
                       <Star className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />
+                    )}
+                    {reason && (
+                      <span
+                        className="ml-auto shrink-0 inline-flex items-center h-4 px-1.5 rounded-md bg-muted text-muted-foreground text-[9px] font-bold uppercase tracking-wider"
+                        title={`Matched on ${reason}`}
+                      >
+                        {reason}
+                      </span>
                     )}
                   </div>
                   {secondary && (

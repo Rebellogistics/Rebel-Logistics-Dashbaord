@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { useJobs, useUpdateJob } from '@/hooks/useSupabaseData';
 import { usePricingRates } from '@/hooks/usePricingRates';
 import { calculateQuote } from '@/lib/pricing';
+import { sanitiseDecimal } from '@/lib/utils';
 import { Job, JobLocation, PricingRates, PricingType } from '@/lib/types';
 import { format, parseISO, subDays, isAfter } from 'date-fns';
 import { toast } from 'sonner';
@@ -272,10 +273,11 @@ export function AcceptDialog({ job, onClose, onAccepted, mode = 'accept' }: Acce
           {form.pricingType === 'fixed' ? (
             <Field label="Fee (AUD ex-GST)">
               <Input
-                type="number"
+                type="text"
                 inputMode="decimal"
+                pattern="[0-9]*\.?[0-9]*"
                 value={form.fee}
-                onChange={(e) => update('fee', e.target.value)}
+                onChange={(e) => update('fee', sanitiseDecimal(e.target.value))}
                 placeholder={suggestion ? String(suggestion.value) : '0.00'}
               />
               {suggestion && (
@@ -293,19 +295,21 @@ export function AcceptDialog({ job, onClose, onAccepted, mode = 'accept' }: Acce
             <div className="grid grid-cols-2 gap-3">
               <Field label="Hourly rate (AUD ex-GST)">
                 <Input
-                  type="number"
+                  type="text"
                   inputMode="decimal"
+                  pattern="[0-9]*\.?[0-9]*"
                   value={form.hourlyRate}
-                  onChange={(e) => update('hourlyRate', e.target.value)}
+                  onChange={(e) => update('hourlyRate', sanitiseDecimal(e.target.value))}
                   placeholder="0.00"
                 />
               </Field>
               <Field label="Hours estimated">
                 <Input
-                  type="number"
+                  type="text"
                   inputMode="decimal"
+                  pattern="[0-9]*\.?[0-9]*"
                   value={form.hoursEstimated}
-                  onChange={(e) => update('hoursEstimated', e.target.value)}
+                  onChange={(e) => update('hoursEstimated', sanitiseDecimal(e.target.value))}
                   placeholder="0"
                 />
               </Field>
@@ -314,10 +318,11 @@ export function AcceptDialog({ job, onClose, onAccepted, mode = 'accept' }: Acce
 
           <Field label="Fuel levy (AUD ex-GST)">
             <Input
-              type="number"
+              type="text"
               inputMode="decimal"
+              pattern="[0-9]*\.?[0-9]*"
               value={form.fuelLevy}
-              onChange={(e) => update('fuelLevy', e.target.value)}
+              onChange={(e) => update('fuelLevy', sanitiseDecimal(e.target.value))}
               placeholder={String(derivedFuelLevy.toFixed(2))}
             />
             <p className="mt-1 text-[10px] text-muted-foreground">

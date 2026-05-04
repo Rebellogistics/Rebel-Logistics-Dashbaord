@@ -9,6 +9,7 @@ import { WhoDrivingDialog } from './WhoDrivingDialog';
 import { Logo } from '@/components/ui/logo';
 import { cn } from '@/lib/utils';
 import { useDriverToday } from '@/hooks/useDriverToday';
+import { useRealtimeJobs } from '@/hooks/useRealtimeJobs';
 
 type DriverTab = 'today' | 'profile';
 
@@ -26,6 +27,13 @@ export function DriverShell({ profile }: DriverShellProps) {
   const truckLabel = profile.assignedTruck?.trim();
   const { name: driverName, needsPick, setName: setDriverName } = useDriverToday();
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  // V4 1.7: drivers see live updates when the office reassigns / reorders /
+  // edits a job from the dashboard. Previously the truck shell only
+  // refetched on its own mutations — drivers had to pull-to-refresh to
+  // see Yamin's mid-shift edits. The toast on run-order change lives in
+  // MyRunToday since that's where todaysJobs is computed.
+  useRealtimeJobs();
 
   useEffect(() => {
     if (needsPick) setPickerOpen(true);

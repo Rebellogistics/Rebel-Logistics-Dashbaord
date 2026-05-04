@@ -34,5 +34,19 @@ export async function apiPostJson<T>(path: string, body: unknown): Promise<T> {
     }
     throw new Error(message);
   }
-  return text ? (JSON.parse(text) as T) : ({} as T);
+  // Vite's SPA fallback serves index.html (text/html, 200 OK) for unknown
+  // routes, so a request to /api/* under plain `npm run dev` looks like a
+  // success but parses as HTML. Detect and surface the dev-tooling fix.
+  if (!text) return {} as T;
+  const contentType = res.headers.get('content-type') ?? '';
+  if (contentType.includes('text/html') || text.trim().startsWith('<')) {
+    throw new Error(
+      `${path} returned HTML — the /api/* serverless routes don't run under plain Vite. Restart with \`npx vercel dev --listen 3000\` instead of \`npm run dev\`.`,
+    );
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(`Unexpected non-JSON response from ${path}`);
+  }
 }

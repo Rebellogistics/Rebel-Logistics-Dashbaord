@@ -70,8 +70,10 @@ export interface JobPhoto {
 }
 export type TimeRange = '1d' | '7d' | '30d';
 export type PricingType = 'fixed' | 'hourly';
-export type SmsType = 'day_prior' | 'en_route' | 'other';
+export type SmsType = 'day_prior' | 'en_route' | 'auto_reply' | 'other';
 export type SmsStatus = 'sent' | 'failed' | 'pending';
+/** V4 Phase 3.2: outbound = we sent it, inbound = customer texted us. */
+export type SmsDirection = 'outbound' | 'inbound';
 export type UserRole = 'owner' | 'driver' | 'truck' | 'dispatcher' | 'admin' | 'pending';
 
 export interface Profile {
@@ -163,6 +165,9 @@ export interface Job {
   /** Phase 14 soft-delete: ISO timestamp set when the job is moved to Trash;
    *  null/undefined for active rows. Main queries filter to active. */
   deletedAt?: string | null;
+  /** V4 Phase 1.1: position within the truck-day run order (0 = first stop).
+   *  NULL on rows created before V4 — fall back to createdAt for sort. */
+  sequence?: number | null;
   createdAt: string;
 }
 
@@ -189,6 +194,17 @@ export interface SmsLogEntry {
   sentAt: string;
   errorMessage: string | null;
   createdAt: string;
+  /** V4 Phase 3.2 — defaults to 'outbound' on rows from before the migration. */
+  direction?: SmsDirection;
+  /** Twilio Message SID for outbound rows. Used to thread inbound replies. */
+  providerMessageId?: string | null;
+  /** For inbound rows, the providerMessageId of the most recent outbound to
+   *  the same phone — i.e. which outbound thread this reply belongs to. */
+  parentMessageSid?: string | null;
+  /** Best-effort customer match for inbound rows. Nullable. */
+  customerId?: string | null;
+  /** Timestamp the operator read this inbound. NULL = unread. */
+  readAt?: string | null;
 }
 
 export interface Customer {

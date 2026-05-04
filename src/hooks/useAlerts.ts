@@ -10,7 +10,8 @@ export type AlertKind =
   | 'unassigned_scheduled'
   | 'day_prior_unsent'
   | 'run_started'
-  | 'delivery_completed';
+  | 'delivery_completed'
+  | 'inbound_sms_reply';
 
 export interface Alert {
   id: string;
@@ -41,8 +42,10 @@ export function useAlerts(jobs: Job[], smsLog: SmsLogEntry[]): UseAlertsResult {
     const todayStr = format(today, 'yyyy-MM-dd');
     const tomorrowStr = format(addDays(today, 1), 'yyyy-MM-dd');
 
-    // 1. Failed SMS — critical
+    // 1. Failed SMS — critical (only outbound; inbound rows always
+    //    status='sent' since the customer's text was received).
     for (const entry of smsLog) {
+      if (entry.direction === 'inbound') continue;
       if (entry.status !== 'failed') continue;
       alerts.push({
         id: `sms-failed-${entry.id}`,
@@ -55,6 +58,26 @@ export function useAlerts(jobs: Job[], smsLog: SmsLogEntry[]): UseAlertsResult {
         action: entry.jobId ? 'view_job' : 'view_sms',
         actionLabel: entry.jobId ? 'Open job' : 'View log',
         weight: 1000 + Date.parse(entry.sentAt || entry.createdAt || '0'),
+      });
+    }
+
+    // 1b. Inbound SMS replies — warning. Each unread customer reply gets
+    // its own alert so the bell badge counts them and Yamin can click
+    // straight through to the SMS Log Replies tab. V4 Phase 3.3.
+    for (const entry of smsLog) {
+      if (entry.direction !== 'inbound') continue;
+      if (entry.readAt) continue;
+      alerts.push({
+        id: `inbound-${entry.id}`,
+        kind: 'inbound_sms_reply',
+        severity: 'warning',
+        title: `${entry.recipientName || entry.recipientPhone} replied`,
+        description: entry.messageBody.slice(0, 120) + (entry.messageBody.length > 120 ? '…' : ''),
+        smsId: entry.id,
+        jobId: entry.jobId ?? undefined,
+        action: entry.jobId ? 'view_job' : 'view_sms',
+        actionLabel: entry.jobId ? 'Open job' : 'Open inbox',
+        weight: 850 + Date.parse(entry.sentAt || entry.createdAt || '0'),
       });
     }
 
@@ -206,6 +229,7 @@ export function useAlerts(jobs: Job[], smsLog: SmsLogEntry[]): UseAlertsResult {
       day_prior_unsent: [],
       run_started: [],
       delivery_completed: [],
+      inbound_sms_reply: [],
     };
     for (const a of alerts) byKind[a.kind].push(a);
 
@@ -237,5 +261,7 @@ export function alertKindLabel(kind: AlertKind): string {
       return 'Runs started';
     case 'delivery_completed':
       return 'Completed deliveries';
+    case 'inbound_sms_reply':
+      return 'Customer replies';
   }
 }

@@ -8,12 +8,14 @@ Every block is **idempotent** — safe to re-run if you're not sure whether it l
 
 Run these in order. Each builds on the one before:
 
-1. **Block 1 — Pricing engine + quote-form rebuild** (Phase 1)
-2. **Block 2 — Job audit log** (Phase 2)
-3. **Block 3 — Driver attribution + truck shifts** (Phase 3)
-4. **Block 4 — Google Calendar event tracking** (Phase 5)
-5. **Block 5 — Customer import polish** (Phase 7)
-6. **Block 6 — Enable Realtime so the dashboard updates live** (post-Phase 7)
+1. **Block 1 — Pricing engine + quote-form rebuild** (V3 Phase 1)
+2. **Block 2 — Job audit log** (V3 Phase 2)
+3. **Block 3 — Driver attribution + truck shifts** (V3 Phase 3)
+4. **Block 4 — Google Calendar event tracking** (V3 Phase 5)
+5. **Block 5 — Customer import polish** (V3 Phase 7)
+6. **Block 6 — Enable Realtime so the dashboard updates live** (post-V3-Phase 7)
+7. **Block 7 — Run-order sequence on jobs** (V4 Phase 1.1)
+8. **Block 8 — Inbound SMS columns** (V4 Phase 3.2)
 
 After every block, you should see a green "Success. No rows returned" message.
 
@@ -451,6 +453,107 @@ If anything says `MISSING`, re-run the matching block.
 
 ---
 
+## Block 7 — Run-order sequence on jobs (V4 Phase 1.1)
+
+**What this does:**
+- Adds a `sequence` integer column on `jobs` so Yamin can drag-to-reorder cards inside a truck column on Truck Runs.
+- The driver shell sorts today's jobs by `sequence` ascending (with `created_at` as the fallback for any rows from before this block landed).
+- Idempotent — safe to re-run.
+
+```sql
+-- ============================================================================
+-- Block 7 — V4 Phase 1.1 · per-truck-day run order
+-- ============================================================================
+
+ALTER TABLE jobs
+  ADD COLUMN IF NOT EXISTS sequence INTEGER;
+
+CREATE INDEX IF NOT EXISTS idx_jobs_truck_date_sequence
+  ON jobs (assigned_truck, date, sequence)
+  WHERE deleted_at IS NULL;
+
+COMMENT ON COLUMN jobs.sequence IS
+  'V4 Phase 1.1: position within the truck-day run order (0 = first stop). '
+  'NULL on rows pre-V4 — sort fall-back is created_at. Re-written as a '
+  'contiguous 0..N-1 sequence on every reorder.';
+```
+
+**Verify it landed:**
+
+```sql
+SELECT 'jobs.sequence', CASE WHEN EXISTS(
+  SELECT 1 FROM information_schema.columns
+  WHERE table_name='jobs' AND column_name='sequence') THEN 'OK' ELSE 'MISSING' END;
+```
+
+---
+
+## Block 8 — Inbound SMS columns (V4 Phase 3.2)
+
+**What this does:**
+- Extends `sms_log` with the columns required for inbound message ingestion + threading + read state. Without this block, the new `/api/sms/inbound` webhook can't write inbound rows and the Replies tab stays empty.
+- Adds `direction` (outbound/inbound), `provider_message_id` (the Twilio SID — used to thread replies), `parent_message_sid` (the outbound this reply answers), `customer_id` (best-effort customer link), and `read_at` (drives the bell unread badge).
+- Widens the `type` constraint to allow `auto_reply` so the auto-reply template type validates.
+- Adds indexes for the new query patterns. Idempotent — safe to re-run.
+
+```sql
+-- ============================================================================
+-- Block 8 — V4 Phase 3.2 · inbound SMS support
+-- ============================================================================
+
+ALTER TABLE public.sms_log
+  ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'outbound',
+  ADD COLUMN IF NOT EXISTS provider_message_id TEXT,
+  ADD COLUMN IF NOT EXISTS parent_message_sid TEXT,
+  ADD COLUMN IF NOT EXISTS customer_id TEXT REFERENCES public.customers(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ;
+
+ALTER TABLE public.sms_log
+  DROP CONSTRAINT IF EXISTS sms_log_direction_check;
+ALTER TABLE public.sms_log
+  ADD CONSTRAINT sms_log_direction_check
+  CHECK (direction IN ('outbound', 'inbound'));
+
+ALTER TABLE public.sms_log
+  DROP CONSTRAINT IF EXISTS sms_log_type_check;
+ALTER TABLE public.sms_log
+  ADD CONSTRAINT sms_log_type_check
+  CHECK (type IN ('day_prior', 'en_route', 'auto_reply', 'other'));
+
+CREATE INDEX IF NOT EXISTS idx_sms_log_recipient_phone_sent_at
+  ON public.sms_log (recipient_phone, sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sms_log_provider_message_id
+  ON public.sms_log (provider_message_id)
+  WHERE provider_message_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_sms_log_parent_message_sid
+  ON public.sms_log (parent_message_sid)
+  WHERE parent_message_sid IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_sms_log_inbound_unread
+  ON public.sms_log (sent_at DESC)
+  WHERE direction = 'inbound' AND read_at IS NULL;
+```
+
+**Verify it landed:**
+
+```sql
+SELECT 'sms_log.direction', CASE WHEN EXISTS(
+  SELECT 1 FROM information_schema.columns
+  WHERE table_name='sms_log' AND column_name='direction') THEN 'OK' ELSE 'MISSING' END
+UNION ALL SELECT 'sms_log.provider_message_id', CASE WHEN EXISTS(
+  SELECT 1 FROM information_schema.columns
+  WHERE table_name='sms_log' AND column_name='provider_message_id') THEN 'OK' ELSE 'MISSING' END
+UNION ALL SELECT 'sms_log.parent_message_sid', CASE WHEN EXISTS(
+  SELECT 1 FROM information_schema.columns
+  WHERE table_name='sms_log' AND column_name='parent_message_sid') THEN 'OK' ELSE 'MISSING' END
+UNION ALL SELECT 'sms_log.read_at', CASE WHEN EXISTS(
+  SELECT 1 FROM information_schema.columns
+  WHERE table_name='sms_log' AND column_name='read_at') THEN 'OK' ELSE 'MISSING' END;
+```
+
+If anything says `MISSING`, re-run the block above.
+
+---
+
 ## Cheat sheet — what the dashboard does once each block lands
 
 | Block | Unlocks |
@@ -461,3 +564,5 @@ If anything says `MISSING`, re-run the matching block.
 | 4 | Google Calendar sync (auto on truck assignment, also the manual *Sync open jobs* button on Settings → Integrations) |
 | 5 | The new CSV import wizard's **"Imported from"** tag, batchable filter |
 | 6 | **Live notifications** — drivers' Complete events reach the owner dashboard the second they happen, no refresh needed |
+| 7 | Drag-to-reorder on Truck Runs — the run order Yamin sets is exactly what the driver sees on the truck shell |
+| 8 | Inbound SMS replies land in the Replies tab + bell badge. Customer texts back → Yamin sees it on the dashboard within ~1s of Twilio firing the webhook |

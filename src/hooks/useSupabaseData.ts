@@ -169,6 +169,38 @@ export function useUpdateJob() {
   });
 }
 
+/**
+ * V4 Phase 1.1: rewrite the run-order for a truck-day in one mutation.
+ *
+ * Caller passes the jobs in the desired order; we write `sequence = i` for
+ * each. Issues N parallel UPDATEs (N is small — typically ≤ 8 stops/day)
+ * and invalidates the jobs cache once. Realtime broadcasts each row so
+ * other tabs (and the driver shell) re-render without polling.
+ */
+export function useReorderTruckJobs() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (orderedJobIds: string[]) => {
+      if (orderedJobIds.length === 0) return;
+      await Promise.all(
+        orderedJobIds.map((id, index) =>
+          supabase
+            .from('jobs')
+            .update({ sequence: index })
+            .eq('id', id)
+            .then(({ error }) => {
+              if (error) throw error;
+            }),
+        ),
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    },
+  });
+}
+
 export function useDeleteJob() {
   const queryClient = useQueryClient();
 

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -34,7 +34,13 @@ const SAMPLE_JOB: Partial<Job> = {
   hoursEstimated: 1.5,
 };
 
-const SAMPLE_OWNER = { name: 'Yamen', businessName: 'Rebel Logistics' };
+const SAMPLE_OWNER = {
+  name: 'Yamen',
+  businessName: 'Rebel Logistics',
+  // Used by the auto_reply preview. The real value comes from the
+  // REBEL_SUPPORT_PHONE env var at the /api/sms/inbound webhook.
+  phone: '+61 4xx xxx xxx',
+};
 
 const VARIABLES: { token: string; description: string }[] = [
   { token: '{{customer.firstName}}', description: 'First word of customer name' },
@@ -49,6 +55,7 @@ const VARIABLES: { token: string; description: string }[] = [
   { token: '{{job.type}}', description: 'Standard / White Glove / House Move' },
   { token: '{{owner.businessName}}', description: 'Your business name' },
   { token: '{{owner.name}}', description: 'Your name' },
+  { token: '{{owner.phone}}', description: 'Your support phone (for auto-reply)' },
 ];
 
 export function SmsTemplatesSection() {
@@ -63,13 +70,19 @@ export function SmsTemplatesSection() {
     [templates, activeKey],
   );
 
-  // Sync draft when active changes
-  const activeKeyResolved = active?.key ?? null;
-  if (activeKeyResolved && activeKey !== activeKeyResolved) {
-    setActiveKey(activeKeyResolved);
-    setDraftBody(active?.body ?? '');
-    setDraftLabel(active?.label ?? '');
-  }
+  // Sync draft only when the selection changes (different template key,
+  // or first load). Background refetches must not clobber an in-progress
+  // edit. The old code did setState during render — fragile and a known
+  // anti-pattern; this useEffect is the conventional replacement.
+  useEffect(() => {
+    if (!active) return;
+    setActiveKey(active.key);
+    setDraftBody(active.body);
+    setDraftLabel(active.label);
+    // Intentionally only watch the selection, not the body/label —
+    // see comment above for why.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.key, active?.id]);
 
   const isDirty = active && (draftBody !== active.body || draftLabel !== active.label);
   const isFallback = active?.id.startsWith('fallback-');

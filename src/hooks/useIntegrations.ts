@@ -81,6 +81,71 @@ export function useDisconnectIntegration() {
   });
 }
 
+/**
+ * V4 Phase 4.1 — flip Google Calendar between single and per-truck modes.
+ *
+ * The mode lives in `integrations.metadata.calendar_mode`. We update it
+ * directly via the Supabase client (RLS policy `integrations_modify_own`
+ * permits owners to update their own rows) so the toggle works on plain
+ * `vite dev` without `vercel dev` running. Per-truck calendars are
+ * lazy-created on next sync; Yamin should hit "Sync open jobs" after
+ * switching to backfill existing events to the new layout.
+ */
+export type CalendarMode = 'single' | 'per_truck';
+
+export function useSetCalendarMode() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (mode: CalendarMode) => {
+      const { data: session } = await supabase.auth.getSession();
+      const userId = session.session?.user?.id;
+      if (!userId) throw new Error('Not authenticated');
+
+      // Read the current metadata so we merge — JSONB overwrites by default
+      // and we can't lose calendar_id / calendars / access_token on a flip.
+      const { data: row, error: readErr } = await integrationsTable()
+        .select('id, metadata')
+        .eq('user_id', userId)
+        .eq('provider', 'google_calendar')
+        .is('revoked_at', null)
+        .maybeSingle();
+      if (readErr) throw readErr;
+      if (!row) throw new Error('Google Calendar is not connected');
+
+      const meta = (row.metadata as Record<string, unknown>) ?? {};
+      const nextMeta = { ...meta, calendar_mode: mode };
+      const { error: upErr } = await integrationsTable()
+        .update({ metadata: nextMeta })
+        .eq('id', row.id);
+      if (upErr) throw upErr;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['integrations'] });
+    },
+  });
+}
+
+/**
+ * V4 Phase 4 follow-up — delete the auto-created legacy single calendar
+ * after Yamin switches to per-truck mode. Server endpoint refuses to run
+ * unless the user is in per_truck mode (so we never nuke the only
+ * calendar). Returns the deleted calendar id (or `noop` when there's
+ * nothing to delete) so the UI can render a tidy toast.
+ */
+export function useCleanupLegacyCalendar() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (): Promise<{ action: 'deleted' | 'noop'; deletedCalendarId?: string }> => {
+      return await apiPostJson('/api/calendar/cleanup-legacy', {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['integrations'] });
+    },
+  });
+}
+
 export function useConnectIntegration() {
   const queryClient = useQueryClient();
 

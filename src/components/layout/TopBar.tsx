@@ -1,4 +1,4 @@
-import { Menu } from 'lucide-react';
+import { Menu, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { ProfileMenu } from '@/components/layout/ProfileMenu';
@@ -22,6 +22,9 @@ interface TopBarProps {
   onSearchSelect?: (result: SearchResult) => void;
   onMenuClick?: () => void;
   onNavigate?: (tab: string) => void;
+  /** V4 2.2: desktop-side New Job entry point. The mobile equivalent is
+   *  rendered as a hero card + floating + button by App.tsx. */
+  onNewQuote?: () => void;
 }
 
 const subtitleByTab: Record<string, string> = {
@@ -47,6 +50,7 @@ export function TopBar({
   onSearchSelect,
   onMenuClick,
   onNavigate,
+  onNewQuote,
 }: TopBarProps) {
   const today = format(new Date(), "EEEE · MMM d");
 
@@ -97,6 +101,17 @@ export function TopBar({
 
         {/* Right cluster */}
         <div className="flex items-center gap-2">
+          {onNewQuote && (
+            <button
+              type="button"
+              onClick={onNewQuote}
+              className="hidden lg:inline-flex items-center gap-1.5 h-9 px-3 rounded-xl bg-rebel-accent text-white text-[13px] font-bold shadow-[0_8px_18px_-8px_rgba(45,91,255,0.55)] hover:bg-rebel-accent-hover active:scale-[0.98] transition-transform"
+              aria-label="New job"
+            >
+              <Plus className="w-4 h-4" />
+              New job
+            </button>
+          )}
           <ThemeToggle className="hidden sm:inline-flex" />
           <NotificationsBell jobs={jobs} smsLog={smsLog} onAlertAction={onAlertAction} />
 

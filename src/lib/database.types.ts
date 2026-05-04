@@ -223,6 +223,7 @@ export type Database = {
           recipient_address: string | null
           recipient_name: string | null
           recipient_phone: string | null
+          sequence: number | null
           signature: string | null
           status: string
           type: string
@@ -267,6 +268,7 @@ export type Database = {
           recipient_address?: string | null
           recipient_name?: string | null
           recipient_phone?: string | null
+          sequence?: number | null
           signature?: string | null
           status: string
           type: string
@@ -311,6 +313,7 @@ export type Database = {
           recipient_address?: string | null
           recipient_name?: string | null
           recipient_phone?: string | null
+          sequence?: number | null
           signature?: string | null
           status?: string
           type?: string
@@ -446,10 +449,15 @@ export type Database = {
       sms_log: {
         Row: {
           created_at: string
+          customer_id: string | null
+          direction: string
           error_message: string | null
           id: string
           job_id: string | null
           message_body: string
+          parent_message_sid: string | null
+          provider_message_id: string | null
+          read_at: string | null
           recipient_name: string
           recipient_phone: string
           sent_at: string
@@ -458,10 +466,15 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          customer_id?: string | null
+          direction?: string
           error_message?: string | null
           id?: string
           job_id?: string | null
           message_body: string
+          parent_message_sid?: string | null
+          provider_message_id?: string | null
+          read_at?: string | null
           recipient_name: string
           recipient_phone: string
           sent_at?: string
@@ -470,10 +483,15 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          customer_id?: string | null
+          direction?: string
           error_message?: string | null
           id?: string
           job_id?: string | null
           message_body?: string
+          parent_message_sid?: string | null
+          provider_message_id?: string | null
+          read_at?: string | null
           recipient_name?: string
           recipient_phone?: string
           sent_at?: string

@@ -9,6 +9,16 @@ import { format, parseISO, addHours } from 'date-fns';
 
 const COMPANY_NAME = 'Rebel Logistics';
 
+// V4 hot-fix May 4: defaults for owner-context fields so SMS that fire
+// from places without a React profile (auto-fired status SMS, bulk
+// day-prior, legacy SMS_TEMPLATES export) still render with Yamin's
+// branding and support phone. Read once at module load — VITE_* env
+// vars are baked in at build time, so this is a constant per deploy.
+const ENV = (import.meta as { env?: Record<string, string | undefined> }).env ?? {};
+const OWNER_BUSINESS_NAME_DEFAULT =
+  ENV.VITE_REBEL_BUSINESS_NAME?.trim() || COMPANY_NAME;
+const OWNER_PHONE_DEFAULT = ENV.VITE_REBEL_SUPPORT_PHONE?.trim() ?? '';
+
 // ──────────────────────────────────────────────────────────────────
 // Template variable schema
 // ──────────────────────────────────────────────────────────────────
@@ -16,27 +26,62 @@ const COMPANY_NAME = 'Rebel Logistics';
 export interface TemplateContext {
   customer?: Partial<Customer> | null;
   job?: Partial<Job> | null;
-  owner?: { name?: string; businessName?: string } | null;
+  owner?: { name?: string; businessName?: string; phone?: string } | null;
 }
 
-/** Tiny Mustache-style renderer. Supports `{{a.b.c}}` paths only — no helpers. */
+/**
+ * Tiny Mustache-style renderer. Supports `{{a.b.c}}` paths only — no helpers.
+ *
+ * V4 hot-fix May 4: when a variable is unresolved (key not in the lookup —
+ * usually a typo), we now leave the literal `{{var.name}}` in the output
+ * so Yamin sees what's broken instead of getting silent empty-string
+ * substitution. Empty resolved values still render as empty (e.g. a
+ * customer with no email is fine — the template author chose to include
+ * the variable).
+ */
 export function renderTemplate(body: string, ctx: TemplateContext): string {
   const lookup = buildLookup(ctx);
-  return body.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_match, path: string) => {
+  return body.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (match, path: string) => {
+    if (!(path in lookup)) return match;
     const value = lookup[path];
-    if (value === undefined || value === null || value === '') return '';
+    if (value === undefined || value === null) return '';
     return String(value);
   });
 }
 
+/**
+ * V4 hot-fix May 4: cascading fall-back for variable resolution.
+ *
+ * For every `{{customer.*}}` field we try:
+ *   1. the explicit `customer` arg (passed by SendSmsDialog when Yamin
+ *      picks a recipient, or by the bulk day-prior loop)
+ *   2. the linked `job` row's denormalised customer fields (so an SMS
+ *      fired from useUpdateJob.onSuccess — which knows the job but has
+ *      no React access to the customer cache — still renders the name)
+ *
+ * For every `{{owner.*}}` field we try:
+ *   1. the explicit `owner` arg
+ *   2. the VITE_REBEL_* env vars (set on Vercel for the inbound auto-
+ *      reply too — re-using them keeps both surfaces consistent)
+ *   3. a hardcoded "Rebel Logistics" fallback for the business name
+ *
+ * Result: callers can pass an empty context and templates still render
+ * cleanly. Yamin's reproduction "the variables don't work at all" was
+ * driven by the auto-fire SMS path passing `{ customer: null, owner: null }`,
+ * which used to leave every variable empty.
+ */
 function buildLookup(ctx: TemplateContext): Record<string, string> {
   const customer = ctx.customer ?? null;
   const job = ctx.job ?? null;
   const owner = ctx.owner ?? null;
 
-  const customerName =
-    (customer?.companyName?.trim() ? customer.companyName : customer?.name)?.trim() ?? '';
+  const company =
+    customer?.companyName?.trim() || job?.customerCompanyName?.trim() || '';
+  const personal = customer?.name?.trim() || job?.customerName?.trim() || '';
+  const customerName = company || personal;
   const customerFirstName = customerName.split(/\s+/)[0] ?? '';
+  const customerPhone = customer?.phone?.trim() || job?.customerPhone?.trim() || '';
+  const customerEmail = customer?.email?.trim() || '';
 
   const jobDate = job?.date ? safeFormat(job.date, 'EEE d MMM') : '';
   const eta = formatEta(job);
@@ -45,8 +90,8 @@ function buildLookup(ctx: TemplateContext): Record<string, string> {
     'customer.firstName': customerFirstName,
     'customer.fullName': customerName,
     'customer.name': customerName,
-    'customer.phone': customer?.phone ?? '',
-    'customer.email': customer?.email ?? '',
+    'customer.phone': customerPhone,
+    'customer.email': customerEmail,
     'job.id': job?.id ?? '',
     'job.date': jobDate,
     'job.pickup': job?.pickupAddress ?? '',
@@ -56,8 +101,10 @@ function buildLookup(ctx: TemplateContext): Record<string, string> {
     'job.type': job?.type ?? '',
     'job.eta': eta,
     'job.notes': job?.notes ?? '',
-    'owner.name': owner?.name ?? '',
-    'owner.businessName': owner?.businessName ?? COMPANY_NAME,
+    'owner.name': owner?.name?.trim() ?? '',
+    'owner.businessName':
+      owner?.businessName?.trim() || OWNER_BUSINESS_NAME_DEFAULT,
+    'owner.phone': owner?.phone?.trim() || OWNER_PHONE_DEFAULT,
   };
 }
 
@@ -120,6 +167,18 @@ export const DEFAULT_TEMPLATES: SmsTemplateDefinition[] = [
     label: 'Follow-up',
     body: `Hi {{customer.firstName}}, {{owner.businessName}} here following up on your booking. Let us know if there's anything we can help with.`,
   },
+  // V4 May 4 hot-fix: branded reply that goes back to anyone who texts the
+  // Twilio number. Editable from Settings → SMS Templates so Yamin can
+  // change the wording without redeploying. The /api/sms/inbound webhook
+  // reads this row at request time. {{owner.businessName}} renders as
+  // 'Rebel Logistics' by default; the support phone variable is injected
+  // server-side from the REBEL_SUPPORT_PHONE env var.
+  {
+    key: 'auto_reply',
+    type: 'other',
+    label: 'Auto-reply (when customer texts back)',
+    body: `Hi! This number isn't monitored. For booking changes, please call {{owner.businessName}} on {{owner.phone}}. Thanks!`,
+  },
 ];
 
 /** Get the default body for a builtin SMS type — used by useSendSmsForJob. */
@@ -132,6 +191,7 @@ export function defaultBodyForType(type: SmsType): string {
 export const SMS_TEMPLATES: Record<SmsType, (job: Job) => string> = {
   day_prior: (job) => renderTemplate(defaultBodyForType('day_prior'), { job, customer: jobToCustomer(job) }),
   en_route: (job) => renderTemplate(defaultBodyForType('en_route'), { job, customer: jobToCustomer(job) }),
+  auto_reply: (job) => renderTemplate(defaultBodyForType('auto_reply'), { job, customer: jobToCustomer(job) }),
   other: (job) => renderTemplate(defaultBodyForType('other'), { job, customer: jobToCustomer(job) }),
 };
 
@@ -258,10 +318,37 @@ const twilioProvider: SmsProvider = {
       });
       if (!res.ok) {
         const text = await res.text().catch(() => '');
+        const contentType = res.headers.get('content-type') ?? '';
+        // V4 hot-fix May 4: when /api/* isn't being served (plain `vite`
+        // serves nothing for POST /api/sms/send → 404 with empty body, or
+        // 200 + index.html when SPA fallback is on), surface a directly-
+        // actionable message so Yamin knows to switch to `vercel dev`.
+        const looksLikeMissingDevApi =
+          (res.status === 404 && !text) ||
+          (res.status === 405 && !text) ||
+          contentType.includes('text/html') ||
+          text.trim().startsWith('<');
+        if (looksLikeMissingDevApi) {
+          return {
+            status: 'failed',
+            sentAt: new Date().toISOString(),
+            errorMessage:
+              "SMS endpoint isn't running. Restart the dev server with `npx vercel dev --listen 3000` (plain `vite` doesn't serve /api/*).",
+          };
+        }
+        // Try to parse a JSON error body — /api/sms/send returns
+        // { error: "..." } on auth + Twilio failures.
+        let parsed: { error?: string } | null = null;
+        try {
+          parsed = JSON.parse(text) as { error?: string };
+        } catch {
+          /* leave parsed null */
+        }
         return {
           status: 'failed',
           sentAt: new Date().toISOString(),
-          errorMessage: text || `Provider HTTP ${res.status}`,
+          errorMessage:
+            parsed?.error || text || `Provider HTTP ${res.status}`,
         };
       }
       const payload = (await res.json()) as { sid?: string };

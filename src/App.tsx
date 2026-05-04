@@ -18,6 +18,7 @@ import { JobDetailDialog } from '@/components/jobs/JobDetailDialog';
 import { MarkCompleteDialog } from '@/components/jobs/MarkCompleteDialog';
 import { AssignTruckDialog } from '@/components/jobs/AssignTruckDialog';
 import { QuickQuoteDialog } from '@/components/jobs/QuickQuoteDialog';
+import { NewQuoteDialog } from '@/components/jobs/NewQuoteDialog';
 import { InstallPwaPrompt } from '@/components/layout/InstallPwaPrompt';
 import { CustomerDetailDialog } from '@/components/customers/CustomerDetailDialog';
 import { useJobs, useCustomers, useDeleteCustomer } from '@/hooks/useSupabaseData';
@@ -102,7 +103,15 @@ const SEARCH_SCOPE_BY_TAB: Record<string, SearchScope> = {
 };
 
 function OwnerShell({ profile }: { profile: Profile }) {
-  const [activeTab, setActiveTab] = useState('Dashboard');
+  // V4 4.6: read `?tab=` on first mount so calendar event deep-links land
+  // on the right tab. Only consumed once — subsequent navigation is plain
+  // state so we don't fight the user.
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window === 'undefined') return 'Dashboard';
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get('tab');
+    return t && t in SEARCH_SCOPE_BY_TAB ? t : 'Dashboard';
+  });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -126,6 +135,9 @@ function OwnerShell({ profile }: { profile: Profile }) {
   const [assignTarget, setAssignTarget] = useState<Job | null>(null);
   const [viewCustomerTarget, setViewCustomerTarget] = useState<Customer | null>(null);
   const [quickQuoteOpen, setQuickQuoteOpen] = useState(false);
+  // V4 2.2: desktop New Job is the FULL quote dialog (not the mobile
+  // bare-minimum quick capture). Wired into the TopBar.
+  const [newQuoteOpen, setNewQuoteOpen] = useState(false);
 
   const isLoading = jobsLoading || customersLoading;
   const searchScope = SEARCH_SCOPE_BY_TAB[activeTab] ?? 'all';
@@ -229,7 +241,16 @@ function OwnerShell({ profile }: { profile: Profile }) {
       case 'Reviews':
         return <ReviewsView jobs={jobs} />;
       case 'SMS Log':
-        return <SmsLogView entries={smsLog} isLoading={smsLogLoading} />;
+        return (
+          <SmsLogView
+            entries={smsLog}
+            isLoading={smsLogLoading}
+            onOpenJob={(jobId) => {
+              const job = jobs.find((j) => j.id === jobId);
+              if (job) setViewJobTarget(job);
+            }}
+          />
+        );
       case 'Settings':
         if (!can(profile, 'view_settings')) {
           return (
@@ -270,6 +291,7 @@ function OwnerShell({ profile }: { profile: Profile }) {
           onSearchSelect={handleSearchSelect}
           onMenuClick={() => setSidebarOpen(true)}
           onNavigate={setActiveTab}
+          onNewQuote={() => setNewQuoteOpen(true)}
         />
 
         <div className="flex-1 p-4 lg:p-8 overflow-y-auto">
@@ -304,6 +326,7 @@ function OwnerShell({ profile }: { profile: Profile }) {
       <MarkCompleteDialog job={markCompleteTarget} onClose={() => setMarkCompleteTarget(null)} />
       <AssignTruckDialog job={assignTarget} onClose={() => setAssignTarget(null)} />
       <QuickQuoteDialog open={quickQuoteOpen} onOpenChange={setQuickQuoteOpen} />
+      <NewQuoteDialog open={newQuoteOpen} onOpenChange={setNewQuoteOpen} />
       <CustomerDetailDialog
         customer={viewCustomerTarget}
         jobs={jobs}

@@ -66,6 +66,10 @@ export function useSendSmsForJob() {
           status: result.status,
           sent_at: result.sentAt,
           error_message: result.errorMessage ?? null,
+          // V4 3.2: capture the Twilio SID so inbound replies can be
+          // threaded back to the outbound that prompted them.
+          direction: 'outbound',
+          provider_message_id: result.providerMessageId ?? null,
         } as any,
       ]);
       if (logError) throw logError;
@@ -125,8 +129,29 @@ export async function maybeAutoFireStatusSms(job: Job): Promise<void> {
   // 'en_route' and 'completed' bodies; the SmsType union doesn't have
   // 'completed' so we tag it as 'other' in sms_log.
   const templateKey = isEnRoute ? 'en_route' : 'completed';
-  const template = DEFAULT_TEMPLATES.find((t) => t.key === templateKey);
-  const body = template ? template.body : defaultBodyForType('other');
+  // V4 hot-fix (May 4): auto-fired SMS was always reading from the
+  // hardcoded DEFAULT_TEMPLATES, so Yamin's edits in Settings → SMS
+  // Templates never reached customers. Read the DB row first and only
+  // fall back to defaults when none exists / fetch errors.
+  let body: string | null = null;
+  try {
+    const client = supabase as any;
+    const { data: tplRow, error: tplErr } = await client
+      .from('sms_templates')
+      .select('body')
+      .eq('key', templateKey)
+      .eq('active', true)
+      .maybeSingle();
+    if (!tplErr && tplRow?.body) {
+      body = tplRow.body as string;
+    }
+  } catch (err) {
+    console.warn('[auto-sms] template lookup threw, using default', err);
+  }
+  if (!body) {
+    const fallback = DEFAULT_TEMPLATES.find((t) => t.key === templateKey);
+    body = fallback ? fallback.body : defaultBodyForType('other');
+  }
   const messageBody = renderTemplate(body, { job, customer: null, owner: null });
   const smsType: SmsType = isEnRoute ? 'en_route' : 'other';
 
@@ -150,6 +175,8 @@ export async function maybeAutoFireStatusSms(job: Job): Promise<void> {
         status: result.status,
         sent_at: result.sentAt,
         error_message: result.errorMessage ?? null,
+        direction: 'outbound',
+        provider_message_id: result.providerMessageId ?? null,
       } as never,
     ]);
   } catch (err) {
@@ -171,12 +198,155 @@ export async function maybeAutoFireStatusSms(job: Job): Promise<void> {
   }
 }
 
+/**
+ * V4 Phase 3.1 — fire day-prior reminders to a batch of jobs in one click.
+ *
+ * Used by the "Send tomorrow's bookings" button on Truck Runs. Accepts the
+ * jobs list pre-filtered by the caller (truck-assigned for the picker day,
+ * day_prior_sms_sent_at NULL). Issues SMS in parallel, logs each, stamps
+ * `day_prior_sms_sent_at` on success, returns aggregate counts so the UI
+ * can show "6 sent · 1 failed."
+ *
+ * Yamin's call quote: "I finish work at 6, 7. I come home and then I do
+ * this." He's been typing day-prior reminders by hand for five years.
+ * This is the highest-leverage change in the v4 cycle.
+ */
+export interface BulkDayPriorResult {
+  attempted: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+  failures: { jobId: string; customerName: string; reason: string }[];
+}
+
+export function useSendDayPriorBulk() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (jobs: Job[]): Promise<BulkDayPriorResult> => {
+      const result: BulkDayPriorResult = {
+        attempted: jobs.length,
+        sent: 0,
+        failed: 0,
+        skipped: 0,
+        failures: [],
+      };
+      if (jobs.length === 0) return result;
+      const messageBody = defaultBodyForType('day_prior');
+
+      // Run in parallel — Twilio handles per-account concurrency fine and
+      // typical Rebel batches are <30 jobs/day.
+      await Promise.all(
+        jobs.map(async (job) => {
+          if (!job.customerPhone?.trim()) {
+            result.skipped += 1;
+            result.failures.push({
+              jobId: job.id,
+              customerName: job.customerName,
+              reason: 'No phone number',
+            });
+            return;
+          }
+          const rendered = renderTemplate(messageBody, {
+            job,
+            customer: { name: job.customerName, phone: job.customerPhone },
+            owner: null,
+          });
+          let send: Awaited<ReturnType<typeof sendSms>>;
+          try {
+            send = await sendSms({ to: job.customerPhone, body: rendered });
+          } catch (err) {
+            result.failed += 1;
+            result.failures.push({
+              jobId: job.id,
+              customerName: job.customerName,
+              reason: err instanceof Error ? err.message : 'Send threw',
+            });
+            return;
+          }
+
+          // Always log, win or lose, so the SMS log has a paper trail.
+          try {
+            await supabase.from('sms_log').insert([
+              {
+                job_id: job.id,
+                type: 'day_prior',
+                recipient_name: job.customerName,
+                recipient_phone: job.customerPhone,
+                message_body: rendered,
+                status: send.status,
+                sent_at: send.sentAt,
+                error_message: send.errorMessage ?? null,
+                direction: 'outbound',
+                provider_message_id: send.providerMessageId ?? null,
+              } as any,
+            ]);
+          } catch (logErr) {
+            console.warn('[bulk-day-prior] log insert failed', logErr);
+          }
+
+          if (send.status === 'sent') {
+            result.sent += 1;
+            // Stamp the dedup column so a re-fire skips this job.
+            try {
+              await supabase
+                .from('jobs')
+                .update({ day_prior_sms_sent_at: send.sentAt } as any)
+                .eq('id', job.id);
+            } catch (jobErr) {
+              console.warn('[bulk-day-prior] dedup stamp failed', jobErr);
+            }
+          } else {
+            result.failed += 1;
+            result.failures.push({
+              jobId: job.id,
+              customerName: job.customerName,
+              reason: send.errorMessage ?? `Provider ${send.status}`,
+            });
+          }
+        }),
+      );
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['sms_log'] });
+    },
+  });
+}
+
 interface SendCustomSmsParams {
   to: string;
   recipientName: string;
   body: string;
   jobId?: string | null;
   type?: SmsType;
+}
+
+/**
+ * V4 Phase 3.3 — mark inbound SMS rows as read so the bell badge clears.
+ *
+ * Pass an array of sms_log row IDs (assumed all inbound). We stamp read_at
+ * server-side; the realtime broadcast picks up the change and the
+ * notification bell recomputes its count automatically.
+ */
+export function useMarkSmsRead() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (ids.length === 0) return;
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from('sms_log')
+        .update({ read_at: now } as any)
+        .in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sms_log'] });
+    },
+  });
 }
 
 export function useSendCustomSms() {
@@ -199,6 +369,8 @@ export function useSendCustomSms() {
           status: result.status,
           sent_at: result.sentAt,
           error_message: result.errorMessage ?? null,
+          direction: 'outbound',
+          provider_message_id: result.providerMessageId ?? null,
         } as any,
       ]);
       if (logError) throw logError;

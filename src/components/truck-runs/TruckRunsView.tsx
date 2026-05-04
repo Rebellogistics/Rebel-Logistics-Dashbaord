@@ -35,8 +35,8 @@ import { addDays, format, subDays, isToday, isTomorrow, parseISO, compareAsc } f
 import { MarkCompleteDialog } from '@/components/jobs/MarkCompleteDialog';
 import { JobActionMenu, type JobMenuAction } from '@/components/jobs/JobActionMenu';
 import { customerDisplay } from '@/lib/jobDisplay';
-import { useSendSmsForJob } from '@/hooks/useSms';
-import { useUpdateJob } from '@/hooks/useSupabaseData';
+import { useSendSmsForJob, useSendDayPriorBulk, useSmsLog } from '@/hooks/useSms';
+import { useUpdateJob, useReorderTruckJobs } from '@/hooks/useSupabaseData';
 import { useTrucks } from '@/hooks/useTrucks';
 import type { Truck as TruckType } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -54,19 +54,59 @@ const OVERLOAD_THRESHOLD = 5;
 
 // Special drop targets for the Accepted/Scheduled columns
 const ACCEPTED_KEY = '__accepted__';
+// V4 Phase 1.1: dropping on/around an individual card is how reordering
+// works inside a truck column. We prefix card-droppable ids with this so
+// the dnd-end handler can tell "card drop" from "column drop."
+const JOB_CARD_DROP_PREFIX = 'job:';
 // 5px movement threshold before drag activates — taps still fire onClick
 // (open the job dialog) without accidentally starting a drag.
 const DRAG_ACTIVATION_DISTANCE = 5;
 
+// Sort comparator for run order. V4 1.1: explicit sequence first, fall
+// back to created_at for rows that pre-date the sequence column.
+function compareRunOrder(a: Job, b: Job): number {
+  const seqA = a.sequence ?? Number.MAX_SAFE_INTEGER;
+  const seqB = b.sequence ?? Number.MAX_SAFE_INTEGER;
+  if (seqA !== seqB) return seqA - seqB;
+  return (a.createdAt ?? '').localeCompare(b.createdAt ?? '');
+}
+
 export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
   const { data: trucks = [] } = useTrucks();
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  // V4 4.6: deep-link from calendar events lands on `?tab=Truck Runs&date=YYYY-MM-DD`.
+  // Lazy initial state honours the date param when valid; everything else
+  // defaults to today.
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    if (typeof window === 'undefined') return new Date();
+    const param = new URLSearchParams(window.location.search).get('date');
+    if (!param) return new Date();
+    try {
+      const parsed = parseISO(param);
+      return isNaN(parsed.getTime()) ? new Date() : parsed;
+    } catch {
+      return new Date();
+    }
+  });
   const [completeTarget, setCompleteTarget] = useState<Job | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [draggingFromAccepted, setDraggingFromAccepted] = useState<boolean>(false);
   const sendSms = useSendSmsForJob();
+  const sendDayPriorBulk = useSendDayPriorBulk();
+  const { data: smsLog = [] } = useSmsLog();
+  // V4 3.6: per-job set of unread inbound message ids. Used by JobCard to
+  // render a small amber chip when the customer has replied.
+  const jobsWithUnreadReply = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of smsLog) {
+      if (e.direction !== 'inbound') continue;
+      if (e.readAt) continue;
+      if (e.jobId) set.add(e.jobId);
+    }
+    return set;
+  }, [smsLog]);
   const updateJob = useUpdateJob();
+  const reorderTruckJobs = useReorderTruckJobs();
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const isTodaySelected = isToday(selectedDate);
@@ -123,6 +163,10 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
         pastDue.push(job);
       }
     }
+    // V4 1.1: truck columns now respect the explicit run-order sequence.
+    for (const name of Object.keys(byT)) {
+      byT[name].sort(compareRunOrder);
+    }
     pastDue.sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)));
     return { byTruck: byT, unassignedToday: orphan, pastDueOrphans: pastDue };
   }, [activeJobs, dateStr, activeTruckNames, todayStr]);
@@ -150,6 +194,55 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
   }, [activeJobs, unassignedToday, pastDueOrphans, dateStr]);
 
   const truckColumnNames = useMemo(() => Object.keys(byTruck).sort(), [byTruck]);
+
+  // V4 3.1: jobs eligible for the bulk day-prior fire — truck-assigned for
+  // the picker day, has a phone, hasn't already had a day-prior sent. The
+  // count drives the button label; clicking the button passes this list to
+  // the bulk mutation.
+  const dayPriorEligible = useMemo(
+    () =>
+      Object.values(byTruck)
+        .flat()
+        .filter((j) => !!j.customerPhone?.trim() && !j.dayPriorSmsSentAt),
+    [byTruck],
+  );
+  const dayPriorTotalForDay = useMemo(
+    () => Object.values(byTruck).flat().length,
+    [byTruck],
+  );
+
+  const handleSendDayPriorBulk = async () => {
+    if (dayPriorEligible.length === 0) {
+      toast.message('No day-prior reminders to send', {
+        description: dayPriorTotalForDay
+          ? `All ${dayPriorTotalForDay} job${dayPriorTotalForDay === 1 ? '' : 's'} already sent or have no phone.`
+          : 'Schedule jobs to a truck for this day first.',
+      });
+      return;
+    }
+    const proceed = confirm(
+      `Send day-prior SMS to ${dayPriorEligible.length} customer${dayPriorEligible.length === 1 ? '' : 's'} for ${formatDateLabel(selectedDate)}?\n\n` +
+        `Each customer gets a reminder using your "Day-prior" template (Settings → SMS Templates).`,
+    );
+    if (!proceed) return;
+    try {
+      const result = await sendDayPriorBulk.mutateAsync(dayPriorEligible);
+      const parts: string[] = [];
+      if (result.sent > 0) parts.push(`${result.sent} sent`);
+      if (result.failed > 0) parts.push(`${result.failed} failed`);
+      if (result.skipped > 0) parts.push(`${result.skipped} skipped`);
+      if (result.failed === 0 && result.skipped === 0) {
+        toast.success(`Day-prior reminders fired · ${parts.join(' · ')}`);
+      } else {
+        toast.message(`Day-prior reminders fired`, {
+          description: `${parts.join(' · ')}${result.failures.length ? `\n${result.failures.slice(0, 3).map((f) => `${f.customerName}: ${f.reason}`).join('\n')}` : ''}`,
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to fire day-prior reminders');
+    }
+  };
 
   // Suggest the lighter-loaded truck while dragging from Accepted
   const suggestedTruck = useMemo(() => {
@@ -189,25 +282,78 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
     useSensor(KeyboardSensor),
   );
 
-  const handleDropOnTruck = async (jobId: string, targetTruck: TruckId) => {
+  // Drop directly on a truck column (or on a card via handleDropOnJobCard
+  // below) ends here. `insertIndex` is optional — when omitted we append.
+  const handleDropOnTruck = async (
+    jobId: string,
+    targetTruck: TruckId,
+    insertIndex?: number,
+  ) => {
     const job = activeJobs.find((j) => j.id === jobId);
     if (!job) return;
 
-    const noChange = job.assignedTruck === targetTruck && job.date === dateStr;
-    if (noChange) return;
+    const sameTruckSameDay = job.assignedTruck === targetTruck && job.date === dateStr;
+    // V4 1.1: existing in same truck-day with no insert position → no-op.
+    // With an insert position we still re-run to update sequence.
+    if (sameTruckSameDay && insertIndex === undefined) return;
 
     try {
-      await updateJob.mutateAsync({
-        id: jobId,
-        assignedTruck: targetTruck,
-        date: dateStr,
-        status: 'Scheduled',
-      });
-      toast.success(`${job.customerName} → ${targetTruck} · ${formatDateLabel(selectedDate)}`);
+      // 1. Move the job onto the target truck-day.
+      if (!sameTruckSameDay) {
+        await updateJob.mutateAsync({
+          id: jobId,
+          assignedTruck: targetTruck,
+          date: dateStr,
+          status: 'Scheduled',
+        });
+      }
+
+      // 2. Rewrite the truck-day's run order so the dropped card lands
+      //    where Yamin actually dropped it (V4 1.1).
+      const targetColumnNow = (byTruck[targetTruck] ?? [])
+        .filter((j) => j.id !== jobId)
+        .map((j) => j.id);
+      const idx = insertIndex ?? targetColumnNow.length;
+      const ordered = [
+        ...targetColumnNow.slice(0, idx),
+        jobId,
+        ...targetColumnNow.slice(idx),
+      ];
+      await reorderTruckJobs.mutateAsync(ordered);
+
+      toast.success(
+        sameTruckSameDay
+          ? `${job.customerName} reordered`
+          : `${job.customerName} → ${targetTruck} · ${formatDateLabel(selectedDate)}`,
+      );
     } catch (err) {
       console.error(err);
       toast.error('Failed to move job');
     }
+  };
+
+  const handleDropOnJobCard = async (draggedId: string, targetCardJobId: string) => {
+    if (draggedId === targetCardJobId) return;
+    const target = activeJobs.find((j) => j.id === targetCardJobId);
+    if (!target) return;
+    // Only reorder when the target card sits in a truck column on the
+    // current day — Accepted / Scheduled / past-due cards aren't ordered.
+    if (!target.assignedTruck || target.date !== dateStr) {
+      // Fall through: treat as a column drop on the target's truck (if any).
+      if (target.assignedTruck) {
+        await handleDropOnTruck(draggedId, target.assignedTruck);
+      }
+      return;
+    }
+    const column = byTruck[target.assignedTruck] ?? [];
+    const targetIndexInColumn = column.findIndex((j) => j.id === target.id);
+    // Filter out the dragged job before computing the insert index — that
+    // way moving "down" still lands above the target visually.
+    const filteredIndex = column
+      .filter((j) => j.id !== draggedId)
+      .findIndex((j) => j.id === target.id);
+    const insertAt = filteredIndex === -1 ? targetIndexInColumn : filteredIndex;
+    await handleDropOnTruck(draggedId, target.assignedTruck, insertAt);
   };
 
   const handleDropOnAccepted = async (jobId: string) => {
@@ -216,10 +362,13 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
     if (job.status === 'Accepted' && !job.assignedTruck) return;
 
     try {
+      // V4 1.1: clear sequence too — the job leaves the truck-day so its
+      // run-order position is no longer meaningful.
       await updateJob.mutateAsync({
         id: jobId,
         assignedTruck: undefined,
         status: 'Accepted',
+        sequence: undefined,
       });
       toast.success(`${job.customerName} → back to Accepted`);
     } catch (err) {
@@ -245,6 +394,13 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
       handleDropOnAccepted(jobId);
       return;
     }
+    // V4 1.1: drop on/around another card → reorder within that truck-day.
+    if (dropId.startsWith(JOB_CARD_DROP_PREFIX)) {
+      const targetJobId = dropId.slice(JOB_CARD_DROP_PREFIX.length);
+      handleDropOnJobCard(jobId, targetJobId);
+      return;
+    }
+    // Otherwise the drop landed on a truck column header / empty area.
     handleDropOnTruck(jobId, dropId);
   };
 
@@ -298,10 +454,29 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
           id: job.id,
           assignedTruck: undefined,
           status: 'Accepted',
+          sequence: undefined,
         });
         toast.success(`${job.customerName} → Accepted pool`);
       } catch {
         toast.error('Failed to unassign');
+      }
+      return;
+    }
+    if (action.type === 'send_day_prior') {
+      // V4 3.1 per-job re-send. Reuses the bulk mutation with a 1-job
+      // payload so logging + dedup-stamping behave identically.
+      try {
+        const result = await sendDayPriorBulk.mutateAsync([job]);
+        if (result.sent > 0) {
+          toast.success(`Day-prior SMS sent to ${job.customerName}`);
+        } else if (result.skipped > 0) {
+          toast.error(result.failures[0]?.reason ?? 'Skipped (no phone)');
+        } else {
+          toast.error(result.failures[0]?.reason ?? 'Send failed');
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error('Send failed');
       }
       return;
     }
@@ -374,8 +549,34 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
               Tomorrow
             </Button>
             <span className="text-xs text-muted-foreground">
-              {Object.values(byTruck).reduce((n, arr) => n + arr.length, 0)} on trucks
+              {dayPriorTotalForDay} on trucks
             </span>
+            {/* V4 3.1: bulk day-prior SMS — saves Yamin the manual send he's
+                been doing one-by-one for five years. Greyed out when nothing
+                eligible (no jobs, no phones, or all already sent). */}
+            {dayPriorTotalForDay > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={handleSendDayPriorBulk}
+                disabled={
+                  dayPriorEligible.length === 0 || sendDayPriorBulk.isPending
+                }
+                title={
+                  dayPriorEligible.length === 0
+                    ? 'All eligible customers have been sent the day-prior SMS already'
+                    : `Send day-prior SMS to ${dayPriorEligible.length} customer${dayPriorEligible.length === 1 ? '' : 's'}`
+                }
+              >
+                <Send className="w-3 h-3" />
+                {sendDayPriorBulk.isPending
+                  ? 'Sending…'
+                  : dayPriorEligible.length === 0
+                    ? 'Day-prior sent'
+                    : `Day-prior (${dayPriorEligible.length})`}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -492,6 +693,7 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
                 isSuggested={suggestedTruck === truck}
                 onViewJob={onViewJob}
                 onMenuAction={handleMenuAction}
+                jobsWithUnreadReply={jobsWithUnreadReply}
               />
             ))
           )}
@@ -744,6 +946,8 @@ interface TruckColumnProps {
   isSuggested: boolean;
   onViewJob?: (job: Job) => void;
   onMenuAction: (job: Job, action: JobMenuAction) => void;
+  /** V4 3.6 — pass through to each JobCard for the reply chip. */
+  jobsWithUnreadReply: Set<string>;
 }
 
 function TruckColumn({
@@ -758,6 +962,7 @@ function TruckColumn({
   isSuggested,
   onViewJob,
   onMenuAction,
+  jobsWithUnreadReply,
 }: TruckColumnProps) {
   const overload = jobs.length >= OVERLOAD_THRESHOLD;
   const firstPickup = jobs[0]?.pickupAddress?.split(',')[0]?.trim();
@@ -834,6 +1039,7 @@ function TruckColumn({
                 onSendEnRoute={onSendEnRoute}
                 onView={onViewJob}
                 onMenuAction={onMenuAction}
+                hasUnreadReply={jobsWithUnreadReply.has(job.id)}
                 draggable
               />
             ))}
@@ -858,6 +1064,8 @@ interface JobCardProps {
   onView?: (job: Job) => void;
   onMenuAction: (job: Job, action: JobMenuAction) => void;
   draggable?: boolean;
+  /** V4 3.6: amber chip on the card when the customer has texted back. */
+  hasUnreadReply?: boolean;
 }
 
 function detectMissingInfo(job: Job): string[] {
@@ -880,6 +1088,7 @@ function JobCard({
   onView,
   onMenuAction,
   draggable,
+  hasUnreadReply,
 }: JobCardProps) {
   const missing = detectMissingInfo(job);
   const isClosed = job.status === 'Completed' || job.status === 'Invoiced';
@@ -889,10 +1098,27 @@ function JobCard({
   const canDrag = !!draggable && !isClosed;
   // Drag is disabled on closed jobs (Completed / Invoiced) — those should
   // not be moved. dnd-kit honours `disabled: true` by skipping listeners.
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setDraggableRef,
+    isDragging,
+  } = useDraggable({
     id: job.id,
     disabled: !canDrag,
   });
+  // V4 1.1: each truck-column card is also a drop target so dropping on it
+  // reorders the dragged job into that position. Disabled while this card
+  // itself is the active drag (dnd-kit avoids self-collisions, but disabling
+  // is belt-and-braces).
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+    id: `${JOB_CARD_DROP_PREFIX}${job.id}`,
+    disabled: isDragging,
+  });
+  const setNodeRef = (el: HTMLElement | null) => {
+    setDraggableRef(el);
+    setDroppableRef(el);
+  };
 
   return (
     <div
@@ -911,6 +1137,8 @@ function JobCard({
         isClosed ? 'bg-green-50/40 border-green-200' : 'bg-card',
         canDrag && 'hover:ring-1 hover:ring-rebel-accent/30',
         isDragging && 'opacity-40',
+        // Faint top-edge accent so Yamin sees where the card will slot in.
+        isOver && !isDragging && 'ring-2 ring-rebel-accent ring-offset-1',
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -1010,6 +1238,17 @@ function JobCard({
             <span className="inline-flex items-center gap-1 rounded-md bg-indigo-100 text-indigo-800 text-[10px] px-1.5 py-0.5 font-medium">
               <CheckCircle2 className="w-2.5 h-2.5" />
               En-route {enRouteTimeLabel}
+            </span>
+          )}
+          {/* V4 3.6: customer texted back. Tap the card → JobDetailDialog
+              shows the message in the activity timeline. */}
+          {hasUnreadReply && (
+            <span
+              className="inline-flex items-center gap-1 rounded-md bg-rebel-accent text-white text-[10px] px-1.5 py-0.5 font-bold uppercase tracking-wider"
+              title="Customer replied"
+            >
+              <Send className="w-2.5 h-2.5 -rotate-180" />
+              Reply
             </span>
           )}
         </div>

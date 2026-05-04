@@ -16,12 +16,15 @@ import { usePricingRates } from '@/hooks/usePricingRates';
 import { useRepeatCustomerLookup, type RepeatCustomerInfo } from '@/hooks/useRepeatCustomer';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { CustomerCombobox } from '@/components/customers/CustomerCombobox';
+import { useCustomers } from '@/hooks/useSupabaseData';
 import type { Customer } from '@/lib/types';
+import { isNearDuplicate } from '@/lib/utils';
 import { Job, JobLocation, JobType } from '@/lib/types';
 import { calculateQuote, formatAud } from '@/lib/pricing';
+import { sanitiseDecimal } from '@/lib/utils';
 import { format, addDays } from 'date-fns';
 import { toast } from 'sonner';
-import { Sparkles, Info, Mic, MicOff } from 'lucide-react';
+import { Sparkles, Info, Mic, MicOff, AlertTriangle } from 'lucide-react';
 
 interface NewQuoteDialogProps {
   open: boolean;
@@ -81,6 +84,9 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
   const [searchQuery, setSearchQuery] = useState('');
   const createJob = useCreateJob();
   const { data: rates } = usePricingRates();
+  // V4 2.1: pull the customer book so we can flag near-duplicates ("Bayless"
+  // vs "Bayleys") before Yamin creates a third copy.
+  const { data: existingCustomers = [] } = useCustomers();
 
   const { info: repeatInfo } = useRepeatCustomerLookup(form.customerPhone);
   const voice = useVoiceInput((transcript) => {
@@ -105,13 +111,21 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
   const handlePickCustomer = (c: Customer) => {
     setLinkedCustomer(c);
     setSearchQuery(c.companyName ?? c.name);
+    // For B2B (company customers), the contact person, phone, and pickup
+    // change with every booking — leave them blank for Yamin to fill in
+    // per-job. Only the company identity carries across. For individuals,
+    // pre-fill name + phone from the customer record as before.
+    const isB2B = !!(c.companyName?.trim());
     setForm((prev) => ({
       ...prev,
       customerId: c.id,
-      customerName: c.name,
       customerCompanyName: c.companyName ?? '',
-      customerPhone: c.phone ?? '',
+      customerName: isB2B ? '' : c.name,
+      customerPhone: isB2B ? '' : (c.phone ?? ''),
+      pickupAddress: isB2B ? '' : prev.pickupAddress,
     }));
+    // Mark touched so the phone-based repeat-lookup useEffect doesn't
+    // overwrite the intentionally-blank fields after a B2B pick.
     setNameTouched(true);
   };
 
@@ -139,6 +153,10 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
   };
 
   useEffect(() => {
+    // Skip the auto-fill for B2B — the contact person and pickup change
+    // every booking, so reusing the previous values is the bug Yamin hit
+    // on the May 4 call.
+    if (form.customerCompanyName.trim()) return;
     if (repeatInfo.found && repeatInfo.customerName && !nameTouched && !form.customerName) {
       setForm((prev) => ({
         ...prev,
@@ -146,7 +164,7 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
         pickupAddress: prev.pickupAddress || repeatInfo.lastPickup || '',
       }));
     }
-  }, [repeatInfo, nameTouched, form.customerName]);
+  }, [repeatInfo, nameTouched, form.customerName, form.customerCompanyName]);
 
   // Default the estimated-hours field to the minimum once rates load.
   useEffect(() => {
@@ -157,6 +175,29 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
 
   const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  // V4 2.1: when no customer is linked, scan the customer book for a near-
+  // match on what the user has typed (company name first, then customer
+  // name). Returns the closest existing record so we can surface a "Did
+  // you mean X?" banner above the combobox.
+  const dupCandidate = useMemo<Customer | null>(() => {
+    if (linkedCustomer) return null;
+    const typedCompany = form.customerCompanyName.trim();
+    const typedName = form.customerName.trim();
+    if (!typedCompany && !typedName) return null;
+    for (const c of existingCustomers) {
+      if (c.deletedAt) continue;
+      // Company-vs-company is the high-signal match Yamin keeps hitting.
+      if (typedCompany && c.companyName && isNearDuplicate(typedCompany, c.companyName)) {
+        return c;
+      }
+      if (typedName && !typedCompany) {
+        if (c.companyName && isNearDuplicate(typedName, c.companyName)) return c;
+        if (c.name && isNearDuplicate(typedName, c.name)) return c;
+      }
+    }
+    return null;
+  }, [linkedCustomer, form.customerCompanyName, form.customerName, existingCustomers]);
 
   const breakdown = useMemo(() => {
     if (!rates) return null;
@@ -178,10 +219,12 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
     (isHouseMove && repeatInfo.overrideHourlyRate != null) ||
     (isMetro && repeatInfo.overrideMetroRate != null);
 
-  // Phase 14/16: customer name is the only required identity field. Phone,
-  // addresses, and company name are all optional — Yamin will fill them in
-  // later from his desk after a phone-call quote.
-  const baseValid = form.customerName.trim().length > 0;
+  // Phase 14/16/V4-1.5: an identity is required. Either the company name
+  // (B2B — Yamin's most common case) OR the customer/contact name (B2C).
+  // Everything else stays optional per Yamin's "name only" rule. The
+  // company-only case is what unlocks the B2B picker flow where the
+  // contact person is filled in later per booking.
+  const baseValid = !!(form.customerCompanyName.trim() || form.customerName.trim());
 
   const pricingValid = (() => {
     if (!breakdown) return false;
@@ -229,6 +272,17 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
   };
 
   const handleSubmit = async (asDraft: boolean) => {
+    // V4 2.4: delivery address is "always a must" (Yamin's call wording),
+    // but soft-required so a phone-call quote can still be captured before
+    // the address is known. Confirm before save when missing — drafts skip
+    // the confirm because they're explicitly for half-finished quotes.
+    if (!asDraft && !form.deliveryAddress.trim()) {
+      const proceed = confirm(
+        'No delivery address yet — save anyway?\n\n' +
+          "You'll need to add one before this job can run.",
+      );
+      if (!proceed) return;
+    }
     try {
       await createJob.mutateAsync(buildPayload(asDraft) as any);
       toast.success(asDraft ? 'Draft saved' : 'Quote created');
@@ -265,6 +319,34 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
               onClearPick={handleClearPick}
               linkedCustomer={linkedCustomer}
             />
+            {/* V4 2.1: near-duplicate warning. Click the banner to link to
+                the existing customer and avoid creating yet another row. */}
+            {dupCandidate && (
+              <div className="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50/70 p-2.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1 text-[12px] leading-snug">
+                  <p className="font-semibold text-amber-900">
+                    Did you mean{' '}
+                    <span className="underline decoration-amber-400">
+                      {dupCandidate.companyName ?? dupCandidate.name}
+                    </span>
+                    ?
+                  </p>
+                  <p className="text-amber-800 text-[11px]">
+                    They're already in your customer book
+                    {dupCandidate.totalJobs ? ` · ${dupCandidate.totalJobs} previous booking${dupCandidate.totalJobs === 1 ? '' : 's'}` : ''}.
+                    Linking avoids a duplicate row.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handlePickCustomer(dupCandidate)}
+                  className="shrink-0 inline-flex items-center h-7 px-2.5 rounded-md bg-amber-600 text-white text-[11px] font-bold hover:bg-amber-700 transition-colors"
+                >
+                  Use existing
+                </button>
+              </div>
+            )}
           </Field>
 
           <Field
@@ -306,6 +388,30 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
               />
             </Field>
           </div>
+
+          {/* V4 2.8: live identity preview. Catches the "I typed the
+              contact in the customer field" pattern at-a-glance — what
+              you see here is what the driver shell will show. */}
+          {(form.customerCompanyName.trim() || form.customerName.trim()) && (
+            <div className="rounded-lg border border-rebel-border/50 bg-muted/40 px-3 py-2 text-[11px] leading-snug">
+              <p className="text-[9.5px] uppercase tracking-wider font-bold text-muted-foreground mb-0.5">
+                Will save as
+              </p>
+              <p className="font-semibold text-rebel-text truncate">
+                {form.customerCompanyName.trim() || form.customerName.trim() || '—'}
+              </p>
+              {form.customerCompanyName.trim() && form.customerName.trim() && (
+                <p className="text-muted-foreground truncate">
+                  Contact: {form.customerName.trim()}
+                </p>
+              )}
+              {form.customerPhone.trim() && (
+                <p className="text-muted-foreground truncate">
+                  {form.customerPhone.trim()}
+                </p>
+              )}
+            </div>
+          )}
 
           <RepeatCustomerBanner info={repeatInfo} />
 
@@ -356,20 +462,21 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
                     hint="Total volume of the items. Multiplied by the metro per-cube rate."
                   >
                     <Input
-                      type="number"
+                      type="text"
                       inputMode="decimal"
-                      step="0.1"
+                      pattern="[0-9]*\.?[0-9]*"
                       value={form.cubicMetres}
-                      onChange={(e) => update('cubicMetres', e.target.value)}
+                      onChange={(e) => update('cubicMetres', sanitiseDecimal(e.target.value))}
                       placeholder="e.g. 2"
                     />
                   </Field>
                   <Field label="Item weight (kg)" hint="Optional. Useful for marble tables or unusually heavy items.">
                     <Input
-                      type="number"
+                      type="text"
                       inputMode="decimal"
+                      pattern="[0-9]*\.?[0-9]*"
                       value={form.itemWeightKg}
-                      onChange={(e) => update('itemWeightKg', e.target.value)}
+                      onChange={(e) => update('itemWeightKg', sanitiseDecimal(e.target.value))}
                       placeholder="Optional"
                     />
                   </Field>
@@ -408,12 +515,11 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
                 hint={`Minimum ${rates.minimumHours} hours applies. Quotes for fewer hours are bumped up automatically.`}
               >
                 <Input
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  step="0.5"
-                  min={rates.minimumHours}
+                  pattern="[0-9]*\.?[0-9]*"
                   value={form.estimatedHours}
-                  onChange={(e) => update('estimatedHours', e.target.value)}
+                  onChange={(e) => update('estimatedHours', sanitiseDecimal(e.target.value))}
                   onBlur={() => {
                     const v = parseFloat(form.estimatedHours);
                     if (!isNaN(v) && v < rates.minimumHours) {

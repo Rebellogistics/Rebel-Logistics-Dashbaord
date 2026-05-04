@@ -46,6 +46,10 @@ import { JobActivityTimeline } from './JobActivityTimeline';
 import { NewQuoteDialog } from './NewQuoteDialog';
 import { PrintReceipt } from './PrintReceipt';
 import { AssignTruckDialog } from './AssignTruckDialog';
+import { JobActionMenu, type JobMenuAction } from './JobActionMenu';
+import { MarkCompleteDialog } from './MarkCompleteDialog';
+import { useTrucks } from '@/hooks/useTrucks';
+import { useSendDayPriorBulk } from '@/hooks/useSms';
 import { useCustomers, useUpdateJob } from '@/hooks/useSupabaseData';
 import { useJobHistory, useAppendJobHistory } from '@/hooks/useJobHistory';
 import { usePricingRates } from '@/hooks/usePricingRates';
@@ -54,7 +58,7 @@ import { calculateQuote, formatAud } from '@/lib/pricing';
 import { customerDisplay } from '@/lib/jobDisplay';
 import { exportJobProofZip, jobZipName, triggerDownload } from '@/lib/export';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn, sanitiseDecimal } from '@/lib/utils';
 
 interface JobDetailDialogProps {
   job: Job | null;
@@ -119,10 +123,16 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
     notes: '',
   });
   const [activityTab, setActivityTab] = useState<'activity' | 'history'>('activity');
+  // V4 2.5: 3-dots menu inside the dialog header. Local mark-complete state
+  // so the menu can trigger the proof flow without round-tripping to the
+  // shell-level instance via a parent callback.
+  const [menuMarkCompleteTarget, setMenuMarkCompleteTarget] = useState<Job | null>(null);
   const { data: customers = [] } = useCustomers();
+  const { data: trucks = [] } = useTrucks();
   const { data: rates } = usePricingRates();
   const { info: repeatInfo } = useRepeatCustomerLookup(job?.customerPhone ?? '');
   const updateJob = useUpdateJob();
+  const sendDayPriorBulk = useSendDayPriorBulk();
   const appendHistory = useAppendJobHistory();
   const isVip = !!(job?.customerId && customers.find((c) => c.id === job.customerId)?.vip);
   const canReassign =
@@ -141,6 +151,71 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
       setActivityTab('activity');
     }
   }, [job?.id]);
+
+  // V4 2.5: 3-dots menu handler. Mirrors the menu on Truck Runs cards so
+  // Yamin can change status / move trucks / mark complete from inside the
+  // job dialog (especially in edit mode, which previously had no quick
+  // action surface). Re-uses existing mutations + dialogs.
+  const handleMenuAction = async (j: Job, action: JobMenuAction) => {
+    if (action.type === 'view') {
+      // Already viewing — no-op. Surface as the trigger for keyboard users.
+      return;
+    }
+    if (action.type === 'mark_complete') {
+      setMenuMarkCompleteTarget(j);
+      return;
+    }
+    if (action.type === 'set_status') {
+      if (action.status === 'Declined' && !confirm(`Decline ${j.customerName}?`)) return;
+      try {
+        await updateJob.mutateAsync({ id: j.id, status: action.status });
+        toast.success(`${j.customerName} → ${action.status}`);
+      } catch {
+        toast.error('Failed to update status');
+      }
+      return;
+    }
+    if (action.type === 'assign_truck') {
+      try {
+        await updateJob.mutateAsync({
+          id: j.id,
+          assignedTruck: action.truck,
+          date: j.date || new Date().toISOString().slice(0, 10),
+          status: 'Scheduled',
+        });
+        toast.success(`${j.customerName} → ${action.truck}`);
+      } catch {
+        toast.error('Failed to assign truck');
+      }
+      return;
+    }
+    if (action.type === 'unassign_truck') {
+      try {
+        // Mirror TruckRunsView: clear sequence too — V4 1.1.
+        await updateJob.mutateAsync({
+          id: j.id,
+          assignedTruck: undefined,
+          status: 'Accepted',
+          sequence: undefined,
+        });
+        toast.success(`${j.customerName} → Accepted pool`);
+      } catch {
+        toast.error('Failed to unassign');
+      }
+      return;
+    }
+    if (action.type === 'send_day_prior') {
+      try {
+        const result = await sendDayPriorBulk.mutateAsync([j]);
+        if (result.sent > 0) toast.success(`Day-prior SMS sent to ${j.customerName}`);
+        else toast.error(result.failures[0]?.reason ?? 'Send failed');
+      } catch (err) {
+        console.error(err);
+        toast.error('Send failed');
+      }
+      return;
+    }
+  };
 
   const handleExportProof = async () => {
     if (!job || exporting) return;
@@ -546,18 +621,26 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
               </div>
             </div>
             {canEditFields && !editing && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5 shrink-0 self-start"
-                onClick={startEdit}
-              >
-                <Pencil className="w-3.5 h-3.5" />
-                Edit
-              </Button>
+              <div className="flex gap-1.5 shrink-0 self-start items-center">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  onClick={startEdit}
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Edit
+                </Button>
+                <JobActionMenu
+                  job={job}
+                  trucks={trucks}
+                  size="sm"
+                  onAction={(a) => handleMenuAction(job, a)}
+                />
+              </div>
             )}
             {editing && (
-              <div className="flex gap-1.5 shrink-0 self-start">
+              <div className="flex gap-1.5 shrink-0 self-start items-center">
                 <Button size="sm" variant="outline" className="gap-1.5 flex-1 sm:flex-initial" onClick={cancelEdit}>
                   <XIcon className="w-3.5 h-3.5" />
                   Cancel
@@ -571,6 +654,14 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
                   <Save className="w-3.5 h-3.5" />
                   {updateJob.isPending ? 'Saving…' : 'Save'}
                 </Button>
+                {/* V4 2.5: same menu in edit mode so Yamin doesn't have to
+                    save-and-exit just to mark a status. */}
+                <JobActionMenu
+                  job={job}
+                  trucks={trucks}
+                  size="sm"
+                  onAction={(a) => handleMenuAction(job, a)}
+                />
               </div>
             )}
           </div>
@@ -735,11 +826,13 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
                       Cubic metres (m³)
                     </label>
                     <Input
-                      type="number"
+                      type="text"
                       inputMode="decimal"
-                      step="0.1"
+                      pattern="[0-9]*\.?[0-9]*"
                       value={draft.cubicMetres}
-                      onChange={(e) => setDraft((d) => ({ ...d, cubicMetres: e.target.value }))}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, cubicMetres: sanitiseDecimal(e.target.value) }))
+                      }
                       placeholder="e.g. 2"
                       className="h-9"
                     />
@@ -752,13 +845,12 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
                       Estimated hours (min {rates.minimumHours})
                     </label>
                     <Input
-                      type="number"
+                      type="text"
                       inputMode="decimal"
-                      step="0.5"
-                      min={rates.minimumHours}
+                      pattern="[0-9]*\.?[0-9]*"
                       value={draft.estimatedHours}
                       onChange={(e) =>
-                        setDraft((d) => ({ ...d, estimatedHours: e.target.value }))
+                        setDraft((d) => ({ ...d, estimatedHours: sanitiseDecimal(e.target.value) }))
                       }
                       onBlur={() => {
                         const v = parseFloat(draft.estimatedHours);
@@ -792,13 +884,12 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
                     Price (ex-GST)
                   </label>
                   <Input
-                    type="number"
+                    type="text"
                     inputMode="decimal"
-                    step="0.01"
-                    min={0}
+                    pattern="[0-9]*\.?[0-9]*"
                     value={draft.fee}
                     onChange={(e) =>
-                      setDraft((d) => ({ ...d, fee: e.target.value, priceIsManual: true }))
+                      setDraft((d) => ({ ...d, fee: sanitiseDecimal(e.target.value), priceIsManual: true }))
                     }
                     className="h-9"
                   />
@@ -1089,6 +1180,12 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
         job={assignTruckOpen ? job : null}
         onClose={() => setAssignTruckOpen(false)}
         setScheduled={job?.status === 'Accepted'}
+      />
+      {/* V4 2.5: triggered when "Mark complete…" is picked from the menu.
+          Local instance keeps the flow self-contained inside the dialog. */}
+      <MarkCompleteDialog
+        job={menuMarkCompleteTarget}
+        onClose={() => setMenuMarkCompleteTarget(null)}
       />
     </Dialog>
   );
