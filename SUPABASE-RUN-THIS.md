@@ -16,6 +16,7 @@ Run these in order. Each builds on the one before:
 6. **Block 6 — Enable Realtime so the dashboard updates live** (post-V3-Phase 7)
 7. **Block 7 — Run-order sequence on jobs** (V4 Phase 1.1)
 8. **Block 8 — Inbound SMS columns** (V4 Phase 3.2)
+9. **Block 9 — Tasks table** (V4 Phase 5.1)
 
 After every block, you should see a green "Success. No rows returned" message.
 
@@ -566,3 +567,4 @@ If anything says `MISSING`, re-run the block above.
 | 6 | **Live notifications** — drivers' Complete events reach the owner dashboard the second they happen, no refresh needed |
 | 7 | Drag-to-reorder on Truck Runs — the run order Yamin sets is exactly what the driver sees on the truck shell |
 | 8 | Inbound SMS replies land in the Replies tab + bell badge. Customer texts back → Yamin sees it on the dashboard within ~1s of Twilio firing the webhook |
+| 9 | Tasks primitive — per-truck-day load-ups / clean / fuel checklists. Owner adds them on Truck Runs, drivers tick them off on the truck shell, dashboard surfaces today's open count |

@@ -34,6 +34,7 @@ import {
 import { addDays, format, subDays, isToday, isTomorrow, parseISO, compareAsc } from 'date-fns';
 import { MarkCompleteDialog } from '@/components/jobs/MarkCompleteDialog';
 import { JobActionMenu, type JobMenuAction } from '@/components/jobs/JobActionMenu';
+import { TasksStrip } from '@/components/truck-runs/TasksStrip';
 import { customerDisplay } from '@/lib/jobDisplay';
 import { useSendSmsForJob, useSendDayPriorBulk, useSmsLog } from '@/hooks/useSms';
 import { useUpdateJob, useReorderTruckJobs } from '@/hooks/useSupabaseData';
@@ -579,6 +580,15 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
             )}
           </div>
         </div>
+
+        {/* V4 Phase 5 — per-truck tasks strip. Sits above the truck
+            columns so warehouse load-ups, fuel stops, and other prep
+            are visible alongside the day's jobs. */}
+        <TasksStrip
+          truckNames={activeTruckNames}
+          selectedDate={dateStr}
+          dateLabel={formatDateLabel(selectedDate)}
+        />
 
         {/* Anomaly: jobs on the selectedDate with no truck */}
         {unassignedToday.length > 0 && (

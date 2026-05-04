@@ -1,13 +1,24 @@
 import { Job, SmsLogEntry } from '@/lib/types';
-import { Truck, Bell, CheckCircle2, ArrowUpRight, LucideIcon } from 'lucide-react';
-import { format, subDays, parseISO, isAfter, startOfDay } from 'date-fns';
+import {
+  Truck,
+  Bell,
+  CheckCircle2,
+  ArrowUpRight,
+  Sparkles,
+  LucideIcon,
+} from 'lucide-react';
+import { format, subDays, parseISO, isAfter, startOfDay, isToday } from 'date-fns';
 import { motion } from 'motion/react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { useTasks } from '@/hooks/useTasks';
 
 interface KPIStatsProps {
   jobs: Job[];
   smsLog: SmsLogEntry[];
+  /** V4 Phase 5 — clicking the Warehouse Load-up tile takes Yamin to
+   *  Truck Runs for today. Wired by the parent dashboard. */
+  onNavigateToTruckRuns?: () => void;
 }
 
 type ProofRange = 'day' | 'week' | 'month';
@@ -15,9 +26,23 @@ const PROOF_RANGE_KEY = 'rebel.kpi.proofRange';
 const PROOF_RANGE_DAYS: Record<ProofRange, number> = { day: 1, week: 7, month: 30 };
 const PROOF_RANGE_LABELS: Record<ProofRange, string> = { day: 'Day', week: 'Week', month: 'Month' };
 
-export function KPIStatsCards({ jobs, smsLog }: KPIStatsProps) {
+export function KPIStatsCards({ jobs, smsLog, onNavigateToTruckRuns }: KPIStatsProps) {
   const today = format(new Date(), 'yyyy-MM-dd');
   const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+
+  // V4 Phase 5 — warehouse load-up counts (today, across all trucks).
+  const { data: tasks = [] } = useTasks();
+  const todayTasks = tasks.filter((t) => {
+    if (t.deletedAt) return false;
+    if (!t.scheduledDate) return false;
+    try {
+      return isToday(parseISO(t.scheduledDate));
+    } catch {
+      return false;
+    }
+  });
+  const openTasksToday = todayTasks.filter((t) => !t.completedAt).length;
+  const doneTasksToday = todayTasks.filter((t) => !!t.completedAt).length;
 
   const jobsToday = jobs.filter((j) => j.date === today);
   const jobsYesterday = jobs.filter((j) => j.date === yesterday);
@@ -70,6 +95,17 @@ export function KPIStatsCards({ jobs, smsLog }: KPIStatsProps) {
       meta: `T1 ${truck1Count} · T2 ${truck2Count}`,
     },
     {
+      icon: Sparkles,
+      label: 'Warehouse Load-up',
+      value: openTasksToday.toString(),
+      meta:
+        todayTasks.length === 0
+          ? 'No tasks scheduled today'
+          : `${doneTasksToday} done · open across all trucks`,
+      tone: openTasksToday > 0 ? 'amber' : 'default',
+      onClick: onNavigateToTruckRuns,
+    },
+    {
       icon: Bell,
       label: 'Notifications Sent',
       value: notificationsSent.toString(),
@@ -104,7 +140,7 @@ export function KPIStatsCards({ jobs, smsLog }: KPIStatsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {cards.map((card, i) => (
         <motion.div
           key={card.label}
@@ -126,19 +162,44 @@ interface KPICardProps {
   delta?: number;
   meta: string;
   rangeToggle?: React.ReactNode;
+  /** V4 Phase 5 — accent the icon and hover ring when the tile carries
+   *  an actionable count (e.g. Warehouse Load-up has open items). */
+  tone?: 'default' | 'amber';
+  /** Optional click target. When set, the whole tile becomes a button. */
+  onClick?: () => void;
 }
 
-function KPICard({ icon: Icon, label, value, delta, meta, rangeToggle }: KPICardProps) {
+function KPICard({ icon: Icon, label, value, delta, meta, rangeToggle, tone = 'default', onClick }: KPICardProps) {
+  const Wrapper: 'button' | 'div' = onClick ? 'button' : 'div';
+  const isAmber = tone === 'amber';
   return (
-    <div className="group relative rounded-2xl bg-rebel-surface border border-rebel-border p-5 shadow-card hover:border-rebel-border-strong transition-colors overflow-hidden">
+    <Wrapper
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      className={cn(
+        'group relative rounded-2xl bg-rebel-surface border p-5 shadow-card transition-colors overflow-hidden text-left',
+        isAmber ? 'border-amber-300 bg-amber-50/40 hover:border-amber-400' : 'border-rebel-border hover:border-rebel-border-strong',
+        onClick && 'cursor-pointer hover:shadow-glow',
+      )}
+    >
       <div
         aria-hidden
         className="absolute -top-12 -right-12 h-32 w-32 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-2xl"
         style={{ background: 'radial-gradient(circle, rgba(45,91,255,0.18), transparent 70%)' }}
       />
       <div className="relative flex items-start gap-4">
-        <div className="h-11 w-11 shrink-0 rounded-xl bg-rebel-accent-surface flex items-center justify-center">
-          <Icon className="w-[18px] h-[18px] text-rebel-accent" />
+        <div
+          className={cn(
+            'h-11 w-11 shrink-0 rounded-xl flex items-center justify-center',
+            isAmber ? 'bg-amber-100' : 'bg-rebel-accent-surface',
+          )}
+        >
+          <Icon
+            className={cn(
+              'w-[18px] h-[18px]',
+              isAmber ? 'text-amber-700' : 'text-rebel-accent',
+            )}
+          />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-rebel-text-tertiary">
@@ -156,7 +217,7 @@ function KPICard({ icon: Icon, label, value, delta, meta, rangeToggle }: KPICard
           {rangeToggle}
         </div>
       </div>
-    </div>
+    </Wrapper>
   );
 }
 

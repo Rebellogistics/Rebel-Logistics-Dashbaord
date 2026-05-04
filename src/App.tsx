@@ -26,6 +26,7 @@ import { useSmsLog } from '@/hooks/useSms';
 import { useProfile } from '@/hooks/useProfile';
 import { useTeam } from '@/hooks/useTeam';
 import { useRealtimeJobs } from '@/hooks/useRealtimeJobs';
+import { useRealtimeTasks } from '@/hooks/useTasks';
 import { signOut } from '@/hooks/useAuth';
 import { DriverShell } from '@/components/driver/DriverShell';
 import { Profile, Job, Customer } from '@/lib/types';
@@ -120,6 +121,9 @@ function OwnerShell({ profile }: { profile: Profile }) {
   // so the dashboard, board, truck runs, alerts, and trucks calendar reflect
   // it without a manual refresh.
   useRealtimeJobs();
+  // V4 Phase 5: same for tasks — when a driver marks a load-up done, the
+  // owner's Tasks strip re-renders within a second.
+  useRealtimeTasks();
 
   const { data: jobs = [], isLoading: jobsLoading } = useJobs();
   const { data: customers = [], isLoading: customersLoading } = useCustomers();
@@ -216,7 +220,11 @@ function OwnerShell({ profile }: { profile: Profile }) {
               <Plus className="w-5 h-5" />
               New job
             </button>
-            <KPIStatsCards jobs={jobs} smsLog={smsLog} />
+            <KPIStatsCards
+              jobs={jobs}
+              smsLog={smsLog}
+              onNavigateToTruckRuns={() => setActiveTab('Truck Runs')}
+            />
             <InsightChips jobs={jobs} />
             <LiveTruckRuns jobs={jobs} customers={customers} />
             <RecentJobs jobs={jobs} onViewAll={() => setActiveTab('Jobs')} />
@@ -232,7 +240,11 @@ function OwnerShell({ profile }: { profile: Profile }) {
       case 'Jobs':
         return (
           <div className="space-y-8">
-            <KPIStatsCards jobs={jobs} smsLog={smsLog} />
+            <KPIStatsCards
+              jobs={jobs}
+              smsLog={smsLog}
+              onNavigateToTruckRuns={() => setActiveTab('Truck Runs')}
+            />
             <JobsTable jobs={jobs} />
           </div>
         );

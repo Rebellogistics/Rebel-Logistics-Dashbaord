@@ -1,29 +1,36 @@
-import { useEffect, useState } from 'react';
-import { Truck, User, type LucideIcon } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Sparkles, Truck, User, type LucideIcon } from 'lucide-react';
 import { Toaster } from '@/components/ui/sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Profile } from '@/lib/types';
 import { MyRunToday } from './MyRunToday';
+import { MyTasksToday } from './MyTasksToday';
 import { DriverProfileTab } from './DriverProfileTab';
 import { WhoDrivingDialog } from './WhoDrivingDialog';
 import { Logo } from '@/components/ui/logo';
 import { cn } from '@/lib/utils';
 import { useDriverToday } from '@/hooks/useDriverToday';
 import { useRealtimeJobs } from '@/hooks/useRealtimeJobs';
+import { useRealtimeTasks, useTasks } from '@/hooks/useTasks';
+import { isToday, parseISO } from 'date-fns';
 
-type DriverTab = 'today' | 'profile';
+type DriverTab = 'tasks' | 'today' | 'profile';
 
 interface DriverShellProps {
   profile: Profile;
 }
 
 const TABS: { id: DriverTab; label: string; icon: LucideIcon }[] = [
-  { id: 'today', label: 'Today', icon: Truck },
+  // V4 Phase 5: Tasks tab leads — Yamin's mental model is "drivers do
+  // tasks first, then jobs", so this is the landing surface on shift
+  // start. Falls back gracefully when no tasks are scheduled.
+  { id: 'tasks', label: 'Tasks', icon: Sparkles },
+  { id: 'today', label: 'Jobs', icon: Truck },
   { id: 'profile', label: 'Profile', icon: User },
 ];
 
 export function DriverShell({ profile }: DriverShellProps) {
-  const [tab, setTab] = useState<DriverTab>('today');
+  const [tab, setTab] = useState<DriverTab>('tasks');
   const truckLabel = profile.assignedTruck?.trim();
   const { name: driverName, needsPick, setName: setDriverName } = useDriverToday();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -34,6 +41,25 @@ export function DriverShell({ profile }: DriverShellProps) {
   // see Yamin's mid-shift edits. The toast on run-order change lives in
   // MyRunToday since that's where todaysJobs is computed.
   useRealtimeJobs();
+  // V4 Phase 5: same for tasks — owner adds a task from the dashboard
+  // mid-shift, the driver sees it within ~1s.
+  useRealtimeTasks();
+
+  // V4 Phase 5: tab badge counts for Tasks (open today) + Jobs (active
+  // today). Driver glances at the bottom bar to see what's left to do.
+  const { data: tasks = [] } = useTasks();
+  const openTasksToday = useMemo(() => {
+    let n = 0;
+    for (const t of tasks) {
+      if (t.deletedAt || t.completedAt) continue;
+      try {
+        if (isToday(parseISO(t.scheduledDate))) n += 1;
+      } catch {
+        /* ignore */
+      }
+    }
+    return n;
+  }, [tasks]);
 
   useEffect(() => {
     if (needsPick) setPickerOpen(true);
@@ -79,6 +105,7 @@ export function DriverShell({ profile }: DriverShellProps) {
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
           >
+            {tab === 'tasks' && <MyTasksToday />}
             {tab === 'today' && <MyRunToday />}
             {tab === 'profile' && <DriverProfileTab profile={profile} />}
           </motion.div>
@@ -94,13 +121,14 @@ export function DriverShell({ profile }: DriverShellProps) {
           {TABS.map((t) => {
             const active = tab === t.id;
             const Icon = t.icon;
+            const badge = t.id === 'tasks' && openTasksToday > 0 ? openTasksToday : null;
             return (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setTab(t.id)}
                 className={cn(
-                  'flex-1 flex flex-col items-center gap-0.5 h-14 rounded-2xl transition-colors',
+                  'relative flex-1 flex flex-col items-center gap-0.5 h-14 rounded-2xl transition-colors',
                   active
                     ? 'bg-rebel-accent-surface text-rebel-accent'
                     : 'text-rebel-text-tertiary hover:bg-muted hover:text-rebel-text-secondary',
@@ -108,6 +136,14 @@ export function DriverShell({ profile }: DriverShellProps) {
               >
                 <Icon className="w-5 h-5" />
                 <span className="text-[10.5px] font-bold uppercase tracking-wider">{t.label}</span>
+                {badge !== null && (
+                  <span
+                    className="absolute top-1 right-3 inline-flex items-center justify-center min-w-[1rem] h-4 px-1 rounded-full bg-rebel-accent text-white text-[9.5px] font-bold"
+                    aria-label={`${badge} open tasks`}
+                  >
+                    {badge}
+                  </span>
+                )}
               </button>
             );
           })}

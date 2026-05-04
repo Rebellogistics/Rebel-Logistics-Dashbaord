@@ -171,6 +171,29 @@ export interface Job {
   createdAt: string;
 }
 
+/** V4 Phase 5: per-truck-per-day checklist items. Warehouse load-ups,
+ *  truck cleans, fuel stops — anything Yamin wants the driver to do
+ *  before/between paid jobs. Distinct from `Job`: no customer, no money,
+ *  no proof flow. Driver taps to mark done. */
+export type TaskKind = 'load_up' | 'clean' | 'fuel' | 'other';
+
+export interface Task {
+  id: string;
+  truckName: string;
+  scheduledDate: string;
+  kind: TaskKind;
+  title: string;
+  description?: string | null;
+  sequence?: number | null;
+  /** Frozen at completion time (V3 Phase 3 attribution pattern). */
+  completedByDriverId?: string | null;
+  completedByDriverName?: string | null;
+  completedAt?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
+  deletedAt?: string | null;
+}
+
 export interface TruckShift {
   id: string;
   truckName: string;

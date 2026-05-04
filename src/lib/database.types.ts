@@ -544,6 +544,54 @@ export type Database = {
         }
         Relationships: []
       }
+      tasks: {
+        Row: {
+          completed_at: string | null
+          completed_by_driver_id: string | null
+          completed_by_driver_name: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          description: string | null
+          id: string
+          kind: string
+          scheduled_date: string
+          sequence: number | null
+          title: string
+          truck_name: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_by_driver_id?: string | null
+          completed_by_driver_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          kind?: string
+          scheduled_date: string
+          sequence?: number | null
+          title: string
+          truck_name: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_by_driver_id?: string | null
+          completed_by_driver_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          kind?: string
+          scheduled_date?: string
+          sequence?: number | null
+          title?: string
+          truck_name?: string
+        }
+        Relationships: []
+      }
       truck_shifts: {
         Row: {
           created_at: string
