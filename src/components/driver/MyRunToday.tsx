@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Job } from '@/lib/types';
 import { customerDisplay } from '@/lib/jobDisplay';
 import { useJobs, useUpdateJob, useCustomers } from '@/hooks/useSupabaseData';
-import { useSendSmsForJob, useSmsLog, useMarkSmsRead } from '@/hooks/useSms';
+import { useSmsLog, useMarkSmsRead } from '@/hooks/useSms';
 import {
   MapPin,
   PackageCheck,
@@ -40,7 +40,6 @@ export function MyRunToday() {
   const [filter, setFilter] = useState<Filter>('all');
   const [startingId, setStartingId] = useState<string | null>(null);
   const updateJob = useUpdateJob();
-  const sendSms = useSendSmsForJob();
   const markRead = useMarkSmsRead();
 
   const vipCustomerIds = useMemo(() => {
@@ -52,19 +51,19 @@ export function MyRunToday() {
   const handleStartRun = async (job: Job) => {
     setStartingId(job.id);
     try {
+      // V4 hot-fix May 4 — the SMS is now fired exclusively by
+      // maybeAutoFireStatusSms inside useUpdateJob.onSuccess. Previously
+      // we ALSO called sendSms.mutateAsync explicitly here, which double-
+      // fired the en-route SMS (visible in sms_log as two rows ~0.5s
+      // apart for the same job). The auto-fire path covers dedup + DB
+      // template lookup; this handler just owns the status flip + toast.
       await updateJob.mutateAsync({ id: job.id, status: 'In Delivery' });
-      // Best-effort en-route SMS — don't block the status change if SMS fails
-      if (job.customerPhone?.trim() && !job.enRouteSmsSentAt) {
-        try {
-          await sendSms.mutateAsync({ job, type: 'en_route' });
-          toast.success(`Started run · en-route SMS sent to ${job.customerName}`);
-        } catch (smsErr) {
-          console.warn('en-route SMS failed', smsErr);
-          toast.success('Started run · SMS will retry later');
-        }
-      } else {
-        toast.success('Started run');
-      }
+      const willSend = job.customerPhone?.trim() && !job.enRouteSmsSentAt;
+      toast.success(
+        willSend
+          ? `Started run · en-route SMS sent to ${job.customerName}`
+          : 'Started run',
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to start run';
       toast.error(message);

@@ -1,13 +1,26 @@
 import { Job, JobStatus, Customer } from '@/lib/types';
 import { customerDisplay } from '@/lib/jobDisplay';
 import { jobTotalIncGst } from '@/lib/pricing';
-import { Truck, Clock, ArrowRight, MapPin, Flame, MessageSquare, Star, Calendar } from 'lucide-react';
+import {
+  Truck,
+  Clock,
+  ArrowRight,
+  MapPin,
+  Flame,
+  MessageSquare,
+  Star,
+  Calendar,
+  Send,
+  CheckCircle2,
+} from 'lucide-react';
 import { motion } from 'motion/react';
 import { format, parseISO, isToday, isTomorrow } from 'date-fns';
 import { useMemo, useState } from 'react';
 import { CustomerAvatar } from '@/components/customers/CustomerAvatar';
 import { StatusPill, statusGradient } from '@/components/ui/status-pill';
 import { SendSmsDialog } from '@/components/sms/SendSmsDialog';
+import { useSendSmsForJob } from '@/hooks/useSms';
+import { toast } from 'sonner';
 
 interface LiveTruckRunsProps {
   jobs: Job[];
@@ -94,10 +107,36 @@ interface RunCardProps {
 
 function RunCard({ job, customer }: RunCardProps) {
   const [smsOpen, setSmsOpen] = useState(false);
+  const sendSms = useSendSmsForJob();
+  const [busyEnRoute, setBusyEnRoute] = useState(false);
   const shortRoute = (addr: string) => addr.split(',')[0];
   const isUrgent = job.status === 'In Delivery' || job.status === 'Notified';
   const total = jobTotalIncGst(job);
   const [from, to] = statusGradient(job.status);
+
+  // V4 hot-fix May 4 — Yamin's "en-route button should be working in all
+  // tabs" fix. Dashboard previously only had an SMS icon; matches the
+  // Truck Runs / driver shell behaviour.
+  const enRouteSent = !!job.enRouteSmsSentAt;
+  const hasPhone = !!job.customerPhone?.trim();
+  const isClosed = job.status === 'Completed' || job.status === 'Invoiced';
+  const canSendEnRoute = hasPhone && !enRouteSent && !isClosed;
+  const enRouteAt = enRouteSent ? safeFormatTime(job.enRouteSmsSentAt!) : null;
+
+  const handleSendEnRoute = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!canSendEnRoute || busyEnRoute) return;
+    setBusyEnRoute(true);
+    try {
+      await sendSms.mutateAsync({ job, type: 'en_route' });
+      toast.success(`En-route SMS sent to ${customerDisplay(job).primary}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to send SMS';
+      toast.error(message);
+    } finally {
+      setBusyEnRoute(false);
+    }
+  };
 
   return (
     <>
@@ -186,6 +225,27 @@ function RunCard({ job, customer }: RunCardProps) {
             ${total.toFixed(0)}
           </span>
         </div>
+
+        {/* V4 hot-fix May 4 — en-route action mirroring Truck Runs cards.
+            Renders as an actionable button when we can fire, or a sent
+            sticker when the dedup column is already populated. */}
+        {canSendEnRoute && (
+          <button
+            type="button"
+            onClick={handleSendEnRoute}
+            disabled={busyEnRoute}
+            className="w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-lg bg-rebel-accent-surface text-rebel-accent text-[11px] font-bold hover:bg-rebel-accent hover:text-white transition-colors disabled:opacity-60"
+          >
+            <Send className="w-3 h-3" />
+            {busyEnRoute ? 'Sending…' : 'Send en-route SMS'}
+          </button>
+        )}
+        {enRouteSent && (
+          <div className="w-full inline-flex items-center justify-center gap-1.5 h-7 rounded-lg bg-rebel-success-surface text-rebel-success text-[10.5px] font-bold uppercase tracking-wider">
+            <CheckCircle2 className="w-3 h-3" />
+            En-route {enRouteAt ?? 'sent'}
+          </div>
+        )}
       </div>
     </article>
     <SendSmsDialog
@@ -196,6 +256,14 @@ function RunCard({ job, customer }: RunCardProps) {
     />
     </>
   );
+}
+
+function safeFormatTime(iso: string): string {
+  try {
+    return format(parseISO(iso), 'HH:mm');
+  } catch {
+    return 'sent';
+  }
 }
 
 function formatJobDate(date: string): string {
