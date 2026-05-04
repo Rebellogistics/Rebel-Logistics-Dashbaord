@@ -5,6 +5,7 @@ import { KPIStatsCards } from '@/components/dashboard/KPIStats';
 import { JobsTable } from '@/components/dashboard/JobsTable';
 import { DailyReviewPanel } from '@/components/dashboard/DailyReviewPanel';
 import { LiveTruckRuns } from '@/components/dashboard/LiveTruckRuns';
+import { DayPriorPill } from '@/components/dashboard/DayPriorPill';
 import { RecentJobs } from '@/components/dashboard/RecentJobs';
 import { InsightChips } from '@/components/dashboard/InsightChips';
 import { TruckRunsView } from '@/components/truck-runs/TruckRunsView';
@@ -220,10 +221,15 @@ function OwnerShell({ profile }: { profile: Profile }) {
               <Plus className="w-5 h-5" />
               New job
             </button>
+            {/* V4 Phase 6.3 — sticky day-prior reminder. Auto-hides when
+                tomorrow has nothing to send or Yamin's already fired. */}
+            <DayPriorPill jobs={jobs} />
             <KPIStatsCards
               jobs={jobs}
               smsLog={smsLog}
               onNavigateToTruckRuns={() => setActiveTab('Truck Runs')}
+              onNavigateToToday={() => setActiveTab('Truck Runs')}
+              onNavigateToJobs={() => setActiveTab('Jobs')}
             />
             <InsightChips jobs={jobs} />
             <LiveTruckRuns jobs={jobs} customers={customers} />
@@ -244,6 +250,8 @@ function OwnerShell({ profile }: { profile: Profile }) {
               jobs={jobs}
               smsLog={smsLog}
               onNavigateToTruckRuns={() => setActiveTab('Truck Runs')}
+              onNavigateToToday={() => setActiveTab('Truck Runs')}
+              onNavigateToJobs={() => setActiveTab('Jobs')}
             />
             <JobsTable jobs={jobs} />
           </div>

@@ -49,6 +49,14 @@ interface CustomerStats {
   revenue: number;
   lastDate: string;
   weeklyCounts: number[];
+  /** V4 Phase 6.4 — per-status mini-counts so the Customers list can show
+   *  who has open work without Yamin clicking into each row. */
+  byStatus: {
+    quotes: number;
+    accepted: number;
+    completed: number;
+    invoiced: number;
+  };
 }
 
 export function CustomersView({ customers, jobs }: CustomersViewProps) {
@@ -65,21 +73,45 @@ export function CustomersView({ customers, jobs }: CustomersViewProps) {
   const jobStatsByCustomer = useMemo(() => {
     const map = new Map<string, CustomerStats>();
     const weekStart = startOfWeek(addWeeks(new Date(), -7), { weekStartsOn: 1 });
+    const empty = (): CustomerStats => ({
+      count: 0,
+      revenue: 0,
+      lastDate: '',
+      weeklyCounts: Array(8).fill(0),
+      byStatus: { quotes: 0, accepted: 0, completed: 0, invoiced: 0 },
+    });
     for (const job of jobs) {
       if (!job.customerId) continue;
-      if (job.status === 'Quote' || job.status === 'Declined') continue;
-      const entry =
-        map.get(job.customerId) ??
-        ({ count: 0, revenue: 0, lastDate: '', weeklyCounts: Array(8).fill(0) } as CustomerStats);
-      entry.count += 1;
-      entry.revenue += job.fee + (job.fuelLevy ?? 0);
-      if (job.date > entry.lastDate) entry.lastDate = job.date;
-      try {
-        const jobDate = parseISO(job.date);
-        const weekIdx = Math.floor(differenceInDays(jobDate, weekStart) / 7);
-        if (weekIdx >= 0 && weekIdx < 8) entry.weeklyCounts[weekIdx] += 1;
-      } catch {
-        // ignore unparseable dates
+      if (job.deletedAt) continue;
+      const entry = map.get(job.customerId) ?? empty();
+
+      // V4 Phase 6.4 — count per status BEFORE the early-return below so
+      // open work (Quote, Accepted, Scheduled, Notified, In Delivery)
+      // shows up on the customer row.
+      if (job.status === 'Quote' && !job.isDraft) entry.byStatus.quotes += 1;
+      else if (
+        job.status === 'Accepted' ||
+        job.status === 'Scheduled' ||
+        job.status === 'Notified' ||
+        job.status === 'In Delivery'
+      ) {
+        entry.byStatus.accepted += 1;
+      } else if (job.status === 'Completed') entry.byStatus.completed += 1;
+      else if (job.status === 'Invoiced') entry.byStatus.invoiced += 1;
+
+      // The legacy count/revenue/weekly are revenue-bearing-only — keep
+      // the original Quote/Declined skip so totals don't drift.
+      if (job.status !== 'Quote' && job.status !== 'Declined') {
+        entry.count += 1;
+        entry.revenue += job.fee + (job.fuelLevy ?? 0);
+        if (job.date > entry.lastDate) entry.lastDate = job.date;
+        try {
+          const jobDate = parseISO(job.date);
+          const weekIdx = Math.floor(differenceInDays(jobDate, weekStart) / 7);
+          if (weekIdx >= 0 && weekIdx < 8) entry.weeklyCounts[weekIdx] += 1;
+        } catch {
+          // ignore unparseable dates
+        }
       }
       map.set(job.customerId, entry);
     }
@@ -469,8 +501,35 @@ function CustomerTable({
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell className="text-right text-[12px] font-semibold tabular-nums text-rebel-text">
-                    {s?.count ?? 0}
+                  <TableCell className="text-right">
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span className="text-[12px] font-semibold tabular-nums text-rebel-text">
+                        {s?.count ?? 0}
+                      </span>
+                      {/* V4 Phase 6.4 — open-work indicator. Only renders
+                          when this customer has quotes or active jobs;
+                          completed/invoiced totals roll into the count. */}
+                      {s && (s.byStatus.quotes > 0 || s.byStatus.accepted > 0) && (
+                        <div className="inline-flex items-center gap-0.5 text-[9.5px] font-bold">
+                          {s.byStatus.quotes > 0 && (
+                            <span
+                              className="bg-amber-100 text-amber-800 px-1 rounded-sm"
+                              title={`${s.byStatus.quotes} pending quote${s.byStatus.quotes === 1 ? '' : 's'}`}
+                            >
+                              Q{s.byStatus.quotes}
+                            </span>
+                          )}
+                          {s.byStatus.accepted > 0 && (
+                            <span
+                              className="bg-rebel-accent-surface text-rebel-accent px-1 rounded-sm"
+                              title={`${s.byStatus.accepted} active`}
+                            >
+                              A{s.byStatus.accepted}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right font-mono text-[12px] font-bold text-rebel-text tabular-nums">
                     ${(s?.revenue ?? 0).toFixed(0)}

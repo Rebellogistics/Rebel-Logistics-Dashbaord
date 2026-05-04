@@ -1,36 +1,66 @@
 import { Job, SmsLogEntry } from '@/lib/types';
 import {
   Truck,
-  Bell,
-  CheckCircle2,
-  ArrowUpRight,
+  ClipboardList,
   Sparkles,
+  Camera,
   LucideIcon,
 } from 'lucide-react';
-import { format, subDays, parseISO, isAfter, startOfDay, isToday } from 'date-fns';
+import { format, parseISO, isToday } from 'date-fns';
 import { motion } from 'motion/react';
-import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useTasks } from '@/hooks/useTasks';
 
 interface KPIStatsProps {
   jobs: Job[];
-  smsLog: SmsLogEntry[];
-  /** V4 Phase 5 — clicking the Warehouse Load-up tile takes Yamin to
-   *  Truck Runs for today. Wired by the parent dashboard. */
+  /** Kept on the prop sig for backwards compat with callers — the
+   *  "Notifications Sent" and "Closed with Proof" tiles got removed in
+   *  V4 Phase 6 per Yamin's "I don't need them on the dashboard" feedback,
+   *  so we no longer read smsLog here. Wired through anyway in case a
+   *  future tile needs it. */
+  smsLog?: SmsLogEntry[];
+  /** V4 Phase 5 — Warehouse Load-up tile click → Truck Runs (today). */
   onNavigateToTruckRuns?: () => void;
+  /** V4 Phase 6 — Outstanding Quotes / Need Proof tile clicks → Jobs tab. */
+  onNavigateToJobs?: () => void;
+  /** V4 Phase 6 — Today's Jobs tile click. Same as TruckRuns nav today,
+   *  but kept distinct so a future "today's jobs detail" surface can swap
+   *  in without touching every caller. */
+  onNavigateToToday?: () => void;
 }
 
-type ProofRange = 'day' | 'week' | 'month';
-const PROOF_RANGE_KEY = 'rebel.kpi.proofRange';
-const PROOF_RANGE_DAYS: Record<ProofRange, number> = { day: 1, week: 7, month: 30 };
-const PROOF_RANGE_LABELS: Record<ProofRange, string> = { day: 'Day', week: 'Week', month: 'Month' };
-
-export function KPIStatsCards({ jobs, smsLog, onNavigateToTruckRuns }: KPIStatsProps) {
+/**
+ * V4 Phase 6 — dashboard tile order driven by Yamin's May 4 ask:
+ *
+ *   1. Outstanding Quotes — quotes pending acceptance
+ *   2. Warehouse Load-up  — today's open tasks across all trucks
+ *   3. Today's Jobs       — what's on the road today
+ *   4. Need Proof         — completed/invoiced jobs missing photo or signature
+ *
+ * Every tile is clickable. Tones:
+ *   - amber   → actionable count (open work)
+ *   - default → quiet count
+ *
+ * Removed from this row in Phase 6: "Notifications Sent" and the
+ * "Closed with Proof %" range toggle. Yamin's call: "I don't need them
+ * on the dashboard." Both surface in the SMS Log + the per-job dialog
+ * already.
+ */
+export function KPIStatsCards({
+  jobs,
+  onNavigateToTruckRuns,
+  onNavigateToJobs,
+  onNavigateToToday,
+}: KPIStatsProps) {
   const today = format(new Date(), 'yyyy-MM-dd');
-  const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
 
-  // V4 Phase 5 — warehouse load-up counts (today, across all trucks).
+  // 1. Outstanding quotes: status==='Quote' and not a draft. Drafts are
+  // half-finished captures — not waiting on the customer to accept.
+  const outstandingQuotes = jobs.filter(
+    (j) => j.status === 'Quote' && !j.isDraft,
+  ).length;
+
+  // 2. Warehouse load-up — Phase 5.
   const { data: tasks = [] } = useTasks();
   const todayTasks = tasks.filter((t) => {
     if (t.deletedAt) return false;
@@ -44,55 +74,34 @@ export function KPIStatsCards({ jobs, smsLog, onNavigateToTruckRuns }: KPIStatsP
   const openTasksToday = todayTasks.filter((t) => !t.completedAt).length;
   const doneTasksToday = todayTasks.filter((t) => !!t.completedAt).length;
 
-  const jobsToday = jobs.filter((j) => j.date === today);
-  const jobsYesterday = jobs.filter((j) => j.date === yesterday);
+  // 3. Today's jobs — anything scheduled for today, not Declined/Quote.
+  const jobsToday = jobs.filter(
+    (j) =>
+      j.date === today &&
+      j.status !== 'Declined' &&
+      j.status !== 'Quote',
+  );
   const truck1Count = jobsToday.filter((j) => j.assignedTruck === 'Truck 1').length;
   const truck2Count = jobsToday.filter((j) => j.assignedTruck === 'Truck 2').length;
-  const jobsDelta = jobsToday.length - jobsYesterday.length;
+  const otherTrucks = jobsToday.length - truck1Count - truck2Count;
 
-  const notificationsSent = smsLog.filter(
-    (entry) => entry.status === 'sent' && entry.sentAt.startsWith(today),
-  ).length;
-  const notificationsYesterday = smsLog.filter(
-    (entry) => entry.status === 'sent' && entry.sentAt.startsWith(yesterday),
-  ).length;
-  const smsDelta = notificationsSent - notificationsYesterday;
-
-  const [proofRange, setProofRange] = useState<ProofRange>(() => {
-    if (typeof window === 'undefined') return 'month';
-    const saved = window.localStorage.getItem(PROOF_RANGE_KEY) as ProofRange | null;
-    return saved === 'day' || saved === 'week' || saved === 'month' ? saved : 'month';
-  });
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(PROOF_RANGE_KEY, proofRange);
-    } catch {
-      // ignore storage errors (private mode etc.)
-    }
-  }, [proofRange]);
-
-  const rangeCutoff = startOfDay(subDays(new Date(), PROOF_RANGE_DAYS[proofRange] - 1));
-  const closedInRange = jobs.filter((j) => {
+  // 4. Need proof — completed/invoiced jobs missing photo OR signature.
+  const needProofJobs = jobs.filter((j) => {
     if (j.status !== 'Completed' && j.status !== 'Invoiced') return false;
-    if (!j.date) return false;
-    try {
-      const d = parseISO(j.date);
-      return isAfter(d, rangeCutoff) || d.getTime() === rangeCutoff.getTime();
-    } catch {
-      return false;
-    }
+    return !j.proofPhoto || !j.signature;
   });
-  const closedWithProof = closedInRange.filter((j) => j.proofPhoto && j.signature).length;
-  const proofRate =
-    closedInRange.length === 0 ? 0 : Math.round((closedWithProof / closedInRange.length) * 100);
 
   const cards: KPICardProps[] = [
     {
-      icon: Truck,
-      label: 'Jobs Today',
-      value: jobsToday.length.toString(),
-      delta: jobsDelta,
-      meta: `T1 ${truck1Count} · T2 ${truck2Count}`,
+      icon: ClipboardList,
+      label: 'Outstanding Quotes',
+      value: outstandingQuotes.toString(),
+      meta:
+        outstandingQuotes === 0
+          ? 'Nothing waiting on customers'
+          : `Pending acceptance · tap for the list`,
+      tone: outstandingQuotes > 0 ? 'amber' : 'default',
+      onClick: onNavigateToJobs,
     },
     {
       icon: Sparkles,
@@ -106,36 +115,26 @@ export function KPIStatsCards({ jobs, smsLog, onNavigateToTruckRuns }: KPIStatsP
       onClick: onNavigateToTruckRuns,
     },
     {
-      icon: Bell,
-      label: 'Notifications Sent',
-      value: notificationsSent.toString(),
-      delta: smsDelta,
-      meta: 'day-prior + en-route',
+      icon: Truck,
+      label: "Today's Jobs",
+      value: jobsToday.length.toString(),
+      meta:
+        jobsToday.length === 0
+          ? 'No jobs on the books today'
+          : `T1 ${truck1Count} · T2 ${truck2Count}${otherTrucks > 0 ? ` · +${otherTrucks}` : ''}`,
+      tone: jobsToday.length > 0 ? 'amber' : 'default',
+      onClick: onNavigateToToday ?? onNavigateToTruckRuns,
     },
     {
-      icon: CheckCircle2,
-      label: 'Closed with Proof',
-      value: `${proofRate}%`,
-      meta: `${closedWithProof}/${closedInRange.length} closed · last ${PROOF_RANGE_LABELS[proofRange].toLowerCase()}`,
-      rangeToggle: (
-        <div className="mt-3 inline-flex rounded-lg border border-rebel-border bg-rebel-surface-sunken p-0.5">
-          {(Object.keys(PROOF_RANGE_LABELS) as ProofRange[]).map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => setProofRange(r)}
-              className={cn(
-                'px-2 h-6 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors',
-                proofRange === r
-                  ? 'bg-rebel-surface text-rebel-text shadow-card'
-                  : 'text-rebel-text-tertiary hover:text-rebel-text-secondary',
-              )}
-            >
-              {PROOF_RANGE_LABELS[r]}
-            </button>
-          ))}
-        </div>
-      ),
+      icon: Camera,
+      label: 'Need Proof',
+      value: needProofJobs.length.toString(),
+      meta:
+        needProofJobs.length === 0
+          ? 'Every closed job has photo + signature'
+          : 'Closed without photo / signature',
+      tone: needProofJobs.length > 0 ? 'rose' : 'default',
+      onClick: onNavigateToJobs,
     },
   ];
 
@@ -159,26 +158,42 @@ interface KPICardProps {
   icon: LucideIcon;
   label: string;
   value: string;
-  delta?: number;
   meta: string;
-  rangeToggle?: React.ReactNode;
-  /** V4 Phase 5 — accent the icon and hover ring when the tile carries
-   *  an actionable count (e.g. Warehouse Load-up has open items). */
-  tone?: 'default' | 'amber';
-  /** Optional click target. When set, the whole tile becomes a button. */
+  tone?: 'default' | 'amber' | 'rose';
   onClick?: () => void;
 }
 
-function KPICard({ icon: Icon, label, value, delta, meta, rangeToggle, tone = 'default', onClick }: KPICardProps) {
+function KPICard({ icon: Icon, label, value, meta, tone = 'default', onClick }: KPICardProps) {
   const Wrapper: 'button' | 'div' = onClick ? 'button' : 'div';
-  const isAmber = tone === 'amber';
+  const accentClasses = {
+    default: {
+      border: 'border-rebel-border hover:border-rebel-border-strong',
+      iconBg: 'bg-rebel-accent-surface',
+      iconText: 'text-rebel-accent',
+      cardBg: '',
+    },
+    amber: {
+      border: 'border-amber-300 hover:border-amber-400',
+      iconBg: 'bg-amber-100',
+      iconText: 'text-amber-700',
+      cardBg: 'bg-amber-50/40',
+    },
+    rose: {
+      border: 'border-rose-300 hover:border-rose-400',
+      iconBg: 'bg-rose-100',
+      iconText: 'text-rose-700',
+      cardBg: 'bg-rose-50/40',
+    },
+  }[tone];
+
   return (
     <Wrapper
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       className={cn(
-        'group relative rounded-2xl bg-rebel-surface border p-5 shadow-card transition-colors overflow-hidden text-left',
-        isAmber ? 'border-amber-300 bg-amber-50/40 hover:border-amber-400' : 'border-rebel-border hover:border-rebel-border-strong',
+        'group relative rounded-2xl bg-rebel-surface border p-5 shadow-card transition-colors overflow-hidden text-left w-full',
+        accentClasses.border,
+        accentClasses.cardBg,
         onClick && 'cursor-pointer hover:shadow-glow',
       )}
     >
@@ -188,18 +203,8 @@ function KPICard({ icon: Icon, label, value, delta, meta, rangeToggle, tone = 'd
         style={{ background: 'radial-gradient(circle, rgba(45,91,255,0.18), transparent 70%)' }}
       />
       <div className="relative flex items-start gap-4">
-        <div
-          className={cn(
-            'h-11 w-11 shrink-0 rounded-xl flex items-center justify-center',
-            isAmber ? 'bg-amber-100' : 'bg-rebel-accent-surface',
-          )}
-        >
-          <Icon
-            className={cn(
-              'w-[18px] h-[18px]',
-              isAmber ? 'text-amber-700' : 'text-rebel-accent',
-            )}
-          />
+        <div className={cn('h-11 w-11 shrink-0 rounded-xl flex items-center justify-center', accentClasses.iconBg)}>
+          <Icon className={cn('w-[18px] h-[18px]', accentClasses.iconText)} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-rebel-text-tertiary">
@@ -209,31 +214,10 @@ function KPICard({ icon: Icon, label, value, delta, meta, rangeToggle, tone = 'd
             <span className="text-[26px] font-bold leading-none text-rebel-text tabular-nums tracking-tight">
               {value}
             </span>
-            {typeof delta === 'number' && delta !== 0 && (
-              <DeltaChip delta={delta} />
-            )}
           </div>
           <p className="mt-2 text-[11px] font-medium text-rebel-text-tertiary truncate">{meta}</p>
-          {rangeToggle}
         </div>
       </div>
     </Wrapper>
-  );
-}
-
-function DeltaChip({ delta }: { delta: number }) {
-  const positive = delta > 0;
-  return (
-    <span
-      className={`inline-flex items-center gap-0.5 h-5 px-1.5 rounded-md text-[10px] font-bold ${
-        positive
-          ? 'bg-rebel-success-surface text-rebel-success'
-          : 'bg-rebel-danger-surface text-rebel-danger'
-      }`}
-    >
-      <ArrowUpRight className={`w-2.5 h-2.5 ${positive ? '' : 'rotate-90'}`} />
-      {positive ? '+' : ''}
-      {delta}
-    </span>
   );
 }
