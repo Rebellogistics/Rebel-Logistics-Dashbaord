@@ -9,11 +9,81 @@ Rolling status log. New phase sections appended at the top so the most recent wo
 
 ---
 
-## Phase 7 — Twilio AU alphanumeric sender (infra ready, awaiting bundle)
+## ⏳ Open action items — Yamin TODO
+_Last refreshed: 2026-05-05._
+
+### 🔴 Blocking — needs Yamin tonight / this week
+
+1. **Set `TWILIO_SENDER_ID` to empty (or delete) on Vercel** — until AU sender registration completes (item 2 below), alphanumeric sends fail with the "combination of 'To' and 'From'" error. Empty value falls back to `+61485055666` which works on every AU carrier today. Customer SMS will keep flowing while you sort the registration in the background.
+   - Vercel → project → Settings → Environment Variables → `TWILIO_SENDER_ID` → ⋯ → Delete (or save empty value).
+
+2. **Register `Rebel LGTCS` (or `RebelLGTCS` no-space) with Twilio AU carriers.** AU mobile carriers (Telstra/Optus/Vodafone) started filtering unregistered alphanumeric senders late 2024 — that's the actual reason the live test failed earlier today, not the trial-account theory. Pay-as-you-go is fine; what's missing is the carrier registration.
+   - Path in Twilio Console: **Regulatory Compliance → Messaging Compliance → Sender ID Registration** (or search "alphanumeric" in the top search bar — Twilio shuffles this section).
+   - Submit: Rebel Logistics business name, ABN, ABN registration certificate (PDF from ABN Lookup), business address, sample message body (paste the en-route template), use case = "Transactional booking confirmations and delivery updates."
+   - Approval window: 1–2 weeks.
+   - When approval email arrives → re-add `TWILIO_SENDER_ID` with the approved string. No code change, no redeploy.
+
+3. **Set the SMS owner-context env vars on Vercel** (covers both client-side template rendering AND the inbound TwiML auto-reply):
+   - `VITE_REBEL_SUPPORT_PHONE="+61 420 411 168"` — fills `{{owner.phone}}` in en-route, day-prior, delivered templates.
+   - `VITE_REBEL_BUSINESS_NAME="Rebel Logistics"` — optional, defaults to "Rebel Logistics" if unset.
+   - `REBEL_SUPPORT_PHONE="+61 420 411 168"` — server-side equivalent, used by the inbound TwiML auto-reply.
+   - `REBEL_BUSINESS_NAME="Rebel Logistics"` — server-side equivalent.
+   - All four scoped to **Production**. Save → no redeploy needed.
+
+4. **Confirm the Twilio inbound webhook URL is set** on the AU number to `https://<your-vercel-domain>/api/sms/inbound` (POST). Without this, customer replies vanish into Twilio's default boilerplate instead of landing in the dashboard Replies tab.
+
+### 🟡 Open thread from earlier — calendar cleanup-legacy
+
+The "Legacy cleared but every push failed" toast you hit while testing the per-truck calendar migration is still unresolved. Symptoms: cleanup deleted the legacy calendar but `metadata.calendar_id` stayed set + every per-truck event create failed.
+
+- Likely cause: token refresh issue or the per-truck `Rebel Logistics — Truck N` calendar create was rejected by Google.
+- The Vite api-handler plugin shipped tonight means you can now reproduce locally on `npm run dev` (no `vercel dev` needed). Re-attempt the *Clean up & sync* button → if it fails, send me the browser console output (Network tab → `/api/calendar/sync` request → Response payload).
+- Workaround until resolved: stay on **Single calendar** mode (Settings → Integrations → Google card → Calendar layout toggle). Single mode works fine and was your default before the V4 4.1 split.
+
+### 🟢 Recommended pre-Thursday meeting
+
+5. **First real-world driver trial** is today (2026-05-05). Treat it as the validation pass. Things specifically worth eyeballing:
+   - **Run-order reorder** (V4 1.1) — drag a card on Truck Runs to reorder a truck-day, confirm the driver shell shows the same order.
+   - **Driver shell tap-to-open** (V4 1.2) — tap a job card, verify the detail sheet shows notes + type + contact + addresses + Maps deep-links + **no price**.
+   - **Day-prior bulk send** (V4 3.1) — schedule tomorrow's runs, click *Day-prior (N)* button on Truck Runs, watch your phone receive the SMS.
+   - **Auto-fired en-route SMS** (V4 3.4) — driver hits *Start run* on the truck shell, customer's phone gets the en-route SMS within ~1s. Confirms only ONE send (the double-fire bug is fixed).
+   - **Inbound reply** — text the AU number from a different phone, confirm:
+     a) the auto-reply lands as your branded copy (Settings → SMS Templates → key `auto_reply`), not Twilio's default;
+     b) the bell badge ticks up;
+     c) the message lands in SMS Log → Replies tab;
+     d) if linked to a job, *Open job* button appears on the row.
+   - **Tasks** (V4 5.x) — add a load-up task on Truck Runs for today, confirm the driver shell badge increments + the task appears under *Tasks*. Tap *Mark done* → owner side flips to Done within ~1s.
+
+6. **Thursday 2026-05-07, 8:30pm sync** — checkpoint meeting. Phases 1–6 demoable, Phase 7 in-flight pending Twilio AU registration.
+
+7. **~Mon 2026-05-18+** — marketing website work resumes after the platform changes settle. Yamin's choice: same Sumanyu, separate engagement.
+
+### 🟣 Deferred (nice-to-have, not blocking)
+
+- **Per-truck phone numbers** (V4 7.2 +1) — every truck gets its own Twilio number. Adds ~$1/mo per number plus routing config. Defer until Yamin asks.
+- **Smart date extraction on inbound replies** (V4 3.5 follow-up) — currently keyword-based ("Monday", "tomorrow", "reschedule"). Auto-suggesting *[Mon 12 May] [Tue 13 May]* buttons that pre-fill the job date is the next step.
+- **Driver SMS composer** — the driver-shell reply banner is read-only today; a "tap to text back" composer is doable but adds Twilio outbound-from-driver cost considerations.
+- **Auto-clean orphan events on the legacy calendar** post per-truck switch — manual cleanup works today; automation is gravy.
+- **Hardening the security advisor warnings** flagged after the V4 1.1 / 3.2 migrations (all pre-existing, not caused by V4): RLS-policy permissiveness on `job_history`/`truck_shifts`/`sms_templates`, SECURITY DEFINER functions exposed to anon, leaked-password protection disabled. Future hardening pass.
+
+### 💰 Money + meeting state
+
+- **$1,500 total** for platform + website (agreed May 4 call).
+- **$1,000 invoice** sent — Yamin pays after his accountant signs off (~week of 2026-05-11).
+- **$500 invoice** separately — before website starts OR after website lands, your call.
+- After the $500 clears, the **AUD $120/month Stripe retainer** kicks in for ongoing maintenance.
+- Indian-business invoice is fine (no AU GST needed) provided business is matchable.
+
+---
+
+## Phase 7 — Twilio AU alphanumeric sender (infra ready, blocked on AU carrier registration)
 _Implemented: 2026-05-04. Source: V4_PHASED_PLAN.md §Phase 7._
 
-### Why it's not flipped tonight
-The AU alphanumeric-sender bundle was submitted on 2026-04-26. Twilio's typical turnaround is 2–3 weeks → ETA 2026-05-10 to 2026-05-17. Until it lands, outbound SMS continues to come from the AU phone number (`+61485055666`).
+### Status (2026-05-05 update — what we actually learned)
+- **Infra is ready.** `TWILIO_SENDER_ID` env var override is wired through every send path; `GET /api/sms/config` + the *SMS sender* card on Settings → Integrations show the live state.
+- **First live test failed** with Twilio error: *"Message cannot be sent with the current combination of 'To' (+61414…) and/or 'From' (Rebel LGTCS) parameters."*
+- **Root cause:** Australian mobile carriers (Telstra/Optus/Vodafone) started filtering unregistered alphanumeric senders in late 2024. Twilio's account-level "Status: Enabled" feature flag isn't enough — the sender ID itself needs to be registered with Twilio's regulatory compliance flow before AU carriers will accept it. (Earlier "trial account" hypothesis was wrong — Yamin is on Pay-as-you-go with funds on file.)
+- **Until the registration approves:** Yamin should clear `TWILIO_SENDER_ID` on Vercel so customer SMS keeps flowing through the AU phone number. The infra hot-flips back the moment the approved string is re-set in env.
 
 ### What's done (✅) — so the cutover is one env var
 - **`TWILIO_SENDER_ID` env override** wired in `api/sms/send.ts`. When set (e.g. to `REBEL`), every outbound message uses that as the `From` value. Falls back to `TWILIO_FROM` (the AU number) when unset. Vercel hot-loads env vars on next request — no redeploy is required to flip.
@@ -24,12 +94,17 @@ The AU alphanumeric-sender bundle was submitted on 2026-04-26. Twilio's typical 
   An amber info banner explains the alphanumeric reply gotcha when the override is active. A muted hint appears when the override is empty, telling Yamin exactly what to set.
 - **`.env.example`** updated with the new var + a comment block tying it back to the bundle approval.
 
-### What needs Yamin (⏳) — the cutover
-1. **Approval lands in your Twilio inbox** — usually an email titled "Sender ID approved".
-2. **Vercel → Project → Settings → Environment Variables** → add `TWILIO_SENDER_ID` with value `REBEL` (or whatever the approved string is). Set scope to **Production** (and **Preview** if you want preview deploys to use it too).
-3. Vercel applies env on the next request — **no redeploy needed**. Refresh Settings → Integrations and the *Outbound from* tile flips to `REBEL` with the alphanumeric chip.
-4. **Test send** from the Twilio Test Send card to a real phone — message arrives showing `REBEL` as sender.
-5. **Tweak the en-route / day-prior templates** if you want to mention the inbound phone explicitly: add `Reply to {{owner.phone}}` so customers know how to reach back. Variables fall back to `VITE_REBEL_SUPPORT_PHONE` when no per-job context is set.
+### What needs Yamin (⏳) — the actual cutover path
+
+1. **Right now: clear `TWILIO_SENDER_ID` on Vercel** so test sends + customer SMS go via the AU number. Otherwise every send 21408s with the carrier-rejection error.
+2. **Submit the AU sender registration via Twilio's regulatory compliance flow:**
+   - Twilio Console → **Regulatory Compliance** in the left sidebar → **Messaging Compliance** → **Sender ID Registration** (or search "alphanumeric" in the top search bar — Twilio shuffles this section regularly).
+   - Required: business name (Rebel Logistics), ABN, ABN registration certificate (PDF from ABN Lookup), business address, sample message body (paste the en-route template), use case = "Transactional booking confirmations and delivery updates."
+   - Approval window: **1–2 weeks** typical for AU.
+   - Try `RebelLGTCS` (no space, 10 chars) first — some carriers reject senders with embedded spaces. Falls back to `Rebel LGTCS` (11 chars with space) if no-space gets rejected during review.
+3. **When approval email arrives** → re-add `TWILIO_SENDER_ID` to Vercel with the approved string. **No redeploy needed** (Vercel hot-loads env on next request). Refresh Settings → Integrations and the *Outbound from* tile flips to the approved value with the alphanumeric chip.
+4. **Test send** from the Twilio Test Send card to your phone — message arrives showing the approved sender.
+5. **Tweak the en-route / day-prior templates** to mention `Reply to {{owner.phone}}` so customers know how to reach back (alphanumeric is outbound-only in AU). Variables fall back to `VITE_REBEL_SUPPORT_PHONE` when no per-job context is set.
 
 ### What's deferred (🕐)
 - **Per-truck phone numbers** (7.2 +1 in the plan). Yamin teased this on the call — every truck gets its own Twilio number under Rebel Logistics. Adds ~$1/month/number plus a routing layer. Defer until he asks; the alphanumeric flip already covers the brand-recognition value.
