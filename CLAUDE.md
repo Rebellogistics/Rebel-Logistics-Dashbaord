@@ -30,3 +30,20 @@ truck shell + customer-facing public quote form.
 - Read `docs/archive/**` unless user references V3 / a specific transcript moment.
 - Add new doc files when an existing one fits — append to `V4_STATUS.md` chronologically.
 - Touch `node_modules`, `dist/`, `.env*`.
+
+## Protocol: when given a new transcript or call notes
+A new session is given a new transcript and asked to plan. **Don't draft a fresh plan in isolation — carry forward what's already pending.**
+
+1. **Before reading the transcript**, read `V4_STATUS.md` "Open action items" section in full. Memorize the 🔴/🟡/🟢/🟣 lists.
+2. Read the new transcript.
+3. For each ask in the transcript, mark it as either:
+   - **resolves an open item** → mark for completion in the new plan
+   - **modifies an open item** → fold into existing item with note
+   - **brand-new ask** → add as new phase
+4. **Every open item the transcript doesn't address stays open.** Carry forward verbatim into the new plan.
+5. Write the new plan as additional sections appended to `V4_STATUS.md` (or `V5_STATUS.md` if it's a discrete new cycle — but the punch list at the top is always the union of carried-forward + new). Don't replace; append.
+6. Save the new transcript to `docs/archive/transcripts/TRANSCRIPT_YYYYMMDD.md`. Reference it from the status doc.
+7. Update `~/.claude/projects/.../memory/` for any new persistent rules (feedback / project type entries — see `MEMORY.md` for the format).
+8. Verify by re-reading the status punch list one more time before declaring the plan ready.
+
+Success criterion: an item flagged 🔴 in the previous status doc is either ✅ closed in the new plan or still 🔴 in the new plan. Never silently dropped.
