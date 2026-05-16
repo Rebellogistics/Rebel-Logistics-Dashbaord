@@ -463,6 +463,20 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
       }
       return;
     }
+    if (action.type === 'send_review_request') {
+      try {
+        const result = await sendSms.mutateAsync({ job, type: 'review_request' });
+        if (result.status === 'sent') {
+          toast.success(`Review request sent to ${job.customerName}`);
+        } else {
+          toast.error(result.errorMessage ?? 'Send failed');
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error('Send failed');
+      }
+      return;
+    }
     if (action.type === 'send_day_prior') {
       // V4 3.1 per-job re-send. Reuses the bulk mutation with a 1-job
       // payload so logging + dedup-stamping behave identically.

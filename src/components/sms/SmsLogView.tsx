@@ -30,6 +30,7 @@ const typeLabels: Record<SmsType, string> = {
   day_prior: 'Day-prior',
   en_route: 'En-route',
   auto_reply: 'Auto-reply',
+  review_request: 'Review',
   other: 'Other',
 };
 
@@ -37,6 +38,7 @@ const typeStyles: Record<SmsType, string> = {
   day_prior: 'bg-indigo-100 text-indigo-700',
   en_route: 'bg-rebel-accent-surface text-rebel-accent',
   auto_reply: 'bg-amber-100 text-amber-800',
+  review_request: 'bg-amber-100 text-amber-900',
   other: 'bg-muted text-muted-foreground',
 };
 

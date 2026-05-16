@@ -49,7 +49,7 @@ import { AssignTruckDialog } from './AssignTruckDialog';
 import { JobActionMenu, type JobMenuAction } from './JobActionMenu';
 import { MarkCompleteDialog } from './MarkCompleteDialog';
 import { useTrucks } from '@/hooks/useTrucks';
-import { useSendDayPriorBulk } from '@/hooks/useSms';
+import { useSendDayPriorBulk, useSendSmsForJob } from '@/hooks/useSms';
 import { useCustomers, useUpdateJob } from '@/hooks/useSupabaseData';
 import { useJobHistory, useAppendJobHistory } from '@/hooks/useJobHistory';
 import { usePricingRates } from '@/hooks/usePricingRates';
@@ -142,6 +142,7 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
   const { info: repeatInfo } = useRepeatCustomerLookup(job?.customerPhone ?? '');
   const updateJob = useUpdateJob();
   const sendDayPriorBulk = useSendDayPriorBulk();
+  const sendSmsForJob = useSendSmsForJob();
   const appendHistory = useAppendJobHistory();
   const isVip = !!(job?.customerId && customers.find((c) => c.id === job.customerId)?.vip);
   const canReassign =
@@ -218,6 +219,20 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
         const result = await sendDayPriorBulk.mutateAsync([j]);
         if (result.sent > 0) toast.success(`Day-prior SMS sent to ${j.customerName}`);
         else toast.error(result.failures[0]?.reason ?? 'Send failed');
+      } catch (err) {
+        console.error(err);
+        toast.error('Send failed');
+      }
+      return;
+    }
+    if (action.type === 'send_review_request') {
+      try {
+        const result = await sendSmsForJob.mutateAsync({ job: j, type: 'review_request' });
+        if (result.status === 'sent') {
+          toast.success(`Review request sent to ${j.customerName}`);
+        } else {
+          toast.error(result.errorMessage ?? 'Send failed');
+        }
       } catch (err) {
         console.error(err);
         toast.error('Send failed');

@@ -56,6 +56,7 @@ function templateKeyForType(type: SmsType): string {
   if (type === 'day_prior') return 'day_prior';
   if (type === 'en_route') return 'en_route';
   if (type === 'auto_reply') return 'auto_reply';
+  if (type === 'review_request') return 'review_request';
   return 'other';
 }
 

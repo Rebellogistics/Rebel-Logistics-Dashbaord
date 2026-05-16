@@ -70,7 +70,13 @@ export interface JobPhoto {
 }
 export type TimeRange = '1d' | '7d' | '30d';
 export type PricingType = 'fixed' | 'hourly';
-export type SmsType = 'day_prior' | 'en_route' | 'auto_reply' | 'other';
+export type SmsType =
+  | 'day_prior'
+  | 'en_route'
+  | 'auto_reply'
+  /** V5 Phase 4: Google review request, manually fired from a completed job. */
+  | 'review_request'
+  | 'other';
 export type SmsStatus = 'sent' | 'failed' | 'pending';
 /** V4 Phase 3.2: outbound = we sent it, inbound = customer texted us. */
 export type SmsDirection = 'outbound' | 'inbound';

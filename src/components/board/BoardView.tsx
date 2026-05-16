@@ -131,6 +131,20 @@ export function BoardView({ jobs, customers = [], onViewJob }: BoardViewProps) {
       }
       return;
     }
+    if (action.type === 'send_review_request') {
+      try {
+        const result = await sendSms.mutateAsync({ job, type: 'review_request' });
+        if (result.status === 'sent') {
+          toast.success(`Review request sent to ${job.customerName}`);
+        } else {
+          toast.error(result.errorMessage ?? 'Send failed');
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error('Send failed');
+      }
+      return;
+    }
   };
 
   const activeJobs = useMemo(

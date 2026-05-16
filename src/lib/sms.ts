@@ -19,6 +19,18 @@ const OWNER_BUSINESS_NAME_DEFAULT =
   ENV.VITE_REBEL_BUSINESS_NAME?.trim() || COMPANY_NAME;
 const OWNER_PHONE_DEFAULT = ENV.VITE_REBEL_SUPPORT_PHONE?.trim() ?? '';
 
+// V5 Phase 4: review-request short link. Defaults to the current origin's
+// /api/r?slug=rebel so the template Just Works on prod (Vercel) and in
+// dev (localhost) without Yamin setting an env var. Override with
+// VITE_REBEL_REVIEW_URL if the link ever needs a different shape.
+function defaultReviewUrl(): string {
+  if (ENV.VITE_REBEL_REVIEW_URL?.trim()) return ENV.VITE_REBEL_REVIEW_URL.trim();
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/api/r?slug=rebel`;
+  }
+  return '';
+}
+
 // ──────────────────────────────────────────────────────────────────
 // Template variable schema
 // ──────────────────────────────────────────────────────────────────
@@ -105,6 +117,8 @@ function buildLookup(ctx: TemplateContext): Record<string, string> {
     'owner.businessName':
       owner?.businessName?.trim() || OWNER_BUSINESS_NAME_DEFAULT,
     'owner.phone': owner?.phone?.trim() || OWNER_PHONE_DEFAULT,
+    // V5 Phase 4: review-request template variable.
+    'review.url': defaultReviewUrl(),
   };
 }
 
@@ -179,6 +193,15 @@ export const DEFAULT_TEMPLATES: SmsTemplateDefinition[] = [
     label: 'Auto-reply (when customer texts back)',
     body: `Hi! This number isn't monitored. For booking changes, please call {{owner.businessName}} on {{owner.phone}}. Thanks!`,
   },
+  // V5 Phase 4: Google review request — manually fired from a completed
+  // job's 3-dots menu. {{review.url}} resolves to the brand-owned
+  // shortener (/api/r?slug=rebel) so the customer sees a clean URL.
+  {
+    key: 'review_request',
+    type: 'review_request',
+    label: 'Google review request',
+    body: `Hi {{customer.firstName}}, thanks for choosing {{owner.businessName}}! If we did a good job, could you take 30 seconds to leave us a Google review? {{review.url}}`,
+  },
 ];
 
 /** Get the default body for a builtin SMS type — used by useSendSmsForJob. */
@@ -192,6 +215,7 @@ export const SMS_TEMPLATES: Record<SmsType, (job: Job) => string> = {
   day_prior: (job) => renderTemplate(defaultBodyForType('day_prior'), { job, customer: jobToCustomer(job) }),
   en_route: (job) => renderTemplate(defaultBodyForType('en_route'), { job, customer: jobToCustomer(job) }),
   auto_reply: (job) => renderTemplate(defaultBodyForType('auto_reply'), { job, customer: jobToCustomer(job) }),
+  review_request: (job) => renderTemplate(defaultBodyForType('review_request'), { job, customer: jobToCustomer(job) }),
   other: (job) => renderTemplate(defaultBodyForType('other'), { job, customer: jobToCustomer(job) }),
 };
 

@@ -12,6 +12,7 @@ import {
   FileText,
   CircleDot,
   MessageSquare,
+  Star,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -24,7 +25,10 @@ export type JobMenuAction =
   /** V4 Phase 3.1 — per-job day-prior re-send / send. The bulk button on
    *  Truck Runs covers the common case; this menu item handles "the
    *  customer asked me to resend the confirmation." */
-  | { type: 'send_day_prior' };
+  | { type: 'send_day_prior' }
+  /** V5 Phase 4 — manually fire a Google review request SMS. Only
+   *  surfaced when the job is Completed and has a customer phone. */
+  | { type: 'send_review_request' };
 
 interface JobActionMenuProps {
   job: Job;
@@ -160,6 +164,15 @@ export function JobActionMenu({ job, trucks = [], onAction, size = 'sm', prevent
                   icon={<MessageSquare className="w-4 h-4 text-indigo-600" />}
                   label={job.dayPriorSmsSentAt ? 'Resend day-prior SMS' : 'Send day-prior SMS'}
                   onClick={() => handleSelect({ type: 'send_day_prior' })}
+                />
+              )}
+              {/* V5 P4: Google review request. Manual button on completed
+                  jobs; gated by status + phone. */}
+              {job.status === 'Completed' && job.customerPhone?.trim() && (
+                <Item
+                  icon={<Star className="w-4 h-4 text-amber-500" />}
+                  label="Send Google review request"
+                  onClick={() => handleSelect({ type: 'send_review_request' })}
                 />
               )}
 
