@@ -567,6 +567,8 @@ export type Database = {
       }
       tasks: {
         Row: {
+          assigned_to_driver_id: string | null
+          assigned_to_driver_name: string | null
           completed_at: string | null
           completed_by_driver_id: string | null
           completed_by_driver_name: string | null
@@ -582,6 +584,8 @@ export type Database = {
           truck_name: string
         }
         Insert: {
+          assigned_to_driver_id?: string | null
+          assigned_to_driver_name?: string | null
           completed_at?: string | null
           completed_by_driver_id?: string | null
           completed_by_driver_name?: string | null
@@ -597,6 +601,8 @@ export type Database = {
           truck_name: string
         }
         Update: {
+          assigned_to_driver_id?: string | null
+          assigned_to_driver_name?: string | null
           completed_at?: string | null
           completed_by_driver_id?: string | null
           completed_by_driver_name?: string | null

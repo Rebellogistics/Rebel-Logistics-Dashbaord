@@ -30,6 +30,7 @@ import {
   useMarkTaskDone,
   useReopenTask,
 } from '@/hooks/useTasks';
+import { useDrivers } from '@/hooks/useDrivers';
 import type { Task, TaskKind } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -232,6 +233,11 @@ function TaskChip({
         {!isDone && (
           <p className="text-[9.5px] uppercase tracking-wider opacity-60">
             {KIND_LABEL[task.kind]}
+            {task.assignedToDriverName && (
+              <span className="ml-1 text-rebel-accent normal-case font-semibold">
+                · for {task.assignedToDriverName}
+              </span>
+            )}
           </p>
         )}
       </div>
@@ -294,14 +300,19 @@ function AddTaskDialog({
   onClose: () => void;
 }) {
   const create = useCreateTask();
+  const { data: drivers = [] } = useDrivers({ activeOnly: true });
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [kind, setKind] = useState<TaskKind>('load_up');
+  // V5 P6: optional driver pre-assignment. Empty string means "anyone
+  // on the truck" — the underlying columns stay null.
+  const [driverId, setDriverId] = useState<string>('');
 
   const reset = () => {
     setTitle('');
     setDescription('');
     setKind('load_up');
+    setDriverId('');
   };
 
   const handleSubmit = async () => {
@@ -310,6 +321,7 @@ function AddTaskDialog({
       toast.error('Task needs a title');
       return;
     }
+    const assignedDriver = driverId ? drivers.find((d) => d.id === driverId) : null;
     try {
       await create.mutateAsync({
         truckName,
@@ -317,6 +329,8 @@ function AddTaskDialog({
         kind,
         title: title.trim(),
         description: description.trim() || undefined,
+        assignedToDriverId: assignedDriver?.id ?? null,
+        assignedToDriverName: assignedDriver?.name ?? null,
       });
       toast.success(`Task added to ${truckName}`);
       reset();
@@ -381,6 +395,23 @@ function AddTaskDialog({
               placeholder="e.g. Load up Bayliss Rugs delivery for South Yarra"
               autoFocus
             />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Assign driver (optional)
+            </label>
+            <select
+              value={driverId}
+              onChange={(e) => setDriverId(e.target.value)}
+              className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <option value="">Anyone on {truckName ?? 'truck'}</option>
+              {drivers.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="space-y-1">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">

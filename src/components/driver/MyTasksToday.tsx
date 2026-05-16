@@ -202,6 +202,11 @@ function TaskCard({
             </p>
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
               {KIND_LABEL[task.kind]}
+              {task.assignedToDriverName && !isDone && (
+                <span className="ml-1 text-rebel-accent normal-case font-semibold">
+                  · for {task.assignedToDriverName}
+                </span>
+              )}
             </p>
           </div>
         </div>

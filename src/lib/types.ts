@@ -220,6 +220,12 @@ export interface Task {
   title: string;
   description?: string | null;
   sequence?: number | null;
+  /** V5 Phase 6: optional pre-assignment to a specific driver. Other
+   *  drivers on the same truck still see the task — the chip just
+   *  shows whose lane it sits in. Denormalised name follows the
+   *  completedByDriverName pattern so deletes don't blank the chip. */
+  assignedToDriverId?: string | null;
+  assignedToDriverName?: string | null;
   /** Frozen at completion time (V3 Phase 3 attribution pattern). */
   completedByDriverId?: string | null;
   completedByDriverName?: string | null;

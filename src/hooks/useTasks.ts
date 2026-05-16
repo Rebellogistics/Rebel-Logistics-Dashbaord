@@ -73,6 +73,10 @@ export interface CreateTaskInput {
   title: string;
   description?: string;
   sequence?: number;
+  /** V5 P6: optional driver pre-assignment. Pass both id + name; the
+   *  name is denormalised so deletes don't blank the chip. */
+  assignedToDriverId?: string | null;
+  assignedToDriverName?: string | null;
 }
 
 export function useCreateTask() {
@@ -105,6 +109,8 @@ export function useCreateTask() {
         description: input.description ?? null,
         sequence,
         created_by: userId,
+        assigned_to_driver_id: input.assignedToDriverId ?? null,
+        assigned_to_driver_name: input.assignedToDriverName ?? null,
       };
       const { data, error } = await supabase
         .from('tasks')
@@ -131,6 +137,8 @@ export function useUpdateTask() {
       if (patch.sequence !== undefined) updates.sequence = patch.sequence;
       if (patch.scheduledDate !== undefined) updates.scheduled_date = patch.scheduledDate;
       if (patch.truckName !== undefined) updates.truck_name = patch.truckName;
+      if (patch.assignedToDriverId !== undefined) updates.assigned_to_driver_id = patch.assignedToDriverId;
+      if (patch.assignedToDriverName !== undefined) updates.assigned_to_driver_name = patch.assignedToDriverName;
       const { data, error } = await supabase
         .from('tasks')
         .update(updates as never)
