@@ -55,7 +55,10 @@ export function TopBar({
   const today = format(new Date(), "EEEE · MMM d");
 
   return (
-    <header className="sticky top-0 z-30 glass border-b border-rebel-border">
+    <header
+      className="sticky top-0 z-30 glass border-b border-rebel-border"
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+    >
       <div className="h-[72px] flex items-center justify-between px-4 lg:px-8 gap-4">
         {/* Left: title + subtitle */}
         <div className="flex items-center gap-3 min-w-0">

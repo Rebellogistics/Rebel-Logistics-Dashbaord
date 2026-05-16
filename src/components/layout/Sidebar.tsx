@@ -168,6 +168,10 @@ export function Sidebar({
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
           collapsed ? 'w-[68px]' : 'w-[260px]',
         )}
+        style={{
+          paddingTop: 'env(safe-area-inset-top)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+        }}
       >
         {/* Brand block */}
         <div className={cn('flex items-center justify-between gap-2', collapsed ? 'p-3' : 'p-5')}>
