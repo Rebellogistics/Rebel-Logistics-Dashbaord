@@ -137,6 +137,40 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
     // clear the inputs themselves if they want a blank slate.
   };
 
+  // V5 Phase 3: apply the linked customer's billing preset. For hourly
+  // we flip the job type to House Move so the hours input + auto-calc
+  // (which already respects overrideHourlyRate) light up. For flat /
+  // per-item we can't override the auto-priced fee from this dialog,
+  // so we surface the agreed rate via a notes line — Yamin sets the
+  // fee in the job dialog after creating with priceIsManual=true.
+  const handlePrefillFromCustomer = () => {
+    const c = linkedCustomer;
+    if (!c) return;
+    const basis = c.billingBasis ?? 'none';
+    if (basis === 'none') return;
+    const rate = c.defaultRate;
+    const noteParts: string[] = [];
+    if (form.notes.trim()) noteParts.push(form.notes.trim());
+    if (c.defaultNotes?.trim()) noteParts.push(c.defaultNotes.trim());
+    if (basis !== 'hourly' && rate != null) {
+      const unit = basis === 'flat' ? 'flat (ex GST)' : 'per unit (ex GST)';
+      noteParts.push(`Agreed rate: $${rate.toFixed(2)} ${unit}`);
+    }
+    setForm((prev) => ({
+      ...prev,
+      type: basis === 'hourly' ? ('House Move' as JobType) : prev.type,
+      notes: noteParts.join('\n'),
+    }));
+    toast.success(
+      `Pre-filled from ${c.companyName ?? c.name}`,
+      basis === 'hourly'
+        ? undefined
+        : {
+            description: `Adjust fee in the job dialog after creating — agreed rate is $${rate?.toFixed(2) ?? '—'}.`,
+          },
+    );
+  };
+
   const handleSearchChange = (next: string) => {
     setSearchQuery(next);
     // Mirror the typed text into the right field so the form-state and
@@ -346,6 +380,20 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
                   Use existing
                 </button>
               </div>
+            )}
+            {/* V5 Phase 3: pre-fill from the linked customer's pricing
+                preset. Only renders when a customer is linked AND they
+                have a non-none billingBasis. */}
+            {linkedCustomer && (linkedCustomer.billingBasis ?? 'none') !== 'none' && (
+              <button
+                type="button"
+                onClick={handlePrefillFromCustomer}
+                className="mt-2 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-rebel-accent/40 bg-rebel-accent-surface/60 text-rebel-accent text-[11px] font-bold hover:bg-rebel-accent-surface transition-colors"
+                title={`Apply ${linkedCustomer.companyName ?? linkedCustomer.name}'s default pricing`}
+              >
+                <Sparkles className="w-3 h-3" />
+                Pre-fill from {linkedCustomer.companyName ?? linkedCustomer.name}
+              </button>
             )}
           </Field>
 

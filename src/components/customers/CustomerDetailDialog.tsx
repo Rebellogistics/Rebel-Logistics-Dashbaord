@@ -51,8 +51,25 @@ export function CustomerDetailDialog({
       jobCount: billable.length,
       revenue: billable.reduce((sum, j) => sum + jobTotalIncGst(j), 0),
       outstandingQuotes: customerJobs.filter((j) => j.status === 'Quote').length,
+      // V5 Phase 3: customerJobs is already date-desc, so first entry is
+      // the most recent. Falls back to the customer's createdAt so a
+      // brand-new customer with no jobs still shows "since X".
+      lastContact: customerJobs[0]?.date ?? null,
     };
   }, [customerJobs]);
+
+  // V5 Phase 3: pricing preset display.
+  const presetLabel = useMemo(() => {
+    if (!customer) return null;
+    const basis = customer.billingBasis ?? 'none';
+    if (basis === 'none') return null;
+    const rate = customer.defaultRate != null ? `$${customer.defaultRate.toFixed(2)}` : null;
+    const basisLabel =
+      basis === 'hourly' ? 'Hourly' : basis === 'flat' ? 'Flat' : 'Per item';
+    const unit =
+      basis === 'hourly' ? '/hr' : basis === 'per_item' ? '/unit' : '';
+    return { basisLabel, rate, unit };
+  }, [customer]);
 
   if (!customer) return null;
 
@@ -91,11 +108,53 @@ export function CustomerDetailDialog({
         </DialogHeader>
 
         <div className="grid gap-4 py-2 max-h-[60vh] overflow-y-auto pr-1">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatCell label="Billable jobs" value={totals.jobCount.toString()} />
-            <StatCell label="Revenue" value={`$${totals.revenue.toFixed(0)}`} />
+            <StatCell
+              label="Revenue inc. GST"
+              value={`$${totals.revenue.toFixed(0)}`}
+            />
             <StatCell label="Open quotes" value={totals.outstandingQuotes.toString()} />
+            <StatCell
+              label="Last contact"
+              value={
+                totals.lastContact ? format(parseISO(totals.lastContact), 'd MMM') : '—'
+              }
+            />
           </div>
+
+          {presetLabel && (
+            <section className="space-y-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Default pricing
+              </h3>
+              <div className="rounded-lg border border-rebel-accent/30 bg-rebel-accent-surface/40 p-3 space-y-1">
+                <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                  <span className="text-xs font-semibold text-foreground">
+                    {presetLabel.basisLabel}
+                    {customer.defaultService ? ` · ${customer.defaultService}` : ''}
+                  </span>
+                  {presetLabel.rate && (
+                    <span
+                      className="text-sm font-bold text-foreground"
+                      title="Rate is ex GST"
+                    >
+                      {presetLabel.rate}
+                      {presetLabel.unit}
+                      <span className="text-[10px] font-medium text-muted-foreground ml-1">
+                        ex GST
+                      </span>
+                    </span>
+                  )}
+                </div>
+                {customer.defaultNotes && (
+                  <p className="text-[11px] text-muted-foreground whitespace-pre-wrap">
+                    {customer.defaultNotes}
+                  </p>
+                )}
+              </div>
+            </section>
+          )}
 
           <section className="space-y-2">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">

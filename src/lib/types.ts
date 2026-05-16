@@ -237,6 +237,10 @@ export interface SmsLogEntry {
   readAt?: string | null;
 }
 
+/** V5 Phase 3: how a customer is normally billed. Drives the "Pre-fill
+ *  from {Customer}" button on the new-job dialog. */
+export type BillingBasis = 'hourly' | 'flat' | 'per_item' | 'none';
+
 export interface Customer {
   id: string;
   name: string;
@@ -255,6 +259,13 @@ export interface Customer {
   /** Optional per-customer overrides applied in place of the default rate book. */
   overrideMetroRate?: number;
   overrideHourlyRate?: number;
+  /** V5 Phase 3: pricing preset. When billingBasis !== 'none', the
+   *  new-job dialog surfaces a one-click pre-fill that populates
+   *  service + fee/hourly-rate + notes from these fields. */
+  billingBasis?: BillingBasis;
+  defaultService?: string;
+  defaultRate?: number;
+  defaultNotes?: string;
   /** Tag stamped during a bulk import — e.g. "xero-2026-04-28". */
   importBatch?: string;
   /** Phase 14 soft-delete (see Job.deletedAt). */

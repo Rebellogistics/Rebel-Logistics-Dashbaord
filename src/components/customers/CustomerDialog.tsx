@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCreateCustomer, useUpdateCustomer } from '@/hooks/useSupabaseData';
-import { Customer, CustomerType } from '@/lib/types';
+import { Customer, CustomerType, BillingBasis } from '@/lib/types';
 import { sanitiseDecimal } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Info } from 'lucide-react';
@@ -34,7 +34,19 @@ const initial = {
   vip: false,
   overrideMetroRate: '',
   overrideHourlyRate: '',
+  // V5 Phase 3: pricing preset
+  billingBasis: 'none' as BillingBasis,
+  defaultService: '',
+  defaultRate: '',
+  defaultNotes: '',
 };
+
+const BILLING_BASIS_OPTIONS: { value: BillingBasis; label: string; hint: string }[] = [
+  { value: 'none', label: 'No preset', hint: 'Price each job manually using the standard rate book.' },
+  { value: 'hourly', label: 'Hourly', hint: 'Customer is billed per hour. Default rate is the hourly rate.' },
+  { value: 'flat', label: 'Flat rate', hint: 'Customer is billed a fixed amount per job. Default rate is the full fee.' },
+  { value: 'per_item', label: 'Per item / per m³', hint: 'Customer is billed per item or per m³. Default rate is the per-unit price.' },
+];
 
 const SOURCES = [
   { value: '', label: 'Unknown' },
@@ -78,6 +90,10 @@ export function CustomerDialog({ open, onOpenChange, customer }: CustomerDialogP
         vip: customer.vip,
         overrideMetroRate: customer.overrideMetroRate != null ? String(customer.overrideMetroRate) : '',
         overrideHourlyRate: customer.overrideHourlyRate != null ? String(customer.overrideHourlyRate) : '',
+        billingBasis: (customer.billingBasis ?? 'none') as BillingBasis,
+        defaultService: customer.defaultService ?? '',
+        defaultRate: customer.defaultRate != null ? String(customer.defaultRate) : '',
+        defaultNotes: customer.defaultNotes ?? '',
       });
     } else if (open && !customer) {
       setForm(initial);
@@ -94,6 +110,13 @@ export function CustomerDialog({ open, onOpenChange, customer }: CustomerDialogP
     try {
       const overrideMetro = form.overrideMetroRate.trim() ? parseFloat(form.overrideMetroRate) : null;
       const overrideHourly = form.overrideHourlyRate.trim() ? parseFloat(form.overrideHourlyRate) : null;
+      // V5 Phase 3: pricing preset. Rate + service + notes are only
+      // meaningful when basis !== 'none'; clear them otherwise so a
+      // user toggling back to "no preset" doesn't leave stale data.
+      const hasPreset = form.billingBasis !== 'none';
+      const defaultRate = hasPreset && form.defaultRate.trim()
+        ? parseFloat(form.defaultRate)
+        : null;
 
       const base = {
         type: form.type,
@@ -107,6 +130,10 @@ export function CustomerDialog({ open, onOpenChange, customer }: CustomerDialogP
         vip: form.vip,
         overrideMetroRate: overrideMetro != null && !isNaN(overrideMetro) ? overrideMetro : null,
         overrideHourlyRate: overrideHourly != null && !isNaN(overrideHourly) ? overrideHourly : null,
+        billingBasis: form.billingBasis,
+        defaultService: hasPreset && form.defaultService.trim() ? form.defaultService.trim() : null,
+        defaultRate: defaultRate != null && !isNaN(defaultRate) ? defaultRate : null,
+        defaultNotes: hasPreset && form.defaultNotes.trim() ? form.defaultNotes.trim() : null,
       };
 
       if (isEditing && customer) {
@@ -276,6 +303,80 @@ export function CustomerDialog({ open, onOpenChange, customer }: CustomerDialogP
                 />
               </Field>
             </div>
+          </div>
+
+          <div className="rounded-lg border border-input bg-muted/30 p-3 space-y-2.5">
+            <p className="text-[11px] font-semibold text-foreground inline-flex items-center gap-1">
+              Default pricing preset (optional)
+              <span
+                tabIndex={0}
+                role="img"
+                aria-label="Set a billing basis + default rate for this customer. When you create a new job and link them, a 'Pre-fill from {customer}' button will appear to apply the preset in one click."
+                title="Set a billing basis + default rate for this customer. When you create a new job and link them, a 'Pre-fill from {customer}' button will appear to apply the preset in one click."
+                className="inline-flex items-center justify-center text-muted-foreground/70 hover:text-rebel-accent cursor-help"
+              >
+                <Info className="w-3 h-3" />
+              </span>
+            </p>
+            <Field label="Billing basis">
+              <select
+                value={form.billingBasis}
+                onChange={(e) => update('billingBasis', e.target.value as BillingBasis)}
+                className="h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                {BILLING_BASIS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {form.billingBasis !== 'none' && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Field
+                    label={
+                      form.billingBasis === 'hourly'
+                        ? 'Default hourly rate (AUD ex GST)'
+                        : form.billingBasis === 'flat'
+                          ? 'Default flat fee (AUD ex GST)'
+                          : 'Default per-unit rate (AUD ex GST)'
+                    }
+                  >
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      pattern="[0-9]*\.?[0-9]*"
+                      value={form.defaultRate}
+                      onChange={(e) => update('defaultRate', sanitiseDecimal(e.target.value))}
+                      placeholder="e.g. 120"
+                    />
+                  </Field>
+                  <Field
+                    label="Default service"
+                    hint="Free text for now (e.g. 'Standard', 'House Move', 'Pallet delivery'). Will become a dropdown when the service catalog ships."
+                  >
+                    <Input
+                      value={form.defaultService}
+                      onChange={(e) => update('defaultService', e.target.value)}
+                      placeholder="e.g. House Move"
+                    />
+                  </Field>
+                </div>
+                <Field
+                  label="Pre-fill job notes"
+                  hint="Anything you want pre-filled into the job notes when you use the Pre-fill button (e.g. 'Always tail-lift truck', 'Invoice to head office')."
+                >
+                  <textarea
+                    value={form.defaultNotes}
+                    onChange={(e) => update('defaultNotes', e.target.value)}
+                    placeholder="optional"
+                    rows={2}
+                    className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  />
+                </Field>
+              </>
+            )}
           </div>
 
           <Field

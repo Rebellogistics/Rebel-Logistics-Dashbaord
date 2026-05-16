@@ -18,8 +18,12 @@ export type Database = {
         Row: {
           abn: string | null
           avatar: string | null
+          billing_basis: string
           company_name: string | null
           created_at: string
+          default_notes: string | null
+          default_rate: number | null
+          default_service: string | null
           deleted_at: string | null
           email: string | null
           id: string
@@ -39,8 +43,12 @@ export type Database = {
         Insert: {
           abn?: string | null
           avatar?: string | null
+          billing_basis?: string
           company_name?: string | null
           created_at?: string
+          default_notes?: string | null
+          default_rate?: number | null
+          default_service?: string | null
           deleted_at?: string | null
           email?: string | null
           id: string
@@ -60,8 +68,12 @@ export type Database = {
         Update: {
           abn?: string | null
           avatar?: string | null
+          billing_basis?: string
           company_name?: string | null
           created_at?: string
+          default_notes?: string | null
+          default_rate?: number | null
+          default_service?: string | null
           deleted_at?: string | null
           email?: string | null
           id?: string
