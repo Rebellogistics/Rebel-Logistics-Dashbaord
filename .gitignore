@@ -12,3 +12,6 @@ coverage/
 
 # Claude Code per-project local state
 .claude/
+
+# Obsidian per-vault local config (editor preferences, no shared value)
+.obsidian/
