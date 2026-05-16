@@ -565,6 +565,45 @@ export type Database = {
         }
         Relationships: []
       }
+      services: {
+        Row: {
+          active: boolean
+          builtin: boolean
+          created_at: string
+          default_duration_minutes: number | null
+          default_rate: number | null
+          description: string | null
+          id: string
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          builtin?: boolean
+          created_at?: string
+          default_duration_minutes?: number | null
+          default_rate?: number | null
+          description?: string | null
+          id?: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          builtin?: boolean
+          created_at?: string
+          default_duration_minutes?: number | null
+          default_rate?: number | null
+          description?: string | null
+          id?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           assigned_to_driver_id: string | null

@@ -206,6 +206,24 @@ export interface StorageRecord {
   deletedAt?: string | null;
 }
 
+/** V5 Phase 10: editable service catalog. Builtins ('Standard',
+ *  'White Glove', 'House Move') ship as `builtin: true` rows seeded by
+ *  migration; the pricing calculator still hardcodes their behaviour.
+ *  Custom services Yamin adds are flagged builtin: false and surface
+ *  in the customer-pricing-preset dropdown (V5 P3 default_service). */
+export interface Service {
+  id: string;
+  name: string;
+  defaultRate?: number | null;
+  defaultDurationMinutes?: number | null;
+  description?: string | null;
+  active: boolean;
+  sortOrder: number;
+  builtin: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** V4 Phase 5: per-truck-per-day checklist items. Warehouse load-ups,
  *  truck cleans, fuel stops — anything Yamin wants the driver to do
  *  before/between paid jobs. Distinct from `Job`: no customer, no money,

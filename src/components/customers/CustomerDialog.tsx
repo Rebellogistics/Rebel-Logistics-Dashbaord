@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCreateCustomer, useUpdateCustomer } from '@/hooks/useSupabaseData';
+import { useServices } from '@/hooks/useServices';
 import { Customer, CustomerType, BillingBasis } from '@/lib/types';
 import { sanitiseDecimal } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -354,12 +355,11 @@ export function CustomerDialog({ open, onOpenChange, customer }: CustomerDialogP
                   </Field>
                   <Field
                     label="Default service"
-                    hint="Free text for now (e.g. 'Standard', 'House Move', 'Pallet delivery'). Will become a dropdown when the service catalog ships."
+                    hint="Pick from the service catalog (Settings → Pricing → Services). Add a new one there if what you need isn't listed."
                   >
-                    <Input
+                    <ServicePicker
                       value={form.defaultService}
-                      onChange={(e) => update('defaultService', e.target.value)}
-                      placeholder="e.g. House Move"
+                      onChange={(v) => update('defaultService', v)}
                     />
                   </Field>
                 </div>
@@ -444,6 +444,37 @@ function Field({
       </Label>
       {children}
     </div>
+  );
+}
+
+function ServicePicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const { data: services = [], isLoading } = useServices({ activeOnly: true });
+  // If the saved value isn't in the catalog (legacy free-text from V5
+  // P3), preserve it as a one-off option so it isn't silently wiped.
+  const hasOption = services.some((s) => s.name === value);
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+    >
+      <option value="">— Choose a service —</option>
+      {value && !hasOption && (
+        <option value={value}>{value} (legacy)</option>
+      )}
+      {services.map((s) => (
+        <option key={s.id} value={s.name}>
+          {s.name}
+        </option>
+      ))}
+      {isLoading && <option disabled>Loading…</option>}
+    </select>
   );
 }
 

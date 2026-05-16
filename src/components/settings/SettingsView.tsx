@@ -34,6 +34,7 @@ import { CustomerImportSection } from './CustomerImportSection';
 import { IntegrationsSection } from './IntegrationsSection';
 import { BackupExportSection } from './BackupExportSection';
 import { PricingPanel } from './PricingPanel';
+import { ServiceCatalogSection } from './ServiceCatalogSection';
 import { DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -115,7 +116,10 @@ export function SettingsView() {
       ) : section === 'trucks' ? (
         <TrucksSection />
       ) : section === 'pricing' ? (
-        <PricingPanel />
+        <div className="space-y-4">
+          <PricingPanel />
+          <ServiceCatalogSection />
+        </div>
       ) : section === 'sms' ? (
         <SmsTemplatesSection />
       ) : section === 'import' ? (
