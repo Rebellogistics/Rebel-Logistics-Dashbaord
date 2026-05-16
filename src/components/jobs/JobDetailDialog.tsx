@@ -35,6 +35,7 @@ import {
   Save,
   X as XIcon,
   History as HistoryIcon,
+  Clock,
 } from 'lucide-react';
 import { canSendJobToXero } from '@/lib/xero';
 import { format, parseISO, formatDistanceToNow } from 'date-fns';
@@ -1013,6 +1014,21 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
             )}
           </section>
 
+          {/* V5 P9: clocked-time reconciliation for hourly jobs. Compares
+              en-route → complete timestamps against the billed hours so
+              Yamin sees mismatches before invoicing. */}
+          <ClockedTimeReconciliation
+            job={job}
+            billedHours={
+              editing
+                ? (() => {
+                    const v = parseFloat(draft.estimatedHours);
+                    return isNaN(v) ? null : v;
+                  })()
+                : job.hoursEstimated ?? null
+            }
+          />
+
           {(editing || job.notes) && (
             <section className="space-y-1">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
@@ -1428,5 +1444,86 @@ function JobHistoryList({ jobId }: { jobId: string }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// V5 Phase 9 — clocked-time reconciliation
+// ──────────────────────────────────────────────────────────────────
+
+const RECONCILE_THRESHOLD_HOURS = 0.5; // 30min — Yamin's "I undercharged" tolerance
+
+function ClockedTimeReconciliation({
+  job,
+  billedHours,
+}: {
+  job: Job;
+  billedHours: number | null;
+}) {
+  // Hourly jobs only — Standard / White Glove are priced on volume.
+  const isHourly = job.type === 'House Move' || job.pricingType === 'hourly';
+  if (!isHourly) return null;
+
+  // En-route SMS timestamp is the cleanest "started driving" signal we
+  // have today. Falls through to completionSmsSentAt → completedAt for
+  // the end. If en-route never fired (driver opted out via V5 P1 or
+  // skipped status flip), we have no clock to show.
+  const startIso = job.enRouteSmsSentAt ?? null;
+  const endIso = job.completionSmsSentAt ?? job.completedAt ?? null;
+  if (!startIso || !endIso) return null;
+
+  let start: Date;
+  let end: Date;
+  try {
+    start = parseISO(startIso);
+    end = parseISO(endIso);
+  } catch {
+    return null;
+  }
+  const ms = end.getTime() - start.getTime();
+  if (ms <= 0) return null;
+  const clockedHours = ms / (1000 * 60 * 60);
+
+  const clockedStr = clockedHours.toFixed(1);
+  const billedKnown = billedHours != null && !isNaN(billedHours);
+  const billedStr = billedKnown ? billedHours!.toFixed(1) : '—';
+  const overcharge =
+    billedKnown && billedHours! - clockedHours > RECONCILE_THRESHOLD_HOURS;
+  const undercharge =
+    billedKnown && clockedHours - billedHours! > RECONCILE_THRESHOLD_HOURS;
+  const mismatch = overcharge || undercharge;
+
+  return (
+    <section className="space-y-1">
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+        <Clock className="w-3 h-3" />
+        Clocked time
+      </h3>
+      {mismatch ? (
+        <div className="rounded-lg border border-amber-300 bg-amber-50/70 p-3 space-y-1">
+          <p className="text-xs font-bold text-amber-900">
+            {undercharge
+              ? `Boys clocked ${clockedStr}h · you billed ${billedStr}h`
+              : `You billed ${billedStr}h · boys only clocked ${clockedStr}h`}
+          </p>
+          <p className="text-[11px] text-amber-800 leading-snug">
+            En-route {format(start, 'HH:mm')} → complete {format(end, 'HH:mm')}.
+            {' '}
+            {undercharge
+              ? 'Bump the estimated hours or confirm the bill if intentional.'
+              : 'Trim the estimated hours or leave it if you billed a minimum.'}
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-rebel-border bg-muted/30 p-2.5 text-[11px] text-muted-foreground">
+          Clocked <span className="font-semibold text-foreground">{clockedStr}h</span>
+          {' · '}
+          billed <span className="font-semibold text-foreground">{billedStr}h</span>
+          <span className="ml-1.5">
+            ({format(start, 'HH:mm')} → {format(end, 'HH:mm')})
+          </span>
+        </div>
+      )}
+    </section>
   );
 }
