@@ -260,17 +260,24 @@ export function MyRunToday() {
                     if (filter === 'done') return j.status === 'Completed' || j.status === 'Invoiced';
                     return true;
                   })
-                  .map((job) => (
-                    <DriverJobCard
-                      key={job.id}
-                      job={job}
-                      onMarkDelivered={setCompleteTarget}
-                      onStartRun={handleStartRun}
-                      onOpenDetail={setDetailTarget}
-                      starting={startingId === job.id}
-                      isVip={!!(job.customerId && vipCustomerIds.has(job.customerId))}
-                    />
-                  ))}
+                  .map((job) => {
+                    // V5 P8: stop number is the 1-based position in the
+                    // UNFILTERED day list so it stays stable as jobs
+                    // flip into Done.
+                    const stopNumber = todaysJobs.findIndex((j) => j.id === job.id) + 1;
+                    return (
+                      <DriverJobCard
+                        key={job.id}
+                        job={job}
+                        onMarkDelivered={setCompleteTarget}
+                        onStartRun={handleStartRun}
+                        onOpenDetail={setDetailTarget}
+                        starting={startingId === job.id}
+                        isVip={!!(job.customerId && vipCustomerIds.has(job.customerId))}
+                        stopNumber={stopNumber}
+                      />
+                    );
+                  })}
               </div>
             </>
           )}
@@ -380,9 +387,13 @@ interface DriverJobCardProps {
   starting?: boolean;
   compact?: boolean;
   isVip?: boolean;
+  /** V5 P8: 1-based position in today's full run order (NOT filtered).
+   *  Driver sees "Stop 3" stays Stop 3 even when 1 + 2 are filtered out
+   *  to "Done". */
+  stopNumber?: number;
 }
 
-function DriverJobCard({ job, onMarkDelivered, onStartRun, onOpenDetail, starting, compact, isVip }: DriverJobCardProps) {
+function DriverJobCard({ job, onMarkDelivered, onStartRun, onOpenDetail, starting, compact, isVip, stopNumber }: DriverJobCardProps) {
   const isDone = job.status === 'Completed' || job.status === 'Invoiced';
   const isInDelivery = job.status === 'In Delivery';
   const canStart = job.status === 'Scheduled' || job.status === 'Accepted' || job.status === 'Notified';
@@ -417,6 +428,20 @@ function DriverJobCard({ job, onMarkDelivered, onStartRun, onOpenDetail, startin
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
+              {stopNumber != null && (
+                <span
+                  className={cn(
+                    'shrink-0 inline-flex items-center justify-center rounded-full font-bold',
+                    isDone
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-rebel-accent text-white',
+                    compact ? 'w-5 h-5 text-[10px]' : 'w-6 h-6 text-[11px]',
+                  )}
+                  title={`Stop ${stopNumber} in today's run`}
+                >
+                  {stopNumber}
+                </span>
+              )}
               <p className={cn('font-bold truncate', compact ? 'text-sm' : 'text-base')}>
                 {display.primary}
               </p>

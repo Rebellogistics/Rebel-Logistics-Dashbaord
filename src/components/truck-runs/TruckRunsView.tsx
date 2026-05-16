@@ -1059,7 +1059,7 @@ function TruckColumn({
           </p>
         ) : (
           <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-0.5">
-            {jobs.map((job) => (
+            {jobs.map((job, index) => (
               <JobCard
                 key={job.id}
                 job={job}
@@ -1072,6 +1072,7 @@ function TruckColumn({
                 onMenuAction={onMenuAction}
                 hasUnreadReply={jobsWithUnreadReply.has(job.id)}
                 draggable
+                stopNumber={index + 1}
               />
             ))}
           </div>
@@ -1097,6 +1098,10 @@ interface JobCardProps {
   draggable?: boolean;
   /** V4 3.6: amber chip on the card when the customer has texted back. */
   hasUnreadReply?: boolean;
+  /** V5 P8: 1-based position within the truck-day run order. When set,
+   *  the drag handle renders as a numbered chip instead of the bare
+   *  GripVertical so Yamin sees the stop sequence at a glance. */
+  stopNumber?: number;
 }
 
 function detectMissingInfo(job: Job): string[] {
@@ -1120,6 +1125,7 @@ function JobCard({
   onMenuAction,
   draggable,
   hasUnreadReply,
+  stopNumber,
 }: JobCardProps) {
   const missing = detectMissingInfo(job);
   const isClosed = job.status === 'Completed' || job.status === 'Invoiced';
@@ -1174,18 +1180,33 @@ function JobCard({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex items-start gap-1.5">
-          {canDrag && (
+          {canDrag ? (
             <button
               type="button"
-              aria-label="Drag to move"
-              className="shrink-0 cursor-grab active:cursor-grabbing touch-none p-0.5 -m-0.5 mt-0.5 text-muted-foreground/60 hover:text-rebel-accent"
+              aria-label={stopNumber ? `Stop ${stopNumber} — drag to reorder` : 'Drag to move'}
+              title={stopNumber ? `Stop ${stopNumber} · drag to reorder` : 'Drag to move'}
+              className={cn(
+                'shrink-0 cursor-grab active:cursor-grabbing touch-none mt-0.5 inline-flex items-center justify-center hover:text-rebel-accent transition-colors',
+                stopNumber
+                  ? 'w-5 h-5 rounded-full bg-rebel-accent-surface text-rebel-accent text-[10px] font-bold hover:bg-rebel-accent hover:text-white'
+                  : 'p-0.5 -m-0.5 text-muted-foreground/60',
+              )}
               {...attributes}
               {...listeners}
               onClick={(e) => e.stopPropagation()}
             >
-              <GripVertical className="w-3 h-3" />
+              {stopNumber ?? <GripVertical className="w-3 h-3" />}
             </button>
-          )}
+          ) : stopNumber ? (
+            // Closed (Completed / Invoiced) jobs aren't draggable but the
+            // stop number still grounds them in the run order.
+            <span
+              className="shrink-0 mt-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted text-muted-foreground text-[10px] font-bold"
+              title={`Stop ${stopNumber}`}
+            >
+              {stopNumber}
+            </span>
+          ) : null}
           <div className="min-w-0">
             {(() => {
               const display = customerDisplay(job);
