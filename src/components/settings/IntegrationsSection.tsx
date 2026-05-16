@@ -25,6 +25,7 @@ import {
   useDisconnectIntegration,
   useSetCalendarMode,
   useCleanupLegacyCalendar,
+  useCleanupOrphanEvents,
   type CalendarMode,
   type Integration,
 } from '@/hooks/useIntegrations';
@@ -221,6 +222,41 @@ function ConnectedAccountStrip({
 
   const [bulkSyncing, setBulkSyncing] = useState(false);
   const cleanup = useCleanupLegacyCalendar();
+  const cleanupOrphans = useCleanupOrphanEvents();
+
+  // V5 P7 — scan every Rebel-tagged calendar for events whose id no
+  // longer matches a live job, and delete them. Fixes "I see the same
+  // job twice in my Google Calendar."
+  const handleCleanupOrphans = async () => {
+    if (
+      !confirm(
+        'Scan your Rebel Logistics calendars for duplicate / orphan events and delete the ones that no longer match a live job?\n\n' +
+          'Your personal appointments are not touched — only events tagged "Rebel Logistics ·".',
+      )
+    ) {
+      return;
+    }
+    const toastId = toast.loading('Scanning Google Calendar…');
+    try {
+      const result = await cleanupOrphans.mutateAsync();
+      if (result.deleted === 0 && result.failed === 0) {
+        toast.success(`No orphan events found · scanned ${result.scanned}`, { id: toastId });
+      } else if (result.failed === 0) {
+        toast.success(
+          `Removed ${result.deleted} orphan event${result.deleted === 1 ? '' : 's'} · scanned ${result.scanned}`,
+          { id: toastId },
+        );
+      } else {
+        toast.warning(
+          `Removed ${result.deleted}, ${result.failed} failed · scanned ${result.scanned}`,
+          { id: toastId },
+        );
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Cleanup failed';
+      toast.error(message, { id: toastId });
+    }
+  };
 
   // V4 Phase 4 follow-up. Detect the orphan-cleanup state:
   //   per_truck mode + legacy calendar_id still set ⇒ orphan events still
@@ -454,6 +490,27 @@ function ConnectedAccountStrip({
         >
           <CalendarPlus className="w-3 h-3" />
           {bulkSyncing ? 'Syncing…' : 'Sync open jobs'}
+        </Button>
+      </div>
+
+      {/* V5 P7 — orphan / duplicate cleanup. Useful in single mode after
+          a job's been re-synced under a different id, or after a per-
+          truck migration left ghosts behind. */}
+      <div className="flex items-center gap-2 flex-wrap rounded-lg bg-card/50 border border-rebel-success/20 px-3 py-2">
+        <Trash2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        <p className="text-[11px] text-muted-foreground flex-1 min-w-0">
+          See the same job twice in your calendar? Run a scan to delete orphan events.
+        </p>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleCleanupOrphans}
+          disabled={cleanupOrphans.isPending || bulkSyncing}
+          className="gap-1.5 text-[11px] shrink-0"
+          title="Scan every Rebel-tagged calendar and delete events that no longer match a live job"
+        >
+          <Trash2 className="w-3 h-3" />
+          {cleanupOrphans.isPending ? 'Scanning…' : 'Clean up duplicate events'}
         </Button>
       </div>
     </div>

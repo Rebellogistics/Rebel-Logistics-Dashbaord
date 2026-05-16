@@ -146,6 +146,34 @@ export function useCleanupLegacyCalendar() {
   });
 }
 
+/**
+ * V5 Phase 7 — scan every Rebel-tagged calendar and delete events whose
+ * id no longer matches a live `jobs.google_calendar_event_id`. Fixes the
+ * "same job appears twice in my calendar" report.
+ */
+export interface CleanupOrphanResult {
+  ok: boolean;
+  scanned: number;
+  deleted: number;
+  failed: number;
+  perCalendar: {
+    calendarId: string;
+    label: string;
+    scanned: number;
+    deleted: number;
+    failed: number;
+    errors: string[];
+  }[];
+}
+
+export function useCleanupOrphanEvents() {
+  return useMutation({
+    mutationFn: async (): Promise<CleanupOrphanResult> => {
+      return await apiPostJson('/api/calendar/cleanup-orphans', {});
+    },
+  });
+}
+
 export function useConnectIntegration() {
   const queryClient = useQueryClient();
 
