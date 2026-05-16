@@ -91,6 +91,12 @@ function buildDraftFromJob(job: Job) {
     fee: job.fee != null ? job.fee.toFixed(2) : '',
     priceIsManual: job.priceIsManual ?? false,
     notes: job.notes ?? '',
+    // V5 Phase 1: tri-toggle defaults. Undefined on legacy rows that
+    // pre-date the migration is treated as ON to preserve existing
+    // behaviour ("send unless I say otherwise").
+    sendDayPrior: job.sendDayPrior ?? true,
+    sendEnRoute: job.sendEnRoute ?? true,
+    sendComplete: job.sendComplete ?? true,
   };
 }
 
@@ -121,6 +127,9 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
     fee: '',
     priceIsManual: false,
     notes: '',
+    sendDayPrior: true,
+    sendEnRoute: true,
+    sendComplete: true,
   });
   const [activityTab, setActivityTab] = useState<'activity' | 'history'>('activity');
   // V4 2.5: 3-dots menu inside the dialog header. Local mark-complete state
@@ -500,6 +509,13 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
         newValue: draft.priceIsManual ? 'manual' : 'auto',
       });
     }
+
+    // V5 Phase 1: per-job SMS toggles. Stored as bool on jobs; legacy
+    // rows read as undefined which we treat as ON.
+    const formatOnOff = (v: boolean | null) => (v === false ? 'off' : 'on');
+    pushChange('sendDayPrior', draft.sendDayPrior, 'send_day_prior', formatOnOff);
+    pushChange('sendEnRoute', draft.sendEnRoute, 'send_en_route', formatOnOff);
+    pushChange('sendComplete', draft.sendComplete, 'send_complete', formatOnOff);
 
     if (Object.keys(changes).length === 0) {
       setEditing(false);
@@ -993,6 +1009,88 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
               )}
             </section>
           )}
+
+          {/* V5 Phase 1: per-job SMS toggles. En-route / Complete status
+              flips always still fire — only the customer text is gated. */}
+          <section className="space-y-1">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <MessageSquare className="w-3 h-3" />
+              Customer SMS
+            </h3>
+            {editing ? (
+              <div className="space-y-1.5 rounded-lg border border-border bg-muted/30 p-3">
+                <label className="flex items-start gap-2 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={draft.sendDayPrior}
+                    onChange={(e) =>
+                      setDraft((d) => ({ ...d, sendDayPrior: e.target.checked }))
+                    }
+                    className="h-3.5 w-3.5 mt-0.5 rounded border-border"
+                  />
+                  <span>
+                    <span className="font-medium">Day-prior reminder</span>
+                    <span className="text-muted-foreground"> — sent the evening before</span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={draft.sendEnRoute}
+                    onChange={(e) =>
+                      setDraft((d) => ({ ...d, sendEnRoute: e.target.checked }))
+                    }
+                    className="h-3.5 w-3.5 mt-0.5 rounded border-border"
+                  />
+                  <span>
+                    <span className="font-medium">En-route notice</span>
+                    <span className="text-muted-foreground"> — driver still records "en-route" for dispatch</span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={draft.sendComplete}
+                    onChange={(e) =>
+                      setDraft((d) => ({ ...d, sendComplete: e.target.checked }))
+                    }
+                    className="h-3.5 w-3.5 mt-0.5 rounded border-border"
+                  />
+                  <span>
+                    <span className="font-medium">Job complete</span>
+                    <span className="text-muted-foreground"> — sent after sign-off</span>
+                  </span>
+                </label>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {(
+                  [
+                    { label: 'Day-prior', on: job.sendDayPrior !== false },
+                    { label: 'En-route', on: job.sendEnRoute !== false },
+                    { label: 'Complete', on: job.sendComplete !== false },
+                  ] as const
+                ).map((pill) => (
+                  <span
+                    key={pill.label}
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium',
+                      pill.on
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : 'border-border bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {pill.on ? (
+                      <CheckCircle2 className="w-3 h-3" />
+                    ) : (
+                      <XIcon className="w-3 h-3" />
+                    )}
+                    {pill.label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </section>
 
           <section className="space-y-2">
             <div className="flex items-center gap-1">

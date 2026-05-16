@@ -150,6 +150,13 @@ export interface Job {
   gstAmount?: number;
   /** Phase 21: timestamp of the auto-fired delivery-complete SMS. */
   completionSmsSentAt?: string;
+  /** V5 Phase 1: per-job customer-SMS opt-out toggles. ON = template fires
+   *  normally. OFF = customer text is skipped, but dispatch signals
+   *  (status flips, calendar, truck-run visibility) always still fire.
+   *  All default true so existing jobs behave as before. */
+  sendDayPrior?: boolean;
+  sendEnRoute?: boolean;
+  sendComplete?: boolean;
   /** TRUE when the fee was set manually in the job dialog (Phase 10). When
    *  false, the fee is whatever the rate book + inputs (type / cubes /
    *  hours) computed at save time. Used to gate the recompute prompt: if

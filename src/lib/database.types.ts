@@ -223,6 +223,9 @@ export type Database = {
           recipient_address: string | null
           recipient_name: string | null
           recipient_phone: string | null
+          send_complete: boolean
+          send_day_prior: boolean
+          send_en_route: boolean
           sequence: number | null
           signature: string | null
           status: string
@@ -268,6 +271,9 @@ export type Database = {
           recipient_address?: string | null
           recipient_name?: string | null
           recipient_phone?: string | null
+          send_complete?: boolean
+          send_day_prior?: boolean
+          send_en_route?: boolean
           sequence?: number | null
           signature?: string | null
           status: string
@@ -313,6 +319,9 @@ export type Database = {
           recipient_address?: string | null
           recipient_name?: string | null
           recipient_phone?: string | null
+          send_complete?: boolean
+          send_day_prior?: boolean
+          send_en_route?: boolean
           sequence?: number | null
           signature?: string | null
           status?: string

@@ -389,7 +389,26 @@ function DayPriorSection({ jobs }: DayPriorSectionProps) {
   const tomorrowLabel = format(addDays(new Date(), 1), 'EEE d MMM');
 
   const unsent = useMemo(
-    () => jobs.filter((j) => !j.dayPriorSmsSentAt && j.customerPhone?.trim()),
+    () =>
+      jobs.filter(
+        (j) =>
+          !j.dayPriorSmsSentAt &&
+          j.customerPhone?.trim() &&
+          j.sendDayPrior !== false,
+      ),
+    [jobs],
+  );
+  // V5 Phase 1: jobs that would be eligible except the per-job toggle is
+  // off. Surfaced in the bulk-send toast so Yamin can verify he excluded
+  // the right ones (e.g. a full-day single-customer booking).
+  const optedOutCount = useMemo(
+    () =>
+      jobs.filter(
+        (j) =>
+          !j.dayPriorSmsSentAt &&
+          j.customerPhone?.trim() &&
+          j.sendDayPrior === false,
+      ).length,
     [jobs],
   );
 
@@ -426,12 +445,13 @@ function DayPriorSection({ jobs }: DayPriorSectionProps) {
       toast.loading(`Sending ${sent + failed} of ${unsent.length}…`, { id: toastId });
     }
     setBulkSending(false);
+    const skippedSuffix = optedOutCount > 0 ? ` · ${optedOutCount} opted out` : '';
     if (failed === 0) {
-      toast.success(`Sent ${sent} day-prior reminders`, { id: toastId });
+      toast.success(`Sent ${sent} day-prior reminders${skippedSuffix}`, { id: toastId });
     } else if (sent === 0) {
-      toast.error(`All ${failed} sends failed`, { id: toastId });
+      toast.error(`All ${failed} sends failed${skippedSuffix}`, { id: toastId });
     } else {
-      toast.warning(`${sent} sent, ${failed} failed`, { id: toastId });
+      toast.warning(`${sent} sent, ${failed} failed${skippedSuffix}`, { id: toastId });
     }
   };
 

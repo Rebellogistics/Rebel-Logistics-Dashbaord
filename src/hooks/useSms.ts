@@ -182,6 +182,11 @@ export async function maybeAutoFireStatusSms(job: Job): Promise<void> {
   if (newStatus !== 'In Delivery' && newStatus !== 'Completed') return;
 
   const isEnRoute = newStatus === 'In Delivery';
+  // V5 Phase 1: customer text is gated independently of the status flip.
+  // The status update has already landed by the time we get here (this
+  // runs inside useUpdateJob.onSuccess) — opting out just skips the SMS.
+  const optedOut = isEnRoute ? job.sendEnRoute === false : job.sendComplete === false;
+  if (optedOut) return;
   const alreadySent = isEnRoute ? !!job.enRouteSmsSentAt : !!job.completionSmsSentAt;
   if (alreadySent) return;
 
@@ -270,6 +275,24 @@ export function useSendDayPriorBulk() {
         failures: [],
       };
       if (jobs.length === 0) return result;
+      // V5 Phase 1: respect the per-job send_day_prior toggle. Opt-out
+      // rows count as skipped (not failed) and surface in the failure
+      // list with an explicit reason so Yamin can see why a job was
+      // excluded from the batch.
+      const eligible: Job[] = [];
+      for (const j of jobs) {
+        if (j.sendDayPrior === false) {
+          result.skipped += 1;
+          result.failures.push({
+            jobId: j.id,
+            customerName: j.customerName,
+            reason: 'Day-prior SMS off',
+          });
+          continue;
+        }
+        eligible.push(j);
+      }
+      if (eligible.length === 0) return result;
       // V4 hot-fix May 4 (round 2): pull the live day-prior body from
       // sms_templates, not the hardcoded default. One DB roundtrip per
       // bulk fire — cheap, but ensures Yamin's edits reach customers.
@@ -278,7 +301,7 @@ export function useSendDayPriorBulk() {
       // Run in parallel — Twilio handles per-account concurrency fine and
       // typical Rebel batches are <30 jobs/day.
       await Promise.all(
-        jobs.map(async (job) => {
+        eligible.map(async (job) => {
           if (!job.customerPhone?.trim()) {
             result.skipped += 1;
             result.failures.push({
