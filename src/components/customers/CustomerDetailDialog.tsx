@@ -11,12 +11,29 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Customer, Job } from '@/lib/types';
 import { jobTotalIncGst } from '@/lib/pricing';
-import { Pencil, Trash2, Star, Phone, Mail, Briefcase, ChevronRight, MessageSquare } from 'lucide-react';
+import {
+  Pencil,
+  Trash2,
+  Star,
+  Phone,
+  Mail,
+  Briefcase,
+  ChevronRight,
+  MessageSquare,
+  Boxes,
+  AlertTriangle,
+  CheckCircle2,
+} from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { JobDetailDialog } from '@/components/jobs/JobDetailDialog';
 import { StatusPill } from '@/components/ui/status-pill';
 import { CustomerAvatar } from '@/components/customers/CustomerAvatar';
 import { SendSmsDialog } from '@/components/sms/SendSmsDialog';
+import {
+  useStorageRecords,
+  computeStorageStatus,
+  daysInStorage,
+} from '@/hooks/useStorage';
 
 interface CustomerDetailDialogProps {
   customer: Customer | null;
@@ -24,6 +41,10 @@ interface CustomerDetailDialogProps {
   onClose: () => void;
   onEdit: (customer: Customer) => void;
   onDelete: (customer: Customer) => void;
+  /** V5 P5: shell-level callback that opens the StorageDialog seeded
+   *  from a job opened *inside* this customer view. Threaded through
+   *  to the nested JobDetailDialog. */
+  onConvertJobToStorage?: (job: Job) => void;
 }
 
 export function CustomerDetailDialog({
@@ -32,9 +53,11 @@ export function CustomerDetailDialog({
   onClose,
   onEdit,
   onDelete,
+  onConvertJobToStorage,
 }: CustomerDetailDialogProps) {
   const [viewJob, setViewJob] = useState<Job | null>(null);
   const [sendSmsOpen, setSendSmsOpen] = useState(false);
+  const { data: allStorage = [] } = useStorageRecords();
 
   const customerJobs = useMemo(() => {
     if (!customer) return [];
@@ -42,6 +65,15 @@ export function CustomerDetailDialog({
       .filter((j) => j.customerId === customer.id)
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [customer, jobs]);
+
+  const customerStorage = useMemo(() => {
+    if (!customer) return [];
+    return allStorage
+      .filter((r) => r.customerId === customer.id)
+      .sort((a, b) => b.inDate.localeCompare(a.inDate));
+  }, [customer, allStorage]);
+
+  const today = useMemo(() => new Date(), [customerStorage]);
 
   const totals = useMemo(() => {
     const billable = customerJobs.filter(
@@ -197,6 +229,64 @@ export function CustomerDetailDialog({
             </section>
           )}
 
+          {customerStorage.length > 0 && (
+            <section className="space-y-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider inline-flex items-center gap-1.5">
+                <Boxes className="w-3 h-3" />
+                Storage ({customerStorage.length})
+              </h3>
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {customerStorage.map((r) => {
+                  const status = computeStorageStatus(r, today);
+                  const days = daysInStorage(r, today);
+                  const rateInc = r.monthlyRate != null ? r.monthlyRate * 1.1 : null;
+                  return (
+                    <div
+                      key={r.id}
+                      className="flex items-center justify-between gap-2 py-2 border-b last:border-b-0 px-1 -mx-1"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          {status === 'overdue' && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                              <AlertTriangle className="w-3 h-3" />
+                              Overdue
+                            </span>
+                          )}
+                          {status === 'released' && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Released
+                            </span>
+                          )}
+                          {status === 'active' && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">
+                              Active
+                            </span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground">
+                            In {format(parseISO(r.inDate), 'd MMM yyyy')}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                          {r.itemsDescription}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs font-semibold">{days}d</p>
+                        {rateInc != null && (
+                          <p className="text-[10px] text-muted-foreground" title="Inc. GST">
+                            ${rateInc.toFixed(0)}/mo
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           <section className="space-y-2">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Job history ({customerJobs.length})
@@ -269,7 +359,11 @@ export function CustomerDetailDialog({
           </div>
         </DialogFooter>
       </DialogContent>
-      <JobDetailDialog job={viewJob} onClose={() => setViewJob(null)} />
+      <JobDetailDialog
+        job={viewJob}
+        onClose={() => setViewJob(null)}
+        onConvertToStorage={onConvertJobToStorage}
+      />
       <SendSmsDialog
         open={sendSmsOpen}
         onClose={() => setSendSmsOpen(false)}

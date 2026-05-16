@@ -15,6 +15,7 @@ import {
   Send,
   KanbanSquare,
   CalendarDays,
+  Boxes,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { signOut } from '@/hooks/useAuth';
@@ -55,6 +56,7 @@ function buildSections(opts: { truckRunsCount: number; smsUnread: boolean }): Na
         { label: 'Trucks', icon: CalendarDays },
         { label: 'Jobs', icon: ClipboardList },
         { label: 'Customers', icon: Users },
+        { label: 'Storage', icon: Boxes },
         { label: 'Reviews', icon: Star },
       ],
     },

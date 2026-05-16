@@ -47,6 +47,9 @@ interface TruckRunsViewProps {
   jobs: Job[];
   /** Tap a card (or pick "Open job") to open the full job dialog at the shell level. */
   onViewJob?: (job: Job) => void;
+  /** V5 P5: shell-level callback that opens the StorageDialog seeded
+   *  from a completed job (load-in flow). */
+  onConvertToStorage?: (job: Job) => void;
 }
 
 // Soft cap for the per-truck overload warning. Yamin can still drop more
@@ -72,7 +75,7 @@ function compareRunOrder(a: Job, b: Job): number {
   return (a.createdAt ?? '').localeCompare(b.createdAt ?? '');
 }
 
-export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
+export function TruckRunsView({ jobs, onViewJob, onConvertToStorage }: TruckRunsViewProps) {
   const { data: trucks = [] } = useTrucks();
   // V4 4.6: deep-link from calendar events lands on `?tab=Truck Runs&date=YYYY-MM-DD`.
   // Lazy initial state honours the date param when valid; everything else
@@ -475,6 +478,10 @@ export function TruckRunsView({ jobs, onViewJob }: TruckRunsViewProps) {
         console.error(err);
         toast.error('Send failed');
       }
+      return;
+    }
+    if (action.type === 'convert_to_storage') {
+      onConvertToStorage?.(job);
       return;
     }
     if (action.type === 'send_day_prior') {

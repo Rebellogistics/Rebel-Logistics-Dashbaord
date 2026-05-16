@@ -22,15 +22,18 @@ import { QuickQuoteDialog } from '@/components/jobs/QuickQuoteDialog';
 import { NewQuoteDialog } from '@/components/jobs/NewQuoteDialog';
 import { InstallPwaPrompt } from '@/components/layout/InstallPwaPrompt';
 import { CustomerDetailDialog } from '@/components/customers/CustomerDetailDialog';
+import { StorageView } from '@/components/storage/StorageView';
+import { StorageDialog } from '@/components/storage/StorageDialog';
 import { useJobs, useCustomers, useDeleteCustomer } from '@/hooks/useSupabaseData';
 import { useSmsLog } from '@/hooks/useSms';
 import { useProfile } from '@/hooks/useProfile';
 import { useTeam } from '@/hooks/useTeam';
 import { useRealtimeJobs } from '@/hooks/useRealtimeJobs';
 import { useRealtimeTasks } from '@/hooks/useTasks';
+import { useRealtimeStorage } from '@/hooks/useStorage';
+import { Profile, Job, Customer, StorageRecord } from '@/lib/types';
 import { signOut } from '@/hooks/useAuth';
 import { DriverShell } from '@/components/driver/DriverShell';
-import { Profile, Job, Customer } from '@/lib/types';
 import { Toaster } from '@/components/ui/sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -99,6 +102,7 @@ const SEARCH_SCOPE_BY_TAB: Record<string, SearchScope> = {
   Trucks: 'none',
   Jobs: 'jobs',
   Customers: 'customers',
+  Storage: 'none',
   Reviews: 'jobs',
   'SMS Log': 'sms',
   Settings: 'none',
@@ -125,6 +129,8 @@ function OwnerShell({ profile }: { profile: Profile }) {
   // V4 Phase 5: same for tasks — when a driver marks a load-up done, the
   // owner's Tasks strip re-renders within a second.
   useRealtimeTasks();
+  // V5 Phase 5: storage records live-update across tabs / sessions.
+  useRealtimeStorage();
 
   const { data: jobs = [], isLoading: jobsLoading } = useJobs();
   const { data: customers = [], isLoading: customersLoading } = useCustomers();
@@ -143,6 +149,12 @@ function OwnerShell({ profile }: { profile: Profile }) {
   // V4 2.2: desktop New Job is the FULL quote dialog (not the mobile
   // bare-minimum quick capture). Wired into the TopBar.
   const [newQuoteOpen, setNewQuoteOpen] = useState(false);
+  // V5 Phase 5: cross-flow conversions. prefillJobForStorage opens the
+  // StorageDialog seeded from a completed delivery job (load-in).
+  // prefillStorageForJob opens NewQuoteDialog seeded from a storage
+  // record (load-out delivery).
+  const [prefillJobForStorage, setPrefillJobForStorage] = useState<Job | null>(null);
+  const [prefillStorageForJob, setPrefillStorageForJob] = useState<StorageRecord | null>(null);
 
   const isLoading = jobsLoading || customersLoading;
   const searchScope = SEARCH_SCOPE_BY_TAB[activeTab] ?? 'all';
@@ -238,9 +250,22 @@ function OwnerShell({ profile }: { profile: Profile }) {
           </div>
         );
       case 'Board':
-        return <BoardView jobs={jobs} customers={customers} onViewJob={setViewJobTarget} />;
+        return (
+          <BoardView
+            jobs={jobs}
+            customers={customers}
+            onViewJob={setViewJobTarget}
+            onConvertToStorage={setPrefillJobForStorage}
+          />
+        );
       case 'Truck Runs':
-        return <TruckRunsView jobs={jobs} onViewJob={setViewJobTarget} />;
+        return (
+          <TruckRunsView
+            jobs={jobs}
+            onViewJob={setViewJobTarget}
+            onConvertToStorage={setPrefillJobForStorage}
+          />
+        );
       case 'Trucks':
         return <TrucksView jobs={jobs} onViewJob={setViewJobTarget} />;
       case 'Jobs':
@@ -258,6 +283,15 @@ function OwnerShell({ profile }: { profile: Profile }) {
         );
       case 'Customers':
         return <CustomersView customers={customers} jobs={jobs} />;
+      case 'Storage':
+        return (
+          <StorageView
+            onConvertToJob={(record) => {
+              setPrefillStorageForJob(record);
+              setNewQuoteOpen(true);
+            }}
+          />
+        );
       case 'Reviews':
         return <ReviewsView jobs={jobs} />;
       case 'SMS Log':
@@ -342,11 +376,29 @@ function OwnerShell({ profile }: { profile: Profile }) {
       )}
 
       {/* Shell-level dialogs — driven by bell, search, or any inner view */}
-      <JobDetailDialog job={viewJobTarget} onClose={() => setViewJobTarget(null)} />
+      <JobDetailDialog
+        job={viewJobTarget}
+        onClose={() => setViewJobTarget(null)}
+        onConvertToStorage={setPrefillJobForStorage}
+      />
       <MarkCompleteDialog job={markCompleteTarget} onClose={() => setMarkCompleteTarget(null)} />
       <AssignTruckDialog job={assignTarget} onClose={() => setAssignTarget(null)} />
       <QuickQuoteDialog open={quickQuoteOpen} onOpenChange={setQuickQuoteOpen} />
-      <NewQuoteDialog open={newQuoteOpen} onOpenChange={setNewQuoteOpen} />
+      <NewQuoteDialog
+        open={newQuoteOpen}
+        onOpenChange={(open) => {
+          setNewQuoteOpen(open);
+          if (!open) setPrefillStorageForJob(null);
+        }}
+        prefillStorage={prefillStorageForJob}
+      />
+      <StorageDialog
+        open={!!prefillJobForStorage}
+        onOpenChange={(open) => {
+          if (!open) setPrefillJobForStorage(null);
+        }}
+        prefillJob={prefillJobForStorage}
+      />
       <CustomerDetailDialog
         customer={viewCustomerTarget}
         jobs={jobs}
@@ -355,6 +407,7 @@ function OwnerShell({ profile }: { profile: Profile }) {
           /* edit handled within CustomersView */
         }}
         onDelete={handleCustomerDelete}
+        onConvertJobToStorage={setPrefillJobForStorage}
       />
 
       <InstallPwaPrompt />

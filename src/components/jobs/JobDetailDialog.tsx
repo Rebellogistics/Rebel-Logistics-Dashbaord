@@ -63,6 +63,9 @@ import { cn, sanitiseDecimal } from '@/lib/utils';
 interface JobDetailDialogProps {
   job: Job | null;
   onClose: () => void;
+  /** V5 P5: shell-level callback that opens the StorageDialog seeded
+   *  from this job. Optional — nothing happens if not provided. */
+  onConvertToStorage?: (job: Job) => void;
 }
 
 function looksLikeSignaturePath(jobId: string, value: string | null | undefined): boolean {
@@ -100,7 +103,7 @@ function buildDraftFromJob(job: Job) {
   };
 }
 
-export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
+export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailDialogProps) {
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
   const [signatureError, setSignatureError] = useState(false);
   const [sendSmsOpen, setSendSmsOpen] = useState(false);
@@ -236,6 +239,13 @@ export function JobDetailDialog({ job, onClose }: JobDetailDialogProps) {
       } catch (err) {
         console.error(err);
         toast.error('Send failed');
+      }
+      return;
+    }
+    if (action.type === 'convert_to_storage') {
+      if (onConvertToStorage) {
+        onConvertToStorage(j);
+        onClose();
       }
       return;
     }

@@ -50,6 +50,9 @@ interface BoardViewProps {
   /** Optional — when supplied, tapping a card (or choosing "Open job" from the
    *  action menu) opens the full Job dialog at the shell level. */
   onViewJob?: (job: Job) => void;
+  /** V5 P5: shell-level callback that opens the StorageDialog seeded
+   *  from a completed job (load-in flow). */
+  onConvertToStorage?: (job: Job) => void;
 }
 
 // Board is the *administration* surface. Operations columns (Scheduled,
@@ -71,7 +74,7 @@ const OPERATIONS_STATUSES: JobStatus[] = ['Scheduled', 'Notified', 'In Delivery'
 // Root
 // ──────────────────────────────────────────────────────────────────
 
-export function BoardView({ jobs, customers = [], onViewJob }: BoardViewProps) {
+export function BoardView({ jobs, customers = [], onViewJob, onConvertToStorage }: BoardViewProps) {
   const [groupBy, setGroupBy] = useState<GroupBy>('status');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [assignTarget, setAssignTarget] = useState<Job | null>(null);
@@ -143,6 +146,10 @@ export function BoardView({ jobs, customers = [], onViewJob }: BoardViewProps) {
         console.error(err);
         toast.error('Send failed');
       }
+      return;
+    }
+    if (action.type === 'convert_to_storage') {
+      onConvertToStorage?.(job);
       return;
     }
   };

@@ -13,6 +13,7 @@ import {
   CircleDot,
   MessageSquare,
   Star,
+  Boxes,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -28,7 +29,10 @@ export type JobMenuAction =
   | { type: 'send_day_prior' }
   /** V5 Phase 4 — manually fire a Google review request SMS. Only
    *  surfaced when the job is Completed and has a customer phone. */
-  | { type: 'send_review_request' };
+  | { type: 'send_review_request' }
+  /** V5 Phase 5 — turn a completed delivery into a new storage record
+   *  (load-in). Only surfaced when the job is Completed. */
+  | { type: 'convert_to_storage' };
 
 interface JobActionMenuProps {
   job: Job;
@@ -173,6 +177,15 @@ export function JobActionMenu({ job, trucks = [], onAction, size = 'sm', prevent
                   icon={<Star className="w-4 h-4 text-amber-500" />}
                   label="Send Google review request"
                   onClick={() => handleSelect({ type: 'send_review_request' })}
+                />
+              )}
+              {/* V5 P5: convert a completed delivery into a storage
+                  record (load-in). */}
+              {job.status === 'Completed' && (
+                <Item
+                  icon={<Boxes className="w-4 h-4 text-rebel-accent" />}
+                  label="Convert to storage record"
+                  onClick={() => handleSelect({ type: 'convert_to_storage' })}
                 />
               )}
 

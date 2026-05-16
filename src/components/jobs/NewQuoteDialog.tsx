@@ -19,7 +19,7 @@ import { CustomerCombobox } from '@/components/customers/CustomerCombobox';
 import { useCustomers } from '@/hooks/useSupabaseData';
 import type { Customer } from '@/lib/types';
 import { isNearDuplicate } from '@/lib/utils';
-import { Job, JobLocation, JobType } from '@/lib/types';
+import { Job, JobLocation, JobType, StorageRecord } from '@/lib/types';
 import { calculateQuote, formatAud } from '@/lib/pricing';
 import { sanitiseDecimal } from '@/lib/utils';
 import { format, addDays } from 'date-fns';
@@ -30,6 +30,10 @@ interface NewQuoteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   prefillJob?: Job | null;
+  /** V5 P5: when set, the dialog opens seeded as a load-OUT delivery
+   *  for a storage record (customer + items pre-filled, pickup defaults
+   *  to the warehouse address line in notes). */
+  prefillStorage?: StorageRecord | null;
 }
 
 function defaultValidUntil() {
@@ -54,6 +58,28 @@ function formFromJob(job: Job): typeof initial {
   };
 }
 
+// V5 P5: turn a storage record into a load-OUT delivery quote. Pickup
+// is left blank for Yamin to fill (could be warehouse, could be the
+// new destination of the items). Items description carries over to
+// notes so the driver knows what they're loading.
+function formFromStorage(record: StorageRecord): typeof initial {
+  return {
+    customerName: record.customerName,
+    customerCompanyName: '',
+    customerPhone: '',
+    customerId: record.customerId ?? '',
+    pickupAddress: '',
+    deliveryAddress: '',
+    type: 'Standard' as JobType,
+    location: 'Metro' as JobLocation,
+    cubicMetres: '',
+    itemWeightKg: '',
+    estimatedHours: '',
+    notes: `Load-out from storage: ${record.itemsDescription}`,
+    validUntil: defaultValidUntil(),
+  };
+}
+
 const initial = {
   customerName: '',
   customerCompanyName: '',
@@ -72,7 +98,12 @@ const initial = {
   validUntil: defaultValidUntil(),
 };
 
-export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialogProps) {
+export function NewQuoteDialog({
+  open,
+  onOpenChange,
+  prefillJob,
+  prefillStorage,
+}: NewQuoteDialogProps) {
   const [form, setForm] = useState(initial);
   const [nameTouched, setNameTouched] = useState(false);
   // Phase 19: when set, the combobox is showing the user picked an
@@ -100,13 +131,19 @@ export function NewQuoteDialog({ open, onOpenChange, prefillJob }: NewQuoteDialo
       setSearchQuery(next.customerCompanyName || next.customerName);
       setLinkedCustomer(null);
       setNameTouched(true);
+    } else if (open && prefillStorage) {
+      const next = formFromStorage(prefillStorage);
+      setForm(next);
+      setSearchQuery(next.customerName);
+      setLinkedCustomer(null);
+      setNameTouched(true);
     } else if (!open) {
       setForm({ ...initial, validUntil: defaultValidUntil() });
       setSearchQuery('');
       setLinkedCustomer(null);
       setNameTouched(false);
     }
-  }, [open, prefillJob]);
+  }, [open, prefillJob, prefillStorage]);
 
   const handlePickCustomer = (c: Customer) => {
     setLinkedCustomer(c);

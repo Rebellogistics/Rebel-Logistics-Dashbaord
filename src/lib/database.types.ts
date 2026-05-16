@@ -613,6 +613,62 @@ export type Database = {
         }
         Relationships: []
       }
+      storage_records: {
+        Row: {
+          actual_out_date: string | null
+          created_at: string
+          created_by: string | null
+          customer_id: string | null
+          customer_name: string
+          deleted_at: string | null
+          id: string
+          in_date: string
+          items_description: string
+          monthly_rate: number | null
+          notes: string | null
+          planned_out_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          actual_out_date?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          customer_name: string
+          deleted_at?: string | null
+          id?: string
+          in_date: string
+          items_description: string
+          monthly_rate?: number | null
+          notes?: string | null
+          planned_out_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          actual_out_date?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          customer_name?: string
+          deleted_at?: string | null
+          id?: string
+          in_date?: string
+          items_description?: string
+          monthly_rate?: number | null
+          notes?: string | null
+          planned_out_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "storage_records_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       truck_shifts: {
         Row: {
           created_at: string

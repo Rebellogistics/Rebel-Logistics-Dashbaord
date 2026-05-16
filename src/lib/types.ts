@@ -184,6 +184,28 @@ export interface Job {
   createdAt: string;
 }
 
+/** V5 Phase 5: storage records (furniture stored during reno / sale).
+ *  Different enough from delivery jobs that they live in their own
+ *  table + top-level tab. Status is derived from the date columns, not
+ *  stored — avoids drift. */
+export type StorageStatus = 'active' | 'overdue' | 'released';
+
+export interface StorageRecord {
+  id: string;
+  customerId?: string | null;
+  customerName: string;
+  itemsDescription: string;
+  inDate: string;
+  plannedOutDate?: string | null;
+  actualOutDate?: string | null;
+  monthlyRate?: number | null;
+  notes?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+}
+
 /** V4 Phase 5: per-truck-per-day checklist items. Warehouse load-ups,
  *  truck cleans, fuel stops — anything Yamin wants the driver to do
  *  before/between paid jobs. Distinct from `Job`: no customer, no money,
