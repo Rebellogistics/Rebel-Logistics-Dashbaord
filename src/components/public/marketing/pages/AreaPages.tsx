@@ -169,40 +169,7 @@ function AreaBody({ area }: { area: Area }) {
           </div>
         </section>
 
-        {/* 03 — Capture the lead, localised */}
-        <section id="quote-form" className="scroll-mt-24 bg-[var(--paper-2)] py-24 sm:py-28">
-          <Container wide className="grid items-start gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
-            <Reveal>
-              <h2 className="rl-display text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
-                Moving something in {area.name}?
-                <span className="block font-light text-[var(--ink-soft)]">We reply the same business day.</span>
-              </h2>
-              <p className="mt-6 max-w-md text-[16px] font-light leading-relaxed text-[var(--ink-soft)]">
-                {area.access}
-              </p>
-              <ul className="mt-10 divide-y divide-[var(--line)] border-t border-[var(--line)]">
-                {[
-                  { icon: Clock, label: 'Same-day response', sub: 'A considered plan and a clear price, fast.' },
-                  { icon: ShieldCheck, label: 'White-glove care', sub: 'Wrapped, craned and placed with precision.' },
-                  { icon: MapPin, label: `${area.name} ${area.postcode}`, sub: `Dispatched from ${BUSINESS.addressShort}.` },
-                ].map((a) => (
-                  <li key={a.label} className="flex items-start gap-4 py-5">
-                    <a.icon className="mt-0.5 h-[18px] w-[18px] shrink-0 text-[var(--accent)]" strokeWidth={1.5} />
-                    <div>
-                      <p className="text-[15px] font-medium text-[var(--ink)]">{a.label}</p>
-                      <p className="text-[14px] font-light text-[var(--ink-faint)]">{a.sub}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </Reveal>
-            <Reveal delay={120}>
-              <LeadForm compact />
-            </Reveal>
-          </Container>
-        </section>
-
-        {/* 04 — Local detail, unique to this suburb */}
+        {/* 03 — Local detail, unique to this suburb */}
         <section className="bg-[var(--paper-2)] py-24 sm:py-28">
           <Container wide className="grid gap-14 lg:grid-cols-[1fr_1fr] lg:gap-24">
             <Reveal>
@@ -236,6 +203,39 @@ function AreaBody({ area }: { area: Area }) {
         {/* 06 — Services, 07 — Proof, 08 — Sectors, 09 — Process, all localised
             and reused from the home page so the structure is identical. */}
         <ServicesOverview place={area.name} />
+        {/* Ask only after the local case is made */}
+        <section id="quote-form" className="scroll-mt-24 bg-[var(--paper-2)] py-24 sm:py-28">
+          <Container wide className="grid items-start gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
+            <Reveal>
+              <h2 className="rl-display text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
+                Moving something in {area.name}?
+                <span className="block font-light text-[var(--ink-soft)]">We reply the same business day.</span>
+              </h2>
+              <p className="mt-6 max-w-md text-[16px] font-light leading-relaxed text-[var(--ink-soft)]">
+                {area.access}
+              </p>
+              <ul className="mt-10 divide-y divide-[var(--line)] border-t border-[var(--line)]">
+                {[
+                  { icon: Clock, label: 'Same-day response', sub: 'A considered plan and a clear price, fast.' },
+                  { icon: ShieldCheck, label: 'White-glove care', sub: 'Wrapped, craned and placed with precision.' },
+                  { icon: MapPin, label: `${area.name} ${area.postcode}`, sub: `Dispatched from ${BUSINESS.addressShort}.` },
+                ].map((a) => (
+                  <li key={a.label} className="flex items-start gap-4 py-5">
+                    <a.icon className="mt-0.5 h-[18px] w-[18px] shrink-0 text-[var(--accent)]" strokeWidth={1.5} />
+                    <div>
+                      <p className="text-[15px] font-medium text-[var(--ink)]">{a.label}</p>
+                      <p className="text-[14px] font-light text-[var(--ink-faint)]">{a.sub}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </Reveal>
+            <Reveal delay={120}>
+              <LeadForm compact />
+            </Reveal>
+          </Container>
+        </section>
+
         <Proof place={area.name} />
 
         {/* Photo rail: flush to the sections above and below, no padding */}

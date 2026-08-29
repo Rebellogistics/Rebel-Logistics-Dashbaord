@@ -120,7 +120,7 @@ export function LeadForm({
 
   if (state === 'success') {
     return (
-      <div className="border border-[var(--line-2)] bg-[var(--paper)]">
+      <div className="overflow-hidden rounded-[3px] bg-white shadow-[0_24px_60px_-28px_rgba(22,20,15,0.4)]">
         <div className="flex flex-col items-center justify-center px-8 py-20 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--ink)]">
             <Check className="h-6 w-6 text-white" strokeWidth={2} />
@@ -145,18 +145,17 @@ export function LeadForm({
     <form
       onSubmit={submit}
       className={cx(
-        'border bg-[var(--paper)] transition-all duration-500',
+        'overflow-hidden rounded-[3px] bg-white transition-all duration-500',
+        // The form must not read as another paper panel on a paper page.
         flash
-          ? 'border-[var(--accent)] shadow-[0_0_0_4px_rgba(107,39,51,0.12)]'
-          : 'border-[var(--line-2)]',
+          ? 'shadow-[0_0_0_3px_rgba(107,39,51,0.16),0_30px_70px_-28px_rgba(22,20,15,0.45)]'
+          : 'shadow-[0_24px_60px_-28px_rgba(22,20,15,0.4),0_2px_8px_-2px_rgba(22,20,15,0.08)]',
       )}
     >
       {/* Header strip */}
-      <div className="flex items-center justify-between gap-4 border-b border-[var(--line-2)] px-5 py-3.5 sm:px-7">
-        <p className="rl-kicker text-[var(--ink)]">Request a quote</p>
-        <p className="hidden text-[12px] font-light text-[var(--ink-faint)] sm:block">
-          Takes about a minute
-        </p>
+      <div className="flex items-center justify-between gap-4 bg-[var(--ink)] px-5 py-4 sm:px-7">
+        <p className="rl-kicker text-white">Request a quote</p>
+        <p className="hidden text-[12px] font-light text-white/60 sm:block">Takes about a minute</p>
       </div>
 
       {/* Only shown when a CTA brought the visitor here */}
@@ -166,7 +165,7 @@ export function LeadForm({
         aria-live="polite"
       >
         <div className="overflow-hidden">
-          <p className="border-b border-[var(--line-2)] bg-[var(--paper-2)] px-6 py-3 text-[13.5px] text-[var(--ink)] sm:px-8">
+          <p className="border-b border-[var(--line)] bg-[#F3EDEE] px-6 py-3 text-[13.5px] text-[var(--ink)] sm:px-8">
             Fill in the form and we'll get back to you, usually the same business day.
           </p>
         </div>
@@ -263,7 +262,7 @@ export function LeadForm({
       </div>
 
       {/* Action bar */}
-      <div className="border-t border-[var(--line-2)] px-5 py-4 sm:px-7">
+      <div className="border-t border-[var(--line)] bg-[#FBFAF7] px-5 py-4 sm:px-7">
         <button
           type="submit"
           aria-busy={state === 'submitting'}
@@ -284,7 +283,7 @@ export function LeadForm({
 /* Filled, hairline-bordered fields. Quiet enough for the world, solid enough
    to read as something you type into. */
 const inputCls =
-  'h-[46px] w-full rounded-[2px] border border-[var(--line-2)] bg-[var(--paper-2)] px-3.5 text-[15px] text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--ink)] focus:bg-[var(--paper)]';
+  'h-[46px] w-full rounded-[2px] border border-[var(--line-2)] bg-[#F7F5F0] px-3.5 text-[15px] text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--ink)] focus:bg-white';
 
 function Field({
   label,

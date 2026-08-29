@@ -45,8 +45,8 @@ export default function MarketingHome() {
         <QuoteBand />
         <ServicesOverview />
         <Proof />
-        <Sectors />
         <Process />
+        <Sectors />
         <InstagramWall />
         <Coverage />
         <Faq />

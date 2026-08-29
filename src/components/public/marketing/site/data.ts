@@ -57,22 +57,25 @@ export const IMG = {
 
 // Hero: three static frames pulled from the client's own job footage. Each
 // carries its own line, so scrolling walks care -> method -> result.
-export type HeroFrame = { src: string; alt: string; line1: string; line2: string };
+export type HeroFrame = { src: string; video: string; alt: string; line1: string; line2: string };
 export const HERO_FRAMES: HeroFrame[] = [
   {
     src: '/site/hero-1.jpg',
+    video: '/site/hero-1.mp4',
     alt: 'Rebel Logistics crew in white gloves setting a marble table into a styled Melbourne living room',
     line1: 'Handled like',
     line2: "it's irreplaceable.",
   },
   {
     src: '/site/hero-2.jpg',
+    video: '/site/hero-2.mp4',
     alt: 'A Rebel Logistics handler in white cotton gloves talking a client through a piece',
     line1: 'White gloves.',
     line2: 'Every piece.',
   },
   {
     src: '/site/hero-3.jpg',
+    video: '/site/hero-3.mp4',
     alt: 'A finished, styled interior after a Rebel Logistics delivery and installation',
     line1: 'Left finished,',
     line2: 'not just delivered.',

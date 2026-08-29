@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowUpRight, Check, MapPin, Phone, Mail, Clock, Instagram, Building2, ShieldCheck } from 'lucide-react';
 import { SiteHeader, SiteFooter } from '../site/Chrome';
@@ -48,29 +48,93 @@ function Shell({ children, overHero }: { children: ReactNode; overHero?: boolean
   );
 }
 
+function useIsMobile() {
+  const [m, setM] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const apply = () => setM(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+  return m;
+}
+
 function ImageHero({ eyebrow, title, sub, lead, image, alt, video }: { eyebrow: string; title: string; sub?: string; lead: string; image: string; alt: string; video?: string }) {
+  const isMobile = useIsMobile();
+
+  const media = video ? (
+    <video
+      className="absolute inset-0 h-full w-full object-cover"
+      src={video}
+      poster={image}
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="metadata"
+      aria-hidden
+    />
+  ) : (
+    <img src={image} alt={alt} className="absolute inset-0 h-full w-full object-cover" />
+  );
+
+  const actions = (light: boolean) => (
+    <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <QuoteCTA variant={light ? 'light' : 'ink'} className={light ? '' : 'w-full sm:w-auto'}>
+        Request a quote <ArrowRight className="h-4 w-4" strokeWidth={1.6} />
+      </QuoteCTA>
+      <a
+        href={`tel:${BUSINESS.phoneIntl}`}
+        className={
+          light
+            ? 'inline-flex h-[52px] items-center justify-center gap-2 rounded-[2px] border border-white/25 px-8 text-[14px] font-medium text-white/90 transition-colors hover:border-white hover:text-white'
+            : 'inline-flex h-[52px] items-center justify-center gap-2 rounded-[2px] border border-[var(--line-2)] px-8 text-[14px] font-medium text-[var(--ink)]'
+        }
+      >
+        <Phone className="h-4 w-4" strokeWidth={1.7} />
+        {BUSINESS.phone}
+      </a>
+    </div>
+  );
+
+  // Mobile: let the photograph be the subject and set the words beneath it,
+  // matching the home page rather than burying the copy under the picture.
+  if (isMobile) {
+    return (
+      <section className="bg-[var(--paper)] pt-[76px]">
+        <div className="relative aspect-[4/5] w-full overflow-hidden bg-[var(--char)]">
+          {media}
+          <div
+            aria-hidden
+            className="absolute inset-x-0 bottom-0 h-24"
+            style={{ background: 'linear-gradient(180deg, transparent, rgba(252,251,248,0.9) 82%, var(--paper))' }}
+          />
+        </div>
+        <Container className="pb-14 pt-7">
+          <div className="flex items-center gap-3">
+            <span aria-hidden className="inline-block h-px w-8 bg-[var(--line-2)]" />
+            <span className="rl-kicker !gap-0 text-[var(--ink-faint)]">{eyebrow}</span>
+          </div>
+          <h1 className="rl-display mt-5 text-[clamp(2.1rem,9vw,2.9rem)] text-[var(--ink)]">
+            <span className="block font-medium">{title}</span>
+            {sub && <span className="block font-light text-[var(--ink-soft)]">{sub}</span>}
+          </h1>
+          <p className="mt-5 text-[15.5px] font-light leading-relaxed text-[var(--ink-soft)]">{lead}</p>
+          {actions(false)}
+        </Container>
+      </section>
+    );
+  }
+
   return (
     <section className="relative flex h-[100svh] items-end overflow-hidden bg-[var(--char)]">
-      {video ? (
-        <video
-          className="absolute inset-0 h-full w-full object-cover"
-          src={video}
-          poster={image}
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          aria-hidden
-        />
-      ) : (
-        <img src={image} alt={alt} className="absolute inset-0 h-full w-full object-cover" />
-      )}
+      {media}
       <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(15,13,9,0.5) 0%, rgba(15,13,9,0.08) 34%, rgba(15,13,9,0.82) 100%)' }} />
       <Container wide className="relative pb-16 sm:pb-20">
         <Reveal>
           <div className="mb-6 flex items-center gap-3">
-            <span aria-hidden className="inline-block h-px w-9" style={{ background: 'var(--accent-3)' }} />
+            <span aria-hidden className="inline-block h-px w-9 bg-white/40" />
             <span className="rl-kicker !gap-0 text-white/70">{eyebrow}</span>
           </div>
           <h1 className="rl-display max-w-4xl text-[clamp(2.6rem,6vw,5rem)] text-white">
@@ -78,18 +142,7 @@ function ImageHero({ eyebrow, title, sub, lead, image, alt, video }: { eyebrow: 
             {sub && <span className="block font-light text-white/80">{sub}</span>}
           </h1>
           <p className="mt-7 max-w-xl text-[clamp(1rem,1.35vw,1.14rem)] font-light leading-relaxed text-white/70">{lead}</p>
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <QuoteCTA variant="light">
-              Request a quote <ArrowRight className="h-4 w-4" strokeWidth={1.6} />
-            </QuoteCTA>
-            <a
-              href={`tel:${BUSINESS.phoneIntl}`}
-              className="inline-flex h-[52px] items-center justify-center gap-2 rounded-[2px] border border-white/25 px-8 text-[14px] font-medium text-white/90 transition-colors hover:border-white hover:text-white"
-            >
-              <Phone className="h-4 w-4" strokeWidth={1.7} />
-              {BUSINESS.phone}
-            </a>
-          </div>
+          {actions(true)}
         </Reveal>
       </Container>
     </section>
@@ -158,6 +211,12 @@ export function ServicePage({ slug }: { slug: string }) {
         <div className="mt-8">
           <Marquee logos={CLIENTS} />
         </div>
+      </section>
+
+      {/* Photography sits high, under the hero, so the page never runs two
+          scrolling rails back to back further down. */}
+      <section className="overflow-hidden bg-[var(--paper)]">
+        <PhotoRail images={service.rail} fade="var(--paper)" size="lg" />
       </section>
 
       {/* 03 — What the service is and what it includes */}
@@ -236,11 +295,6 @@ export function ServicePage({ slug }: { slug: string }) {
             <LeadForm compact defaultService={SERVICE_FORM_OPTION[slug]} />
           </Reveal>
         </Container>
-      </section>
-
-      {/* 06 — Proof on sight: full-bleed rail, edge to edge */}
-      <section className="overflow-hidden bg-[var(--paper)]">
-        <PhotoRail images={service.rail} fade="var(--paper)" size="lg" />
       </section>
 
       {/* 07 — Motion holds attention */}
@@ -355,7 +409,7 @@ export function AboutPage() {
               ))}
             </div>
           </Reveal>
-          <Reveal delay={120} className="grid gap-4">
+          <Reveal delay={120} media className="grid gap-4">
             <div className="overflow-hidden rounded-[2px]">
               <img src={IMG.lounge} alt="A completed luxury install" className="h-full w-full object-cover" />
             </div>
@@ -384,7 +438,7 @@ export function AboutPage() {
       {/* Founder. Real photograph of Yamin on site, not a generated likeness. */}
       <section className="bg-[var(--char)] py-20 text-white sm:py-28">
         <Container wide className="grid items-center gap-12 lg:grid-cols-[1fr_1fr] lg:gap-20">
-          <Reveal>
+          <Reveal media>
             <div className="overflow-hidden rounded-[2px]">
               <img
                 src="/site/founder.jpg"

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Phone } from 'lucide-react';
 import { BUSINESS, HERO_FRAMES, type HeroFrame } from '../site/data';
 import { Button, Container, cx, prefersReducedMotion } from '../site/ui';
@@ -37,6 +37,70 @@ export function Hero({ frames = HERO_FRAMES, callCta = false }: { frames?: HeroF
     : <DesktopHero reduced={reduced} frames={frames} callCta={callCta} />;
 }
 
+
+/* Each hero beat is a short muted loop from the client's own footage. The
+   matching still is the poster, so the first paint is immediate, and
+   reduced-motion users get the still and no video at all. */
+function HeroMedia({
+  frame,
+  active,
+  first,
+  reduced,
+  zoom,
+}: {
+  frame: HeroFrame;
+  active: boolean;
+  first: boolean;
+  reduced: boolean;
+  zoom: number;
+}) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || reduced) return;
+    if (active) {
+      v.currentTime = 0;
+      v.play().catch(() => {});
+    } else {
+      v.pause();
+    }
+  }, [active, reduced]);
+
+  const style = {
+    opacity: active ? 1 : 0,
+    transform: active && !reduced ? `scale(${zoom})` : 'scale(1)',
+    transition: 'opacity 1000ms ease-out, transform 8000ms linear',
+  } as const;
+
+  if (reduced) {
+    return (
+      <img
+        src={frame.src}
+        alt={first ? frame.alt : ''}
+        aria-hidden={!first ? true : undefined}
+        className="absolute inset-0 h-full w-full object-cover"
+        style={{ opacity: active ? 1 : 0 }}
+      />
+    );
+  }
+
+  return (
+    <video
+      ref={ref}
+      src={frame.video}
+      poster={frame.src}
+      muted
+      loop
+      playsInline
+      preload={first ? 'auto' : 'metadata'}
+      aria-hidden
+      className="absolute inset-0 h-full w-full object-cover"
+      style={style}
+    />
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Mobile: image leads, copy sits beneath it, frames advance on their  */
 /* own. Scroll-scrubbing a sticky panel on a phone fights the thumb    */
@@ -59,19 +123,13 @@ function MobileHero({ reduced, frames, callCta }: { reduced: boolean; frames: He
       {/* Image, uncovered */}
       <div className="relative aspect-[4/5] w-full overflow-hidden bg-[var(--char)]">
         {frames.map((frame, n) => (
-          <img
+          <HeroMedia
             key={frame.src}
-            src={frame.src}
-            alt={n === 0 ? frame.alt : ''}
-            aria-hidden={n !== 0 ? true : undefined}
-            loading={n === 0 ? 'eager' : 'lazy'}
-            decoding="async"
-            className="absolute inset-0 h-full w-full object-cover"
-            style={{
-              opacity: n === i ? 1 : 0,
-              transform: n === i && !reduced ? 'scale(1.06)' : 'scale(1)',
-              transition: 'opacity 900ms ease-out, transform 6000ms linear',
-            }}
+            frame={frame}
+            active={n === i}
+            first={n === 0}
+            reduced={reduced}
+            zoom={1.06}
           />
         ))}
         <div
@@ -172,20 +230,13 @@ function DesktopHero({ reduced, frames, callCta }: { reduced: boolean; frames: H
   return (
     <section className="relative h-[100svh] w-full overflow-hidden bg-[var(--char)]" aria-label="Rebel Logistics">
       {frames.map((f, n) => (
-        <img
+        <HeroMedia
           key={f.src}
-          src={f.src}
-          alt={n === 0 ? f.alt : ''}
-          aria-hidden={n !== 0 ? true : undefined}
-          loading={n === 0 ? 'eager' : 'lazy'}
-          decoding="async"
-          className="absolute inset-0 h-full w-full object-cover"
-          style={{
-            opacity: n === i ? 1 : 0,
-            // Slow drift while a frame is on screen; it resets once hidden.
-            transform: n === i && !reduced ? 'scale(1.075)' : 'scale(1)',
-            transition: 'opacity 1100ms ease-out, transform 7000ms linear',
-          }}
+          frame={f}
+          active={n === i}
+          first={n === 0}
+          reduced={reduced}
+          zoom={1.075}
         />
       ))}
 

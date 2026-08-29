@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Phone } from 'lucide-react';
 import { SiteHeader, SiteFooter } from '../site/Chrome';
 import { BUSINESS, CLIENTS, IMG, PHOTO } from '../site/data';
 import { Button, Container, Marquee, Reveal, cx , goToQuoteForm } from '../site/ui';
@@ -239,7 +239,7 @@ export default function WorkPage() {
 
                   <div className="mt-10 grid gap-4 sm:grid-cols-2">
                     {c.images.map((im, i) => (
-                      <Reveal as="figure" key={im.src + i} delay={(i % 2) * 80} className="group">
+                      <Reveal as="figure" media key={im.src + i} delay={(i % 2) * 80} className="group">
                         <div className="aspect-[4/3] overflow-hidden rounded-[2px]">
                           <img
                             src={im.src}
@@ -254,6 +254,38 @@ export default function WorkPage() {
                       </Reveal>
                     ))}
                   </div>
+                  {/* Halfway down, offer a way out that is not the footer. */}
+                  {c.id === 'installation' && (
+                    <Reveal className="mt-16 border-y border-[var(--line)] bg-[var(--paper-2)] px-7 py-9">
+                      <div className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-center">
+                        <div>
+                          <p className="rl-display text-[1.4rem] text-[var(--ink)]">
+                            Something like this to move?
+                          </p>
+                          <p className="mt-1.5 text-[14.5px] font-light text-[var(--ink-soft)]">
+                            We reply the same business day.
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 flex-col gap-3 sm:flex-row">
+                          <a
+                            href="#enquire"
+                            onClick={(e) => { if (goToQuoteForm()) e.preventDefault(); }}
+                            className="group inline-flex h-[46px] items-center gap-2 rounded-[2px] bg-[var(--ink)] px-6 text-[13.5px] font-medium text-white transition-colors hover:bg-[var(--char-2)]"
+                          >
+                            Request a quote
+                            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={1.7} />
+                          </a>
+                          <a
+                            href={`tel:${BUSINESS.phoneIntl}`}
+                            className="inline-flex h-[46px] items-center gap-2 rounded-[2px] border border-[var(--line-2)] px-6 text-[13.5px] font-medium text-[var(--ink)] transition-colors hover:border-[var(--ink)]"
+                          >
+                            <Phone className="h-4 w-4" strokeWidth={1.7} />
+                            {BUSINESS.phone}
+                          </a>
+                        </div>
+                      </div>
+                    </Reveal>
+                  )}
                 </article>
               ))}
             </div>
