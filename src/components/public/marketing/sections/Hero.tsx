@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { BUSINESS, HERO_FRAMES } from '../site/data';
-import { Button, Container, cx, prefersReducedMotion, useScrollProgress } from '../site/ui';
+import { Button, Container, cx, prefersReducedMotion } from '../site/ui';
 
 /** Below this width the hero auto-advances and sets the copy under the image. */
 const MOBILE_MAX = 767;
@@ -145,103 +145,96 @@ function MobileHero({ reduced }: { reduced: boolean }) {
 /* ------------------------------------------------------------------ */
 
 function DesktopHero({ reduced }: { reduced: boolean }) {
-  const { ref, progress } = useScrollProgress<HTMLDivElement>();
-  const pos = progress * (HERO_FRAMES.length - 1);
-  const active = Math.min(HERO_FRAMES.length - 1, Math.round(pos));
+  const [i, setI] = useState(0);
+
+  useEffect(() => {
+    if (reduced) return;
+    const id = window.setInterval(() => setI((v) => (v + 1) % HERO_FRAMES.length), 5200);
+    return () => window.clearInterval(id);
+  }, [reduced]);
 
   return (
-    <section ref={ref} className="relative h-[240vh]" aria-label="Rebel Logistics">
-      <div className="sticky top-0 h-[100svh] w-full overflow-hidden bg-[var(--char)]">
-        {HERO_FRAMES.map((f, i) => {
-          const dist = Math.abs(pos - i);
-          const opacity = reduced ? (i === 0 ? 1 : 0) : Math.max(0, 1 - dist);
-          return (
-            <img
-              key={f.src}
-              src={f.src}
-              alt={i === 0 ? f.alt : ''}
-              aria-hidden={i !== 0 ? true : undefined}
-              loading={i === 0 ? 'eager' : 'lazy'}
-              decoding="async"
-              className="absolute inset-0 h-full w-full object-cover"
-              style={{
-                opacity,
-                transform: `scale(${1.04 - Math.min(1, dist) * 0.04})`,
-                transition: 'opacity 220ms linear, transform 220ms linear',
-              }}
-            />
-          );
-        })}
+    <section className="relative h-[100svh] w-full overflow-hidden bg-[var(--char)]" aria-label="Rebel Logistics">
+      {HERO_FRAMES.map((f, n) => (
+        <img
+          key={f.src}
+          src={f.src}
+          alt={n === 0 ? f.alt : ''}
+          aria-hidden={n !== 0 ? true : undefined}
+          loading={n === 0 ? 'eager' : 'lazy'}
+          decoding="async"
+          className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1100ms] ease-out"
+          style={{ opacity: n === i ? 1 : 0 }}
+        />
+      ))}
 
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(15,13,9,0.52) 0%, rgba(15,13,9,0.06) 26%, rgba(15,13,9,0.16) 54%, rgba(15,13,9,0.82) 100%)' }} />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(15,13,9,0.6) 0%, rgba(15,13,9,0.1) 52%, transparent 76%)' }} />
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(15,13,9,0.52) 0%, rgba(15,13,9,0.06) 26%, rgba(15,13,9,0.16) 54%, rgba(15,13,9,0.82) 100%)' }} />
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(15,13,9,0.6) 0%, rgba(15,13,9,0.1) 52%, transparent 76%)' }} />
 
-        <Container wide className="relative flex h-full flex-col justify-end pb-[13vh] sm:pb-[11vh]">
-          <div className="max-w-[52rem]">
-            <div className="mb-6 flex items-center gap-3">
-              <span aria-hidden className="inline-block h-px w-9 bg-white/40" />
-              <span className="rl-kicker !gap-0 text-white/70">
-                {BUSINESS.suburb}&nbsp; ·&nbsp; Est. {BUSINESS.founded}
-              </span>
-            </div>
+      <Container wide className="relative flex h-full flex-col justify-end pb-[13vh] sm:pb-[11vh]">
+        <div className="max-w-[52rem]">
+          <div className="mb-6 flex items-center gap-3">
+            <span aria-hidden className="inline-block h-px w-9 bg-white/40" />
+            <span className="rl-kicker !gap-0 text-white/70">
+              {BUSINESS.suburb}&nbsp; ·&nbsp; Est. {BUSINESS.founded}
+            </span>
+          </div>
 
-            <div className="grid">
-              {HERO_FRAMES.map((f, i) => {
-                const dist = Math.abs(pos - i);
-                const opacity = reduced ? (i === 0 ? 1 : 0) : Math.max(0, 1 - dist * 1.7);
-                const y = reduced ? 0 : (pos - i) * -16;
-                const Tag = (i === 0 ? 'h1' : 'div') as 'h1' | 'div';
-                return (
-                  <Tag
-                    key={f.src}
-                    className="rl-display [grid-area:1/1] text-[clamp(2.35rem,6vw,5.2rem)] text-white"
-                    style={{
-                      opacity,
-                      transform: `translateY(${y}px)`,
-                      transition: 'opacity 160ms linear',
-                      pointerEvents: i === active ? undefined : 'none',
-                    }}
-                    aria-hidden={i !== 0 ? true : undefined}
-                  >
-                    <span className="block font-medium">{f.line1}</span>
-                    <span className="block font-light text-white/85">{f.line2}</span>
-                  </Tag>
-                );
-              })}
-            </div>
-
-            <p className="mt-7 max-w-[33rem] text-[clamp(0.98rem,1.3vw,1.12rem)] font-light leading-relaxed text-white/70">
-              {BUSINESS.name} is Melbourne's specialist partner for luxury furniture, art and interiors:
-              logistics, warehousing and installation, handled with the care your pieces deserve.
-            </p>
-
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Button to="/quote" size="lg" variant="light">
-                Request a quote
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={1.6} />
-              </Button>
-              <a
-                href="#services"
-                className="inline-flex h-[52px] items-center justify-center rounded-[2px] border border-white/25 px-8 text-[14px] font-medium text-white/90 transition-colors hover:border-white hover:text-white"
-              >
-                Our services
-              </a>
-            </div>
-
-            <div className="mt-9 flex items-center gap-2" aria-hidden>
-              {HERO_FRAMES.map((f, i) => (
-                <span
+          <div className="grid">
+            {HERO_FRAMES.map((f, n) => {
+              const Tag = (n === 0 ? 'h1' : 'div') as 'h1' | 'div';
+              return (
+                <Tag
                   key={f.src}
+                  className="rl-display [grid-area:1/1] text-[clamp(2.35rem,6vw,5.2rem)] text-white transition-opacity duration-700"
+                  style={{ opacity: n === i ? 1 : 0, pointerEvents: n === i ? undefined : 'none' }}
+                  aria-hidden={n !== 0 ? true : undefined}
+                >
+                  <span className="block font-medium">{f.line1}</span>
+                  <span className="block font-light text-white/85">{f.line2}</span>
+                </Tag>
+              );
+            })}
+          </div>
+
+          <p className="mt-7 max-w-[33rem] text-[clamp(0.98rem,1.3vw,1.12rem)] font-light leading-relaxed text-white/70">
+            {BUSINESS.name} is Melbourne's specialist partner for luxury furniture, art and interiors:
+            logistics, warehousing and installation, handled with the care your pieces deserve.
+          </p>
+
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Button to="/quote" size="lg" variant="light">
+              Request a quote
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={1.6} />
+            </Button>
+            <a
+              href="#services"
+              className="inline-flex h-[52px] items-center justify-center rounded-[2px] border border-white/25 px-8 text-[14px] font-medium text-white/90 transition-colors hover:border-white hover:text-white"
+            >
+              Our services
+            </a>
+          </div>
+
+          <div className="mt-9 flex items-center gap-2">
+            {HERO_FRAMES.map((f, n) => (
+              <button
+                key={f.src}
+                type="button"
+                aria-label={`Show frame ${n + 1}`}
+                onClick={() => setI(n)}
+                className="py-2"
+              >
+                <span
                   className={cx(
-                    'h-px transition-all duration-300',
-                    i === active ? 'w-10 bg-white' : 'w-5 bg-white/30',
+                    'block h-px transition-all duration-300',
+                    n === i ? 'w-10 bg-white' : 'w-5 bg-white/30',
                   )}
                 />
-              ))}
-            </div>
+              </button>
+            ))}
           </div>
-        </Container>
-      </div>
+        </div>
+      </Container>
     </section>
   );
 }

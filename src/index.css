@@ -327,16 +327,33 @@
   text-transform: uppercase;
 }
 
-/* Reveal-on-scroll — toggled by an IntersectionObserver adding .is-in */
+/* Reveal-on-scroll — .is-in is added once the block enters the viewport.
+   Text lifts; media settles. Two gestures, not one applied everywhere. */
 .rl-reveal {
   opacity: 0;
-  transform: translateY(18px);
-  transition: opacity 900ms cubic-bezier(0.16, 1, 0.3, 1),
-              transform 900ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateY(14px);
+  transition: opacity 760ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 760ms cubic-bezier(0.22, 1, 0.36, 1);
   transition-delay: var(--rl-delay, 0ms);
   will-change: opacity, transform;
 }
 .rl-reveal.is-in { opacity: 1; transform: none; }
+
+/* Images and figures scale down into place rather than sliding, so a grid of
+   them settles instead of marching. */
+.rl-reveal--media {
+  opacity: 0;
+  transform: scale(1.03);
+  transition: opacity 900ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 900ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--rl-delay, 0ms);
+}
+.rl-reveal--media.is-in { opacity: 1; transform: none; }
+
+/* Hairlines draw in from the left. */
+.rl-reveal .rl-line { transform: scaleX(0); transform-origin: left;
+  transition: transform 900ms cubic-bezier(0.22, 1, 0.36, 1) 120ms; }
+.rl-reveal.is-in .rl-line { transform: scaleX(1); }
 
 /* Brand marquee */
 @keyframes rl-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
@@ -358,7 +375,8 @@
 .rl-reveal.is-in .rl-rule, .is-in.rl-rule { transform: scaleX(1); }
 
 @media (prefers-reduced-motion: reduce) {
-  .rl-reveal { opacity: 1; transform: none; transition: none; }
+  .rl-reveal, .rl-reveal--media { opacity: 1; transform: none; transition: none; }
+  .rl-reveal .rl-line { transform: none; transition: none; }
   .rl-marquee-track { animation: none; }
   .rl-rule { transform: none; }
 }

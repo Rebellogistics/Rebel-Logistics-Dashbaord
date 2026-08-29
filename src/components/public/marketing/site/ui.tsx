@@ -39,11 +39,14 @@ export function Reveal({
   className,
   delay = 0,
   as: Tag = 'div',
+  media = false,
 }: {
   children: ReactNode;
   className?: string;
   delay?: number;
   as?: 'div' | 'section' | 'li' | 'span' | 'header' | 'figure';
+  /** Media settles into place instead of lifting. */
+  media?: boolean;
 }) {
   const ref = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -74,8 +77,12 @@ export function Reveal({
     return cleanup;
   }, []);
   return (
-    // @ts-expect-error — dynamic tag
-    <Tag ref={ref} className={cx('rl-reveal', className)} style={{ ['--rl-delay' as string]: `${delay}ms` }}>
+    <Tag
+      // @ts-expect-error dynamic tag widens the ref type
+      ref={ref}
+      className={cx(media ? 'rl-reveal--media' : 'rl-reveal', className)}
+      style={{ ['--rl-delay' as string]: `${delay}ms` }}
+    >
       {children}
     </Tag>
   );

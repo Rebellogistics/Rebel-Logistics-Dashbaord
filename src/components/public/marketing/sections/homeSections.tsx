@@ -164,6 +164,7 @@ export function Proof({ place }: { place?: string } = {}) {
           {GALLERY.map((g, i) => (
             <Reveal
               as="figure"
+              media
               key={g.src}
               delay={(i % 4) * 70}
               // Uniform cells. Mixed row/col spans left ragged gaps whenever a
