@@ -50,7 +50,7 @@ function Shell({ children, overHero }: { children: ReactNode; overHero?: boolean
 
 function ImageHero({ eyebrow, title, sub, lead, image, alt, video }: { eyebrow: string; title: string; sub?: string; lead: string; image: string; alt: string; video?: string }) {
   return (
-    <section className="relative flex h-[78vh] min-h-[540px] items-end overflow-hidden bg-[var(--char)]">
+    <section className="relative flex h-[100svh] items-end overflow-hidden bg-[var(--char)]">
       {video ? (
         <video
           className="absolute inset-0 h-full w-full object-cover"
@@ -78,10 +78,17 @@ function ImageHero({ eyebrow, title, sub, lead, image, alt, video }: { eyebrow: 
             {sub && <span className="block font-light text-white/80">{sub}</span>}
           </h1>
           <p className="mt-7 max-w-xl text-[clamp(1rem,1.35vw,1.14rem)] font-light leading-relaxed text-white/70">{lead}</p>
-          <div className="mt-9">
+          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
             <QuoteCTA variant="light">
               Request a quote <ArrowRight className="h-4 w-4" strokeWidth={1.6} />
             </QuoteCTA>
+            <a
+              href={`tel:${BUSINESS.phoneIntl}`}
+              className="inline-flex h-[52px] items-center justify-center gap-2 rounded-[2px] border border-white/25 px-8 text-[14px] font-medium text-white/90 transition-colors hover:border-white hover:text-white"
+            >
+              <Phone className="h-4 w-4" strokeWidth={1.7} />
+              {BUSINESS.phone}
+            </a>
           </div>
         </Reveal>
       </Container>
@@ -133,9 +140,9 @@ export function ServicePage({ slug }: { slug: string }) {
   return (
     <Shell overHero>
       <ImageHero
-        eyebrow={`Services / ${service.index}`}
+        eyebrow="Services"
         title={service.title}
-        lead={service.lead}
+        lead={service.heroLead}
         image={service.image}
         alt={service.imageAlt}
         video={service.heroVideo}

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight } from 'lucide-react';
-import { BUSINESS, HERO_FRAMES } from '../site/data';
+import { ArrowRight, Phone } from 'lucide-react';
+import { BUSINESS, HERO_FRAMES, type HeroFrame } from '../site/data';
 import { Button, Container, cx, prefersReducedMotion } from '../site/ui';
 
 /** Below this width the hero auto-advances and sets the copy under the image. */
 const MOBILE_MAX = 767;
 
-export function Hero() {
+export function Hero({ frames = HERO_FRAMES, callCta = false }: { frames?: HeroFrame[]; callCta?: boolean } = {}) {
   const [isMobile, setIsMobile] = useState(false);
   const [reduced, setReduced] = useState(false);
 
@@ -32,7 +32,9 @@ export function Hero() {
     }
   }, []);
 
-  return isMobile ? <MobileHero reduced={reduced} /> : <DesktopHero reduced={reduced} />;
+  return isMobile
+    ? <MobileHero reduced={reduced} frames={frames} callCta={callCta} />
+    : <DesktopHero reduced={reduced} frames={frames} callCta={callCta} />;
 }
 
 /* ------------------------------------------------------------------ */
@@ -41,12 +43,12 @@ export function Hero() {
 /* and buries the words under the picture.                             */
 /* ------------------------------------------------------------------ */
 
-function MobileHero({ reduced }: { reduced: boolean }) {
+function MobileHero({ reduced, frames, callCta }: { reduced: boolean; frames: HeroFrame[]; callCta: boolean }) {
   const [i, setI] = useState(0);
 
   useEffect(() => {
     if (reduced) return;
-    const id = window.setInterval(() => setI((v) => (v + 1) % HERO_FRAMES.length), 4200);
+    const id = window.setInterval(() => setI((v) => (v + 1) % frames.length), 4200);
     return () => window.clearInterval(id);
   }, [reduced]);
 
@@ -56,7 +58,7 @@ function MobileHero({ reduced }: { reduced: boolean }) {
     <section className="bg-[var(--paper)] pt-[76px]" aria-label="Rebel Logistics">
       {/* Image, uncovered */}
       <div className="relative aspect-[4/5] w-full overflow-hidden bg-[var(--char)]">
-        {HERO_FRAMES.map((frame, n) => (
+        {frames.map((frame, n) => (
           <img
             key={frame.src}
             src={frame.src}
@@ -64,8 +66,12 @@ function MobileHero({ reduced }: { reduced: boolean }) {
             aria-hidden={n !== 0 ? true : undefined}
             loading={n === 0 ? 'eager' : 'lazy'}
             decoding="async"
-            className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[900ms] ease-out"
-            style={{ opacity: n === i ? 1 : 0 }}
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{
+              opacity: n === i ? 1 : 0,
+              transform: n === i && !reduced ? 'scale(1.06)' : 'scale(1)',
+              transition: 'opacity 900ms ease-out, transform 6000ms linear',
+            }}
           />
         ))}
         <div
@@ -85,7 +91,7 @@ function MobileHero({ reduced }: { reduced: boolean }) {
         </div>
 
         <div className="mt-5 grid">
-          {HERO_FRAMES.map((frame, n) => (
+          {frames.map((frame, n) => (
             <h1
               key={frame.src}
               className="rl-display [grid-area:1/1] text-[clamp(2.1rem,9vw,2.9rem)] text-[var(--ink)] transition-opacity duration-500"
@@ -108,17 +114,27 @@ function MobileHero({ reduced }: { reduced: boolean }) {
             Request a quote
             <ArrowRight className="h-4 w-4" strokeWidth={1.6} />
           </Button>
-          <a
-            href="#services"
-            className="inline-flex h-[52px] items-center justify-center rounded-[2px] border border-[var(--line-2)] px-8 text-[14px] font-medium text-[var(--ink)]"
-          >
-            Our services
-          </a>
+          {callCta ? (
+            <a
+              href={`tel:${BUSINESS.phoneIntl}`}
+              className="inline-flex h-[52px] items-center justify-center gap-2 rounded-[2px] border border-[var(--line-2)] px-8 text-[14px] font-medium text-[var(--ink)]"
+            >
+              <Phone className="h-4 w-4" strokeWidth={1.7} />
+              {BUSINESS.phone}
+            </a>
+          ) : (
+            <a
+              href="#services"
+              className="inline-flex h-[52px] items-center justify-center rounded-[2px] border border-[var(--line-2)] px-8 text-[14px] font-medium text-[var(--ink)]"
+            >
+              Our services
+            </a>
+          )}
         </div>
 
         {/* Tappable frame markers */}
         <div className="mt-7 flex items-center gap-2">
-          {HERO_FRAMES.map((frame, n) => (
+          {frames.map((frame, n) => (
             <button
               key={frame.src}
               type="button"
@@ -144,18 +160,18 @@ function MobileHero({ reduced }: { reduced: boolean }) {
 /* Desktop: sticky panel, frames crossfade with scroll position.       */
 /* ------------------------------------------------------------------ */
 
-function DesktopHero({ reduced }: { reduced: boolean }) {
+function DesktopHero({ reduced, frames, callCta }: { reduced: boolean; frames: HeroFrame[]; callCta: boolean }) {
   const [i, setI] = useState(0);
 
   useEffect(() => {
     if (reduced) return;
-    const id = window.setInterval(() => setI((v) => (v + 1) % HERO_FRAMES.length), 5200);
+    const id = window.setInterval(() => setI((v) => (v + 1) % frames.length), 5200);
     return () => window.clearInterval(id);
   }, [reduced]);
 
   return (
     <section className="relative h-[100svh] w-full overflow-hidden bg-[var(--char)]" aria-label="Rebel Logistics">
-      {HERO_FRAMES.map((f, n) => (
+      {frames.map((f, n) => (
         <img
           key={f.src}
           src={f.src}
@@ -163,8 +179,13 @@ function DesktopHero({ reduced }: { reduced: boolean }) {
           aria-hidden={n !== 0 ? true : undefined}
           loading={n === 0 ? 'eager' : 'lazy'}
           decoding="async"
-          className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1100ms] ease-out"
-          style={{ opacity: n === i ? 1 : 0 }}
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{
+            opacity: n === i ? 1 : 0,
+            // Slow drift while a frame is on screen; it resets once hidden.
+            transform: n === i && !reduced ? 'scale(1.075)' : 'scale(1)',
+            transition: 'opacity 1100ms ease-out, transform 7000ms linear',
+          }}
         />
       ))}
 
@@ -181,7 +202,7 @@ function DesktopHero({ reduced }: { reduced: boolean }) {
           </div>
 
           <div className="grid">
-            {HERO_FRAMES.map((f, n) => {
+            {frames.map((f, n) => {
               const Tag = (n === 0 ? 'h1' : 'div') as 'h1' | 'div';
               return (
                 <Tag
@@ -207,16 +228,26 @@ function DesktopHero({ reduced }: { reduced: boolean }) {
               Request a quote
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={1.6} />
             </Button>
-            <a
-              href="#services"
-              className="inline-flex h-[52px] items-center justify-center rounded-[2px] border border-white/25 px-8 text-[14px] font-medium text-white/90 transition-colors hover:border-white hover:text-white"
-            >
-              Our services
-            </a>
+            {callCta ? (
+              <a
+                href={`tel:${BUSINESS.phoneIntl}`}
+                className="inline-flex h-[52px] items-center justify-center gap-2 rounded-[2px] border border-white/25 px-8 text-[14px] font-medium text-white/90 transition-colors hover:border-white hover:text-white"
+              >
+                <Phone className="h-4 w-4" strokeWidth={1.7} />
+                {BUSINESS.phone}
+              </a>
+            ) : (
+              <a
+                href="#services"
+                className="inline-flex h-[52px] items-center justify-center rounded-[2px] border border-white/25 px-8 text-[14px] font-medium text-white/90 transition-colors hover:border-white hover:text-white"
+              >
+                Our services
+              </a>
+            )}
           </div>
 
           <div className="mt-9 flex items-center gap-2">
-            {HERO_FRAMES.map((f, n) => (
+            {frames.map((f, n) => (
               <button
                 key={f.src}
                 type="button"

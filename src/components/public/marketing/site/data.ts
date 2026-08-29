@@ -92,6 +92,8 @@ export type Service = {
   heroVideo: string;
   /** Photographs for the page's scrolling rail. */
   rail: string[];
+  /** Full-sentence hero description, in the register of the home page. */
+  heroLead: string;
   /** Longer-form supporting content. */
   detail: { t: string; d: string }[];
 };
@@ -117,6 +119,8 @@ export const SERVICES: Service[] = [
       IMG.craneAirborne, IMG.craneLift, IMG.craneVertical, IMG.marble,
       IMG.artHall, IMG.lounge, IMG.chandelier, IMG.warehouse,
     ],
+    heroLead:
+      "We move furniture, stone, art and lighting into Melbourne's best homes and showrooms. Access is surveyed before we quote, the piece is wrapped before it travels, and it is assembled and placed to the drawing rather than left at the door.",
     detail: [
       { t: 'Access planned before the day', d: 'We assess the approach first: driveway, doorway, lift car, stair turn. If a piece will not make the hallway, the crane is booked before the truck is loaded, not discovered on arrival.' },
       { t: 'Protection goes down first', d: 'Floors, corners and balustrades are covered before anything crosses the threshold. The house is as valuable as the furniture entering it.' },
@@ -144,6 +148,8 @@ export const SERVICES: Service[] = [
       IMG.warehouse, IMG.warehouseAlt, IMG.marble, IMG.craneLift,
       IMG.lounge, IMG.artDetail, IMG.dining, IMG.craneAirborne,
     ],
+    heroLead:
+      "Secure storage for pieces that cannot be replaced, billed by the cubic metre at our Flemington warehouse. We take containers straight from the port, unpack and catalogue them, and deliver piece by piece on your schedule.",
     detail: [
       { t: 'Billed by the cubic metre', d: 'You pay for the space your pieces occupy, measured honestly, with no minimum pallet counts or padded volumes.' },
       { t: 'Container unpack and delivery', d: 'We collect from the port, unpack at our Flemington warehouse and deliver piece by piece on your schedule rather than dumping a full container on site.' },
@@ -171,6 +177,8 @@ export const SERVICES: Service[] = [
       IMG.wrapping, IMG.crew, IMG.lounge, IMG.loungeWide,
       IMG.chandelier, IMG.dining, IMG.artHall, IMG.craneLift,
     ],
+    heroLead:
+      "Trained crews for install days, showroom resets and event turnarounds. Not general labour hire: our people handle designer furniture, stone and artwork every day, and know how to carry it, wrap it and set it down.",
     detail: [
       { t: 'Crews who move precious things daily', d: 'Not general labour hire. Our people handle designer furniture, stone and artwork every day and know how to carry, wrap and set it down.' },
       { t: 'Install days and showroom resets', d: 'A styling team can direct; we do the lifting, assembly and reinstatement, then clear the packaging.' },

@@ -2,13 +2,14 @@ import { useEffect } from 'react';
 import { Link, useLocation, useParams, Navigate } from 'react-router-dom';
 import { ArrowRight, Check, Clock, MapPin, Phone, ShieldCheck } from 'lucide-react';
 import { SiteHeader, SiteFooter } from '../site/Chrome';
-import { BUSINESS, CLIENTS, GALLERY, IMG, SERVICES } from '../site/data';
+import { BUSINESS, CLIENTS, GALLERY, HERO_FRAMES, IMG, SERVICES, type HeroFrame } from '../site/data';
 import { AREAS_DATA, AREA_REGIONS, findArea, type Area } from '../site/areas';
 import { Button, Container, Marquee, PhotoRail, Reveal, goToQuoteForm } from '../site/ui';
 import { ReelRail } from '../site/Reels';
 import { LeadForm } from '../site/LeadForm';
 import { useSeo } from '../site/seo';
 import { ServicesOverview, Proof, Sectors, Process, Faq } from '../sections/homeSections';
+import { Hero } from '../sections/Hero';
 
 function useTop() {
   const { pathname } = useLocation();
@@ -136,54 +137,25 @@ function AreaBody({ area }: { area: Area }) {
 
   const rail = GALLERY.map((g) => g.src);
 
+  // The home page's frames, with the first line naming this suburb so the
+  // page reads as local rather than as a template with a word swapped.
+  const heroFrames: HeroFrame[] = [
+    {
+      ...HERO_FRAMES[0],
+      alt: `Rebel Logistics installing luxury furniture in ${area.name}, Melbourne`,
+      line1: 'White-glove logistics',
+      line2: `in ${area.name}.`,
+    },
+    { ...HERO_FRAMES[1], line1: 'Handled like', line2: "it's irreplaceable." },
+    { ...HERO_FRAMES[2], line1: 'Left finished,', line2: 'not just delivered.' },
+  ];
+
   return (
     <div className="rl min-h-screen">
       <SiteHeader overHero />
       <main>
-        {/* Hero */}
-        <section className="relative flex h-[70vh] min-h-[480px] items-end overflow-hidden bg-[var(--char)]">
-          <video
-            className="absolute inset-0 h-full w-full object-cover"
-            src="/site/reels/bg/areas.mp4"
-            poster={IMG.craneAirborne}
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="metadata"
-            aria-hidden
-          />
-          <div
-            className="absolute inset-0"
-            style={{ background: 'linear-gradient(180deg, rgba(15,13,9,0.5) 0%, rgba(15,13,9,0.1) 34%, rgba(15,13,9,0.85) 100%)' }}
-          />
-          <Container wide className="relative pb-16 sm:pb-20">
-            <Reveal>
-              <div className="mb-6 flex items-center gap-3">
-                <span aria-hidden className="inline-block h-px w-9 bg-white/40" />
-                <span className="rl-kicker !gap-0 text-white/70">
-                  {area.region} &nbsp;·&nbsp; {area.postcode}
-                </span>
-              </div>
-              <h1 className="rl-display max-w-4xl text-[clamp(2.4rem,5.6vw,4.6rem)] text-white">
-                <span className="block font-medium">White-glove logistics</span>
-                <span className="block font-light text-white/80">in {area.name}.</span>
-              </h1>
-              <p className="mt-7 max-w-xl text-[clamp(1rem,1.35vw,1.14rem)] font-light leading-relaxed text-white/70">
-                {area.angle} Furniture, art, stone and lighting delivered, installed and stored by specialists
-                who work in {area.name} every week.
-              </p>
-              <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-                <Button to="/quote" size="lg" variant="light">
-                  Request a quote <ArrowRight className="h-4 w-4" strokeWidth={1.6} />
-                </Button>
-                <Button href={`tel:${BUSINESS.phoneIntl}`} size="lg" variant="outlineLight">
-                  {BUSINESS.phone}
-                </Button>
-              </div>
-            </Reveal>
-          </Container>
-        </section>
+        {/* Same hero as the home page, copy written for this suburb */}
+        <Hero frames={heroFrames} callCta />
 
         {/* 02 — Authority (mirrors the home page) */}
         <section className="border-b border-[var(--line)] bg-[var(--paper)] py-14">

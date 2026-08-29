@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { upsertCustomerByPhone } from '@/lib/customerUpsert';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
 import { format } from 'date-fns';
-import { ArrowRight, Check, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, ShieldCheck } from 'lucide-react';
 import { BUSINESS } from './data';
 import { cx, FORM_FOCUS_EVENT } from './ui';
 import type { JobType } from '@/lib/types';
@@ -152,7 +152,7 @@ export function LeadForm({
       )}
     >
       {/* Header strip */}
-      <div className="flex items-center justify-between gap-4 border-b border-[var(--line-2)] px-6 py-4 sm:px-8">
+      <div className="flex items-center justify-between gap-4 border-b border-[var(--line-2)] px-5 py-3.5 sm:px-7">
         <p className="rl-kicker text-[var(--ink)]">Request a quote</p>
         <p className="hidden text-[12px] font-light text-[var(--ink-faint)] sm:block">
           Takes about a minute
@@ -172,8 +172,8 @@ export function LeadForm({
         </div>
       </div>
 
-      <div className={cx('px-6 sm:px-8', compact ? 'py-7' : 'py-9')}>
-        <div className="grid gap-x-8 gap-y-7 sm:grid-cols-2">
+      <div className={cx('px-5 sm:px-7', compact ? 'py-6' : 'py-7')}>
+        <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
           <Field label="Full name" required>
             <input
               value={form.name}
@@ -205,25 +205,21 @@ export function LeadForm({
           </Field>
 
           <Field label="What can we help with?" className="sm:col-span-2">
-            <div className="flex flex-wrap gap-2 pt-1">
-              {SERVICE_OPTIONS.map((s) => {
-                const on = form.service === s.label;
-                return (
-                  <button
-                    key={s.label}
-                    type="button"
-                    onClick={() => set('service', s.label)}
-                    className={cx(
-                      'rounded-[2px] border px-3.5 py-2 text-[13px] transition-colors',
-                      on
-                        ? 'border-[var(--ink)] bg-[var(--ink)] text-white'
-                        : 'border-[var(--line-2)] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)]',
-                    )}
-                  >
-                    {s.label}
-                  </button>
-                );
-              })}
+            <div className="relative">
+              <select
+                value={form.service}
+                onChange={(e) => set('service', e.target.value)}
+                className={cx(inputCls, 'appearance-none pr-10')}
+              >
+                {SERVICE_OPTIONS.map((s) => (
+                  <option key={s.label} value={s.label}>{s.label}</option>
+                ))}
+              </select>
+              <ChevronDown
+                aria-hidden
+                className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--ink-faint)]"
+                strokeWidth={1.7}
+              />
             </div>
           </Field>
 
@@ -249,8 +245,8 @@ export function LeadForm({
               value={form.details}
               onChange={(e) => set('details', e.target.value)}
               placeholder="What you're moving, access, timing, fragile pieces"
-              rows={compact ? 2 : 3}
-              className={cx(inputCls, 'h-auto resize-none py-2')}
+              rows={2}
+              className={cx(inputCls, 'h-auto resize-none py-2.5 leading-relaxed')}
             />
           </Field>
         </div>
@@ -267,11 +263,11 @@ export function LeadForm({
       </div>
 
       {/* Action bar */}
-      <div className="border-t border-[var(--line-2)] px-6 py-5 sm:px-8">
+      <div className="border-t border-[var(--line-2)] px-5 py-4 sm:px-7">
         <button
           type="submit"
           aria-busy={state === 'submitting'}
-          className="group flex h-[56px] w-full items-center justify-center gap-2.5 rounded-[2px] bg-[var(--ink)] text-[14.5px] font-medium tracking-[0.01em] text-white transition-colors hover:bg-[var(--char-2)]"
+          className="group flex h-[52px] w-full items-center justify-center gap-2.5 rounded-[2px] bg-[var(--ink)] text-[14.5px] font-medium tracking-[0.01em] text-white transition-colors hover:bg-[var(--char-2)]"
         >
           {state === 'submitting' ? 'Sending your enquiry' : 'Request my quote'}
           <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" strokeWidth={1.7} />
@@ -285,9 +281,10 @@ export function LeadForm({
   );
 }
 
-/* Underline fields: quieter and more considered than boxed inputs. */
+/* Filled, hairline-bordered fields. Quiet enough for the world, solid enough
+   to read as something you type into. */
 const inputCls =
-  'h-11 w-full border-0 border-b border-[var(--line-2)] bg-transparent px-0 text-[15.5px] text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-faint)]/70 focus:border-[var(--ink)] focus:ring-0';
+  'h-[46px] w-full rounded-[2px] border border-[var(--line-2)] bg-[var(--paper-2)] px-3.5 text-[15px] text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--ink)] focus:bg-[var(--paper)]';
 
 function Field({
   label,
@@ -302,7 +299,7 @@ function Field({
 }) {
   return (
     <label className={cx('block', className)}>
-      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--ink-faint)]">
+      <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--ink-soft)]">
         {label}
         {required && <span className="ml-1 text-[var(--accent)]">*</span>}
       </span>
