@@ -72,11 +72,13 @@ export function SiteHeader({ overHero = false }: { overHero?: boolean }) {
     >
       <Container wide className="flex h-[76px] items-center justify-between gap-3 sm:gap-4">
         <Link to="/" className="flex items-center" aria-label={BUSINESS.name}>
-          {/* Always the real gold wordmark; a soft plate keeps it legible on white. */}
+          {/* The pale gold gradient is unreadable on paper, so the bar swaps to
+              a deeper gold the moment it turns white. Same mark, same colour
+              family, legible on both grounds. */}
           <img
-            src="/site/brand/rebel-logo-gold.png"
+            src={light ? '/site/brand/rebel-logo-gold.png' : '/site/brand/rebel-logo-deep.png'}
             alt="Rebel Logistics"
-            className="h-8 w-auto shrink-0 sm:h-10"
+            className="h-9 w-auto shrink-0 sm:h-11"
             draggable={false}
           />
         </Link>
@@ -226,7 +228,6 @@ export function SiteFooter() {
       <div className="border-b border-white/10">
         <Container wide className="flex flex-col items-start justify-between gap-10 py-20 md:flex-row md:items-end">
           <div className="max-w-2xl">
-            <p className="rl-kicker text-white/45">Ready when you are</p>
             <h2 className="rl-display mt-6 text-[clamp(2.2rem,4.4vw,3.6rem)] text-white">
               Request a quote.
             </h2>
@@ -290,7 +291,7 @@ export function SiteFooter() {
           <li>
             <a href={`mailto:${BUSINESS.email}`} className="flex items-start gap-2.5 text-[14px] text-white/60 hover:text-white">
               <Mail className="mt-0.5 h-4 w-4 shrink-0 text-white/40" strokeWidth={1.5} />
-              <span className="[overflow-wrap:anywhere]">{BUSINESS.email}</span>
+              <span className="whitespace-nowrap text-[13.5px]">{BUSINESS.email}</span>
             </a>
           </li>
           <li className="flex items-start gap-2.5 text-[14px] font-light leading-relaxed text-white/60">

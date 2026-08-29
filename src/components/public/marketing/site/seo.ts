@@ -96,14 +96,6 @@ export function useSeo({ title, description, path, image = '/site/hero-1.jpg', s
       geo: { '@type': 'GeoCoordinates', latitude: -37.7876, longitude: 144.9219 },
       areaServed: AREAS.map((a) => ({ '@type': 'Place', name: `${a}, Victoria` })),
       sameAs: [BUSINESS.instagram],
-      openingHoursSpecification: [
-        {
-          '@type': 'OpeningHoursSpecification',
-          dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-          opens: '07:00',
-          closes: '17:00',
-        },
-      ],
       hasOfferCatalog: {
         '@type': 'OfferCatalog',
         name: 'Services',

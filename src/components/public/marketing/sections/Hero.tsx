@@ -141,19 +141,17 @@ function MobileHero({ reduced, frames, callCta }: { reduced: boolean; frames: He
 
       {/* Copy, on the page rather than over the picture */}
       <Container className="pb-14 pt-7">
-        <div className="flex items-center gap-3">
-          <span aria-hidden className="inline-block h-px w-8 bg-[var(--line-2)]" />
-          <span className="rl-kicker !gap-0 text-[var(--ink-faint)]">
-            {BUSINESS.suburb}&nbsp; ·&nbsp; Est. {BUSINESS.founded}
-          </span>
-        </div>
 
         <div className="mt-5 grid">
           {frames.map((frame, n) => (
             <h1
               key={frame.src}
-              className="rl-display [grid-area:1/1] text-[clamp(2.1rem,9vw,2.9rem)] text-[var(--ink)] transition-opacity duration-500"
-              style={{ opacity: n === i ? 1 : 0, pointerEvents: n === i ? undefined : 'none' }}
+              className="rl-display [grid-area:1/1] text-[clamp(2.1rem,9vw,2.9rem)] text-[var(--ink)]"
+              style={{
+                opacity: n === i ? 1 : 0,
+                transition: n === i ? 'opacity 420ms ease-out 320ms' : 'opacity 260ms ease-in',
+                pointerEvents: n === i ? undefined : 'none',
+              }}
               aria-hidden={n !== 0 ? true : undefined}
             >
               <span className="block font-medium">{frame.line1}</span>
@@ -245,12 +243,6 @@ function DesktopHero({ reduced, frames, callCta }: { reduced: boolean; frames: H
 
       <Container wide className="relative flex h-full flex-col justify-end pb-[13vh] sm:pb-[11vh]">
         <div className="max-w-[52rem]">
-          <div className="mb-6 flex items-center gap-3">
-            <span aria-hidden className="inline-block h-px w-9 bg-white/40" />
-            <span className="rl-kicker !gap-0 text-white/70">
-              {BUSINESS.suburb}&nbsp; ·&nbsp; Est. {BUSINESS.founded}
-            </span>
-          </div>
 
           <div className="grid">
             {frames.map((f, n) => {
@@ -258,7 +250,7 @@ function DesktopHero({ reduced, frames, callCta }: { reduced: boolean; frames: H
               return (
                 <Tag
                   key={f.src}
-                  className="rl-display [grid-area:1/1] text-[clamp(2.35rem,6vw,5.2rem)] text-white transition-opacity duration-700"
+                  className="rl-display [grid-area:1/1] text-[clamp(2.35rem,6vw,5.2rem)] text-white"
                   style={{ opacity: n === i ? 1 : 0, pointerEvents: n === i ? undefined : 'none' }}
                   aria-hidden={n !== 0 ? true : undefined}
                 >

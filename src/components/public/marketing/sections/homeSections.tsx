@@ -22,12 +22,7 @@ const FEATURED_AREAS = FEATURED_SLUGS
 export function BrandsBand() {
   return (
     <section className="border-b border-[var(--line)] bg-[var(--paper)] py-14">
-      <Container wide>
-        <Reveal className="text-center">
-          <p className="rl-kicker text-[var(--ink-faint)]">Trusted to handle the irreplaceable</p>
-        </Reveal>
-      </Container>
-      <div className="mt-9">
+      <div>
         <Marquee logos={CLIENTS} />
       </div>
     </section>

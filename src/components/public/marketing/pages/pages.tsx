@@ -112,10 +112,6 @@ function ImageHero({ eyebrow, title, sub, lead, image, alt, video }: { eyebrow: 
           />
         </div>
         <Container className="pb-14 pt-7">
-          <div className="flex items-center gap-3">
-            <span aria-hidden className="inline-block h-px w-8 bg-[var(--line-2)]" />
-            <span className="rl-kicker !gap-0 text-[var(--ink-faint)]">{eyebrow}</span>
-          </div>
           <h1 className="rl-display mt-5 text-[clamp(2.1rem,9vw,2.9rem)] text-[var(--ink)]">
             <span className="block font-medium">{title}</span>
             {sub && <span className="block font-light text-[var(--ink-soft)]">{sub}</span>}
@@ -133,10 +129,6 @@ function ImageHero({ eyebrow, title, sub, lead, image, alt, video }: { eyebrow: 
       <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(15,13,9,0.5) 0%, rgba(15,13,9,0.08) 34%, rgba(15,13,9,0.82) 100%)' }} />
       <Container wide className="relative pb-16 sm:pb-20">
         <Reveal>
-          <div className="mb-6 flex items-center gap-3">
-            <span aria-hidden className="inline-block h-px w-9 bg-white/40" />
-            <span className="rl-kicker !gap-0 text-white/70">{eyebrow}</span>
-          </div>
           <h1 className="rl-display max-w-4xl text-[clamp(2.6rem,6vw,5rem)] text-white">
             <span className="block font-medium">{title}</span>
             {sub && <span className="block font-light text-white/80">{sub}</span>}
@@ -203,12 +195,7 @@ export function ServicePage({ slug }: { slug: string }) {
 
       {/* 02 — Authority before the ask */}
       <section className="border-y border-[var(--line)] bg-[var(--paper)] py-12">
-        <Container wide>
-          <Reveal className="text-center">
-            <p className="rl-kicker text-[var(--ink-faint)]">Trusted to handle the irreplaceable</p>
-          </Reveal>
-        </Container>
-        <div className="mt-8">
+        <div>
           <Marquee logos={CLIENTS} />
         </div>
       </section>
@@ -479,10 +466,6 @@ function AboutHero() {
           />
         </div>
         <Container className="pb-14 pt-7">
-          <div className="flex items-center gap-3">
-            <span aria-hidden className="inline-block h-px w-8 bg-[var(--line-2)]" />
-            <span className="rl-kicker !gap-0 text-[var(--ink-faint)]">Melbourne&nbsp; ·&nbsp; Est. {BUSINESS.founded}</span>
-          </div>
           <div className="mt-5 grid">
             {ABOUT_BEATS.map((b, n) => (
               <h1
@@ -522,10 +505,6 @@ function AboutHero() {
       <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(15,13,9,0.62) 0%, rgba(15,13,9,0.12) 54%, transparent 78%)' }} />
       <Container wide className="relative pb-14">
         <div className="max-w-[46rem]">
-          <div className="mb-6 flex items-center gap-3">
-            <span aria-hidden className="inline-block h-px w-9 bg-white/40" />
-            <span className="rl-kicker !gap-0 text-white/70">Melbourne&nbsp; ·&nbsp; Est. {BUSINESS.founded}</span>
-          </div>
           <div className="grid">
             {ABOUT_BEATS.map((b, n) => (
               <h1
@@ -622,12 +601,7 @@ export function AboutPage() {
       </section>
 
       <section className="border-y border-[var(--line)] bg-[var(--paper)] py-12">
-        <Container wide>
-          <Reveal className="text-center">
-            <p className="rl-kicker text-[var(--ink-faint)]">Trusted to handle the irreplaceable</p>
-          </Reveal>
-        </Container>
-        <div className="mt-8">
+        <div>
           <Marquee logos={CLIENTS} />
         </div>
       </section>

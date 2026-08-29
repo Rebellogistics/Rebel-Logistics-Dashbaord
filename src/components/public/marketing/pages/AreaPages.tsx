@@ -86,12 +86,7 @@ export function AreasIndexPage() {
         </section>
 
         <section className="border-y border-[var(--line)] bg-[var(--paper)] py-12">
-          <Container wide>
-            <Reveal className="text-center">
-              <p className="rl-kicker text-[var(--ink-faint)]">Trusted to handle the irreplaceable</p>
-            </Reveal>
-          </Container>
-          <div className="mt-8">
+          <div>
             <Marquee logos={CLIENTS} />
           </div>
         </section>
@@ -146,7 +141,7 @@ function AreaBody({ area }: { area: Area }) {
       line1: 'White-glove logistics',
       line2: `in ${area.name}.`,
     },
-    { ...HERO_FRAMES[1], line1: 'Handled like', line2: "it's irreplaceable." },
+    { ...HERO_FRAMES[1], line1: 'White gloves on every', line2: `${area.name} job.` },
     { ...HERO_FRAMES[2], line1: 'Left finished,', line2: 'not just delivered.' },
   ];
 
@@ -159,12 +154,7 @@ function AreaBody({ area }: { area: Area }) {
 
         {/* 02 — Authority (mirrors the home page) */}
         <section className="border-b border-[var(--line)] bg-[var(--paper)] py-14">
-          <Container wide>
-            <Reveal className="text-center">
-              <p className="rl-kicker text-[var(--ink-faint)]">Trusted to handle the irreplaceable</p>
-            </Reveal>
-          </Container>
-          <div className="mt-9">
+          <div>
             <Marquee logos={CLIENTS} />
           </div>
         </section>

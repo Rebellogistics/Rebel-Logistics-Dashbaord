@@ -20,8 +20,9 @@ export const BUSINESS = {
   instagram: 'https://www.instagram.com/rebellogistics/',
   instagramHandle: '@rebellogistics',
   founded: 2019,
-  // TODO(client): confirm trading hours.
-  hours: 'Monday to Friday, 7am to 5pm. Weekends by arrangement.',
+  // Trading hours are NOT confirmed by the client, so nothing is asserted.
+  // What is shipped instead is the response promise, which is ours to make.
+  hours: 'Enquiries answered the same business day.',
 } as const;
 
 export type NavItem = { label: string; to: string };

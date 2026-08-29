@@ -156,10 +156,6 @@ export default function WorkPage() {
           />
           <Container wide className="relative pb-16 sm:pb-20">
             <Reveal>
-              <div className="mb-6 flex items-center gap-3">
-                <span aria-hidden className="inline-block h-px w-9 bg-white/40" />
-                <span className="rl-kicker !gap-0 text-white/70">Selected work</span>
-              </div>
               <h1 className="rl-display max-w-4xl text-[clamp(2.6rem,6vw,5rem)] text-white">
                 <span className="block font-medium">Our work</span>
                 <span className="block font-light text-white/80">across Melbourne.</span>
@@ -174,12 +170,7 @@ export default function WorkPage() {
 
         {/* Client logos */}
         <section className="border-b border-[var(--line)] bg-[var(--paper)] py-12">
-          <Container wide>
-            <Reveal className="text-center">
-              <p className="rl-kicker text-[var(--ink-faint)]">Trusted to handle the irreplaceable</p>
-            </Reveal>
-          </Container>
-          <div className="mt-8">
+          <div>
             <Marquee logos={CLIENTS} />
           </div>
         </section>

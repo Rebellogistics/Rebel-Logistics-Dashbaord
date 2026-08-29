@@ -182,7 +182,7 @@ export function Marquee({ logos }: { logos: { name: string; file: string }[] }) 
         className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24"
         style={{ background: 'linear-gradient(270deg, var(--paper), transparent)' }}
       />
-      <div className="rl-marquee-track items-center py-2">
+      <div className="rl-marquee-track items-center py-2 pl-16 sm:pl-28">
         {row.map((l, i) => (
           // Every mark is pre-fitted to one 500x170 box, so a fixed cell keeps
           // optical weight even and stops any logo being sliced at the edge.
