@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Private application areas
+Disallow: /login
+Disallow: /status/
+Disallow: /integrations/
+
+Sitemap: https://rebellogistics.com.au/sitemap.xml

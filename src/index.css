@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -273,4 +273,92 @@
     font-family: "Inter", sans-serif;
   }
   .print-receipt * { box-shadow: none !important; }
+}
+
+/* ============================================================================
+ * .rl — Rebel Logistics marketing site: "Quiet Gallery" luxury world.
+ * Pure white ground, warm charcoal ink, gold from the wordmark, Bodoni Moda
+ * display + Archivo text. Scoped so the owner/driver dashboard tokens above
+ * are never touched. Light mode only.
+ * ========================================================================= */
+.rl {
+  --paper:    #FCFBF8;   /* soft warm white ground */
+  --paper-2:  #F4F2EC;   /* warm grey section */
+  --paper-3:  #ECE9E1;   /* deeper warm grey */
+  --ink:      #1B1A16;   /* near-black, faintly warm */
+  --ink-soft: #56534B;   /* secondary text */
+  --ink-faint:#948F84;   /* tertiary / captions */
+  --line:     #E7E4DB;   /* hairline */
+  --line-2:   #D6D2C7;   /* stronger hairline */
+  --accent:   #6B2733;   /* deep oxblood — the one restrained accent */
+  --accent-2: #7C2F3C;
+  --accent-3: #B06C75;   /* lighter oxblood, legible on near-black grounds */
+  --char:     #16140F;   /* near-black block */
+  --char-2:   #201D16;   /* raised near-black */
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.62;
+  letter-spacing: -0.006em;
+  font-feature-settings: "ss01";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.rl ::selection { background: var(--accent); color: #fff; }
+
+/* Architectural display — one grotesque, tight tracking, real scale */
+.rl-display {
+  font-family: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.032em;
+  line-height: 1.0;
+}
+.rl-emph { color: var(--accent); }
+.rl-serif-italic { font-style: normal; } /* legacy no-op */
+
+/* Small tracked all-caps label used as a kicker throughout */
+.rl-kicker {
+  font-family: "Hanken Grotesk", sans-serif;
+  font-weight: 600;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+/* Reveal-on-scroll — toggled by an IntersectionObserver adding .is-in */
+.rl-reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 900ms cubic-bezier(0.16, 1, 0.3, 1),
+              transform 900ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: var(--rl-delay, 0ms);
+  will-change: opacity, transform;
+}
+.rl-reveal.is-in { opacity: 1; transform: none; }
+
+/* Brand marquee */
+@keyframes rl-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.rl-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: rl-marquee var(--rl-marquee-dur, 42s) linear infinite;
+}
+.rl-marquee:hover .rl-marquee-track { animation-play-state: paused; }
+
+/* Thin animated gold rule that draws in when revealed */
+.rl-rule {
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent), transparent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 1200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.rl-reveal.is-in .rl-rule, .is-in.rl-rule { transform: scaleX(1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rl-reveal { opacity: 1; transform: none; transition: none; }
+  .rl-marquee-track { animation: none; }
+  .rl-rule { transform: none; }
 }

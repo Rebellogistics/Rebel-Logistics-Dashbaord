@@ -5,8 +5,8 @@ cycles append at the bottom of the **Phase index**. Per-phase detail
 lives in `docs/archive/phases/<phase>.md`. In-flight phases stay
 inline at the bottom of this file until they ship.
 
-_Last refreshed: 2026-05-16 (V5 cycle fully shipped)._
-_Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRANSCRIPT_20260515.md`](docs/archive/transcripts/TRANSCRIPT_20260515.md)._
+_Last refreshed: 2026-05-22 (folding in 2026-05-17 call)._
+_Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRANSCRIPT_20260517.md`](docs/archive/transcripts/TRANSCRIPT_20260517.md)._
 
 ---
 
@@ -14,9 +14,15 @@ _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRA
 
 ### Blocking — Sumanyu this week
 
-1. **Inbound webhook URL** on the AU Twilio number → `https://<vercel-domain>/api/sms/inbound` (POST). Without this, customer replies vanish into Twilio's default boilerplate instead of landing in the dashboard Replies tab.
+1. **Tasks driver pre-assignment polish (V5 P6 follow-up).** On the 2026-05-17 call Yamin tried "reassign a task to a specific driver" from the Job detail screen — the create-task-from-job flow isn't wired through end-to-end. Sumanyu committed to fix "before I sleep tonight" (2026-05-17); still not in git as of 2026-05-22, so this is **overdue**. Verify the driver dropdown is wired in the job-context task creator, not just the standalone Tasks tab.
 
-2. **Owner-context env vars on Vercel** (Production scope, no redeploy needed):
+2. **Short-link shortener Settings tab (V5 P4 follow-up).** Build a new tab in Settings where any URL can be pasted and shortened against the existing `short_links` table (currently CRUD is SQL-only). Yamin's framing: "in case I want to customize any message in the future and have a URL there." Sumanyu committed on the 2026-05-17 call.
+
+3. **Verify `{{review.url}}` (or equivalent short-link token) resolves in the `job_complete` SMS template.** Yamin pivoted away from a separate review-request SMS — he'll edit the `job_complete` template in Settings to inline the Google review link, so every completion message carries the ask. If the variable engine doesn't expose the token globally today, expose it. Without this, item #7 (Yamin's Settings edit) becomes a hardcoded literal URL.
+
+4. **Inbound webhook URL** on the AU Twilio number → `https://<vercel-domain>/api/sms/inbound` (POST). Without this, customer replies vanish into Twilio's default boilerplate instead of landing in the dashboard Replies tab.
+
+5. **Owner-context env vars on Vercel** (Production scope, no redeploy needed):
    - `VITE_REBEL_SUPPORT_PHONE="+61 420 411 168"` — fills `{{owner.phone}}` in en-route, day-prior, delivered, review-request templates.
    - `VITE_REBEL_BUSINESS_NAME="Rebel Logistics"` — defaults to that anyway, optional.
    - `REBEL_SUPPORT_PHONE="+61 420 411 168"` — server-side equivalent for the inbound TwiML auto-reply.
@@ -24,25 +30,39 @@ _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRA
 
 ### Blocking — Yamin
 
-3. **Cancel Anthropic Claude $170/mo subscription.** Sumanyu now has own cloud. Agreed on 2026-05-15 call; data export ZIP already shared. Recurring charge until cancelled.
+6. **Asset pack for the marketing website** — Yamin committed to deliver "by tomorrow max" on the 2026-05-17 call (i.e. by 2026-05-18); **currently overdue**. Bundle everything in one folder/message:
+   - Logos (Rebel + the customer logos that were on the old site).
+   - Photos (the originals from the archive snapshot + any extras Yamin thinks belong on the site).
+   - Raw video files (the two Instagram clips — Sumanyu will cut them to 9:16 vertical reels, target three of them).
+   - List of services (Yamin has the file from when the original site went up).
+   - ABN (also on the old site, easy lookup, but include it explicitly).
+   - Email: `info@rebellogistics` (note: Yamin spoke "reble" twice; confirm exact domain spelling).
+   - Phone: same business number Sumanyu already has.
+   - Instagram handle for the footer link.
 
-4. **Send Sumanyu the Google review URL** (or grant edit access to the Rebel Logistics GMB page). The V5 P4 short link `rebel` is seeded with a placeholder Google search URL. When the real review URL arrives → run `UPDATE public.short_links SET target_url='<gmb-url>' WHERE slug='rebel';` via Supabase MCP. Until then the review-request SMS still sends + works, just lands on Google search results instead of the direct review form.
+7. **Edit the `job_complete` SMS template in Settings** to inline the Google review ask. Yamin's plan: copy the body of the seeded `review_request` template into `job_complete`, then drop in the review-URL token once #3 above is verified. (Until #3 lands, a literal short URL works as a stopgap.) This replaces the separate review SMS flow for the default usage; the standalone `review_request` template can stay as an opt-in.
 
-5. **Call accountant Malik → $1,000 Remitly transfer.** Yamin emailed Malik before 2026-05-15 call; no response yet. Following up this week.
+8. **Cancel Anthropic Claude $170/mo subscription.** Sumanyu now has own cloud. Agreed on 2026-05-15 call; data export ZIP already shared. Recurring charge until cancelled. **Not addressed on 2026-05-17 call.**
+
+9. **Send Sumanyu the Google review URL** (or grant edit access to the Rebel Logistics GMB page). The V5 P4 short link `rebel` is seeded with a placeholder Google search URL. When the real review URL arrives → run `UPDATE public.short_links SET target_url='<gmb-url>' WHERE slug='rebel';` via Supabase MCP. Until then any review SMS lands on Google search results instead of the direct review form. **Not addressed on 2026-05-17 call.**
+
+10. **Call accountant Malik → $1,000 Remitly transfer.** Yamin emailed Malik before 2026-05-15 call; no response yet. **Not addressed on 2026-05-17 call** — still following up.
 
 ### Awaiting external
 
-6. **Twilio AU sender registration** — Submitted live on 2026-05-15 call as `RBL Logistics` (Australia, transactional, ABN-backed, LLC, transportation). In manual review, 25 business days → expected approval **~2026-06-19**. When approval email lands → set `TWILIO_SENDER_ID="RBL Logistics"` on Vercel and outbound flips immediately.
+11. **Twilio AU sender registration** — Submitted live on 2026-05-15 call as `RBL Logistics`. Yamin then had to follow up with Twilio support **personally** to upload a business-extract document on top of the initial submission (back-and-forth, AUD ~$10 fee). Resubmitted with the extract; still in manual review as of 2026-05-17. Approval window still anchored to **~2026-06-19** (25 business days from initial submission). When the approval email lands → set `TWILIO_SENDER_ID="RBL Logistics"` on Vercel and outbound flips immediately.
 
 ### Open thread (workaround in place)
 
-7. **Calendar cleanup-legacy "every push failed"** during per-truck migration testing (V4 P4 follow-up). Workaround: stay on **Single calendar** mode. V5 P7 shipped a separate orphan-event cleanup endpoint (`/api/calendar/cleanup-orphans`) that fixes the user-visible "I see the same job twice" symptom in any mode — the per-truck migration failure itself isn't reproducible without Yamin attempting the switch again.
+12. **Calendar cleanup-legacy "every push failed"** during per-truck migration testing (V4 P4 follow-up). Workaround: stay on **Single calendar** mode. V5 P7 shipped a separate orphan-event cleanup endpoint (`/api/calendar/cleanup-orphans`) — Yamin clicked the button live on the 2026-05-17 call; no duplicates were present to verify against, but the call returned cleanly. The per-truck migration failure itself isn't reproducible without Yamin attempting the switch again. Yamin also noticed jobs with no truck assignment render as all-day events on the calendar — not a bug per se, just a "looks like the list view when assigned" observation.
 
 ### Recommended / scheduled
 
-8. **Marketing website kicked off 2026-05-15.** V1 demo scheduled for Sun 2026-05-17 evening call. Yamin's separate engagement, same Sumanyu.
+13. **Marketing website V1 demo slipped to 2026-05-24 call.** Sumanyu started the build ~3 hours before the 2026-05-17 call (Nano Banana for image gen, layout in flight). Demo originally targeted for 2026-05-17 but pushed because the platform work consumed the week. The Yamin asset pack (#6) is the unblocker — until it arrives, Sumanyu is using placeholder content. Uncommitted work-in-progress lives in `src/components/public/marketing/` plus edits to `LoginPage.tsx`, `index.css`, `main.tsx`.
 
-9. **Cousin lead (referral).** Yamin gave his marketing-business cousin Sumanyu's portfolio + contact. Cousin lost customers for not bundling websites. Yamin will follow up over the weekend (~2026-05-17). Track but no action needed from Sumanyu.
+14. **Yamin actively uses the platform this week** (Yamin's own commitment on 2026-05-17): transfer storage records over, set per-customer default pricing on the rest of the customer list, add remaining customers, book more jobs through the dashboard. Goal: surface bugs we haven't hit yet — Sumanyu's framing was "the more you use, the more errors we'll hit and the more we can optimize."
+
+15. **Cousin lead (referral).** Yamin gave his marketing-business cousin Sumanyu's portfolio + contact. Cousin lost customers for not bundling websites. **Not addressed on 2026-05-17 call** — carrying forward.
 
 ### Deferred (not blocking)
 
@@ -54,13 +74,17 @@ _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRA
 - Pre-existing security advisor warnings (RLS permissiveness, SECURITY DEFINER on anon, leaked-password protection off).
 
 **V5 follow-ups (called out in each phase's archive file):**
-- **V5 P2:** proper square + maskable PWA icons. Today's wordmark works in the manifest but not at home-screen sizes.
-- **V5 P3:** flat-rate customers need a 2-step (auto-priced create → manual fee in JobDetailDialog). If Yamin pushes back, ~30 min to add a manual-fee toggle to NewQuoteDialog.
-- **V5 P4:** Settings UI for short_links CRUD (~30 min). Today Sumanyu / Yamin update via SQL. Also: auto-send at 6pm + 90-day dedup (today manual button only).
+- **V5 P2:** proper square + maskable PWA icons. Today's wordmark works in the manifest but not at home-screen sizes. (Home-screen install itself verified working on Yamin's phone on 2026-05-17 — earlier install-error symptom gone.)
+- **V5 P3:** flat-rate customers need a 2-step (auto-priced create → manual fee in JobDetailDialog). If Yamin pushes back, ~30 min to add a manual-fee toggle to NewQuoteDialog. Preset edit flow verified by Yamin on 2026-05-17 (he'll fill in the rest of the customer list this week).
+- **V5 P4:** auto-send review SMS at 6pm + 90-day dedup (today manual button only). _Settings UI for short_links CRUD was previously deferred here — now promoted to active work (#2 above)._
 - **V5 P5:** auto-create reminder tasks 7d before `planned_out_date` + monthly billing reminders at storage day 30 / 60 / 90. Needs a daily cron (Vercel cron / pg_cron / daily check at app load). Plus storage record detail dialog with activity timeline.
 - **V5 P7:** per-truck cleanup-legacy retry + `integration_log` table for postmortem. Blocker is reproducing the failure, not observing it.
 - **V5 P9:** explicit `jobs.en_route_at` column so clocked-time widget works on hourly jobs where en-route SMS opted out.
 - **V5 P10:** full job-type picker integration. Custom services don't yet appear on NewQuoteDialog / JobDetailDialog job-type picker — only on the customer pricing preset. Future: `jobs.type` string-union → FK on `services` + pricing calculator extension.
+
+**Future / agreed in principle (from 2026-05-17 call):**
+- **Xero integration pilot.** Yamin still wants the platform → Xero handoff so he doesn't double-enter. Sumanyu wary of irreversible Xero writes ("there's no reversal on Xero"); Yamin confirmed Xero records can be deleted and re-pushed manually, and that pushes "still have to be approved by me on that end." Agreed approach: pilot with a single job, validate the format end-to-end, then expand. No date — Yamin will signal once his pricing setup + customer migration is done.
+- **Marketing-agency code-loop-in (foresight).** When Yamin engages a marketing agency, they'll need to wire Google Analytics / tag manager into the (custom-coded, not WordPress/Webflow/Framer) site. Agency staff won't have repo access, so Sumanyu has to be looped in for those code changes. Flagged so Yamin can scope the agency budget accordingly.
 
 ### Money + meeting state
 
@@ -68,7 +92,7 @@ _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRA
 - $500 invoice separately, before/after website at Yamin's discretion.
 - AUD $120/month retainer kicks in once $500 clears.
 - Indian-business invoice fine (no AU GST needed) provided business is matchable.
-- **Next call:** Sun 2026-05-17 evening — platform updates async via text in between, website V1 reviewed live on call.
+- **Next call:** Sun 2026-05-24, 8:30 (same slot). Website V1 to be reviewed live; platform updates async via text in between. Saturday is hard for Yamin unless first thing in the morning (which doesn't work for Sumanyu).
 
 ---
 

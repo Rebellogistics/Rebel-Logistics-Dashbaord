@@ -13,7 +13,7 @@ interface LogoProps {
 
 // Empirical crop values for the supplied master image.
 // The diamond mark occupies roughly the left 11% of the full image width.
-const MARK_CROP_PERCENT = 11;
+const MARK_CROP_PERCENT = 21;
 
 export function Logo({
   variant = 'full',

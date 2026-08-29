@@ -15,3 +15,21 @@ coverage/
 
 # Obsidian per-vault local config (editor preferences, no shared value)
 .obsidian/
+
+# Source media, scrapers and virtualenvs (~3.7GB of camera originals).
+# The web-ready derivatives are committed under public/site/.
+website assets/
+
+# Working contact sheets produced while curating the photography
+public/site/_pidx_*.jpg
+public/site/_photoidx_*.jpg
+public/site/clients/_check.jpg
+
+# Superseded hero encodes (public/site/hero-scrub-hq.mp4 is the one in use)
+public/site/hero.mp4
+public/site/hero-scrub.mp4
+public/site/hero-still-alt.jpg
+
+# Instagram thumbnails, replaced by the real client footage in public/site/reels
+public/site/instagram/
+public/site/photos/_nonphoto/
