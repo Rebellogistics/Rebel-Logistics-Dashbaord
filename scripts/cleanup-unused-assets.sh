@@ -65,5 +65,10 @@ rm -f public/site/hero.mp4 public/site/hero-scrub.mp4 public/site/hero-still-alt
 rm -f public/site/_pidx_*.jpg public/site/_photoidx_*.jpg public/site/clients/_check.jpg
 rm -rf public/site/instagram public/site/photos/_nonphoto
 
+# AI-generated hero video, replaced by three static frames from the client's
+# own job footage (public/site/hero-1..3.jpg).
+git rm -q --ignore-unmatch -- 'public/site/hero-scrub-hq.mp4'
+git rm -q --ignore-unmatch -- 'public/site/hero-still.jpg'
+
 echo "Removed 46 unreferenced files."
 echo "Now run: npx tsc --noEmit && npx vite build"

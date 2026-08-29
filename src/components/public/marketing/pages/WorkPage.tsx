@@ -43,7 +43,7 @@ const CHAPTERS: Chapter[] = [
     body: 'Marble and engineered slabs travel on purpose-built A-frames, protected at every edge and walked into position by hand. One wrong angle ends a slab, so nothing is rushed.',
     images: [
       { src: IMG.marble, caption: 'Slabs staged on site before placement' },
-      { src: PHOTO('IMG-20200313-WA0025.jpg'), caption: 'Braced and upright for the walk-in' },
+      { src: PHOTO('IMG-20200313-WA0024.jpg'), caption: 'Braced and upright for the walk-in' },
       { src: PHOTO('IMG-20200313-WA0023.jpg'), caption: 'Protected ground before the walk-in' },
       { src: PHOTO('IMG-20200313-WA0024.jpg'), caption: 'Hand-carrying the final metres' },
     ],

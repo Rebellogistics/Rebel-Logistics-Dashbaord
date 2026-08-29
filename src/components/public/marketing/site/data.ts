@@ -37,10 +37,7 @@ export const PHOTO = (name: string) => `/site/photos/${name}`;
 
 // Featured, hand-picked photography (face-blurred, web-optimised locally).
 export const IMG = {
-  heroStill: '/site/hero-still.jpg',
-  heroStillAlt: '/site/hero-still-alt.jpg',
-  // All-keyframe encode: required for smooth scroll scrubbing.
-  heroVideo: '/site/hero-scrub-hq.mp4',
+  heroStill: '/site/hero-1.jpg',
   craneAirborne: PHOTO('IMG-20200313-WA0012.jpg'),
   craneLift: PHOTO('IMG-20200313-WA0006.jpg'),
   craneVertical: PHOTO('IMG-20200313-WA0013.jpg'),
@@ -57,6 +54,30 @@ export const IMG = {
   warehouseAlt: PHOTO('IMG_3817 2.jpg'),
   dining: PHOTO('20210226_181535.jpg'),
 } as const;
+
+// Hero: three static frames pulled from the client's own job footage. Each
+// carries its own line, so scrolling walks care -> method -> result.
+export type HeroFrame = { src: string; alt: string; line1: string; line2: string };
+export const HERO_FRAMES: HeroFrame[] = [
+  {
+    src: '/site/hero-1.jpg',
+    alt: 'Rebel Logistics crew in white gloves setting a marble table into a styled Melbourne living room',
+    line1: 'Handled like',
+    line2: "it's irreplaceable.",
+  },
+  {
+    src: '/site/hero-2.jpg',
+    alt: 'A Rebel Logistics handler in white cotton gloves talking a client through a piece',
+    line1: 'White gloves.',
+    line2: 'Every piece.',
+  },
+  {
+    src: '/site/hero-3.jpg',
+    alt: 'A finished, styled interior after a Rebel Logistics delivery and installation',
+    line1: 'Left finished,',
+    line2: 'not just delivered.',
+  },
+];
 
 export type Service = {
   slug: string;

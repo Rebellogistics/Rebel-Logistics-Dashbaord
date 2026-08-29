@@ -46,7 +46,7 @@ export type SeoInput = {
 };
 
 /** Local-SEO head management: titles, meta, canonical, OG/Twitter, JSON-LD. */
-export function useSeo({ title, description, path, image = '/site/hero-still.jpg', service, faq }: SeoInput) {
+export function useSeo({ title, description, path, image = '/site/hero-1.jpg', service, faq }: SeoInput) {
   useEffect(() => {
     const url = `${SITE}${path}`;
     const img = `${SITE}${image}`;

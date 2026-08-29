@@ -1,26 +1,26 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
-import { BUSINESS, IMG } from '../site/data';
-import { Button, Container, prefersReducedMotion, useScrollProgress } from '../site/ui';
+import { BUSINESS, HERO_FRAMES } from '../site/data';
+import { Button, Container, cx, prefersReducedMotion, useScrollProgress } from '../site/ui';
 
-// Kept short so each line breaks predictably at every width.
-const PHRASES = [
-  ['Handled like', "it's irreplaceable."],
-  ['Delivered, installed,', 'placed precisely.'],
-  ['The partner luxury', 'interiors rely on.'],
-];
+/** Below this width the hero auto-advances and sets the copy under the image. */
+const MOBILE_MAX = 767;
 
 export function Hero() {
-  const { ref, progress } = useScrollProgress<HTMLDivElement>();
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [duration, setDuration] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
   const [reduced, setReduced] = useState(false);
 
   useEffect(() => setReduced(prefersReducedMotion()), []);
 
-  // A refresh that restores mid-page scroll leaves the poster (frame 0)
-  // showing while progress is already advanced, so the first scroll snaps the
-  // video forward. Start every load at the top so the hero is deterministic.
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${MOBILE_MAX}px)`);
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
+  // Start every load at the top so the first frame is always frame one.
   useEffect(() => {
     if ('scrollRestoration' in history) {
       const prev = history.scrollRestoration;
@@ -32,77 +32,149 @@ export function Hero() {
     }
   }, []);
 
-  // Read duration imperatively as well as from the event. When the file is
-  // already cached, `loadedmetadata` can fire before React attaches its
-  // handler, leaving duration at 0 so the scrub never runs and the hero
-  // looks frozen. Listening on the element covers both orderings.
+  return isMobile ? <MobileHero reduced={reduced} /> : <DesktopHero reduced={reduced} />;
+}
+
+/* ------------------------------------------------------------------ */
+/* Mobile: image leads, copy sits beneath it, frames advance on their  */
+/* own. Scroll-scrubbing a sticky panel on a phone fights the thumb    */
+/* and buries the words under the picture.                             */
+/* ------------------------------------------------------------------ */
+
+function MobileHero({ reduced }: { reduced: boolean }) {
+  const [i, setI] = useState(0);
+
   useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    const sync = () => {
-      const d = v.duration;
-      if (Number.isFinite(d) && d > 0) setDuration((prev) => (prev === d ? prev : d));
-    };
-    sync();
-    v.addEventListener('loadedmetadata', sync);
-    v.addEventListener('durationchange', sync);
-    v.addEventListener('canplay', sync);
-    // The hero is scrubbed, never played. If anything starts playback
-    // (autoplay heuristics, a restored session), pin it back to paused.
-    const pin = () => v.pause();
-    v.addEventListener('play', pin);
-    return () => {
-      v.removeEventListener('loadedmetadata', sync);
-      v.removeEventListener('durationchange', sync);
-      v.removeEventListener('canplay', sync);
-      v.removeEventListener('play', pin);
-    };
+    if (reduced) return;
+    const id = window.setInterval(() => setI((v) => (v + 1) % HERO_FRAMES.length), 4200);
+    return () => window.clearInterval(id);
   }, [reduced]);
 
-  // Scrub the video to scroll position. The source is encoded with a keyframe
-  // on every frame, so seeking is cheap and stays smooth.
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v || !duration || reduced || v.readyState < 1) return;
-    // Quantise to the encoded frame grid (20fps) so tiny scroll deltas do not
-    // queue seeks the decoder cannot service, which is what reads as stutter.
-    const fps = 20;
-    const raw = Math.min(duration - 1 / fps, progress * duration);
-    const target = Math.round(raw * fps) / fps;
-    if (Math.abs(v.currentTime - target) >= 1 / fps) v.currentTime = target;
-  }, [progress, duration, reduced]);
-
-  // Map 0..1 onto 0..(last index) so the final phrase lands exactly on itself
-  // and stays fully visible at the end of the scroll instead of fading to zero.
-  const phraseFloat = progress * (PHRASES.length - 1);
-  const active = Math.min(PHRASES.length - 1, Math.round(phraseFloat));
+  const f = HERO_FRAMES[i];
 
   return (
-    <section ref={ref} className="relative h-[280vh]" aria-label="Rebel Logistics">
-      <div className="sticky top-0 h-[100svh] w-full overflow-hidden bg-[var(--char)]">
-        {reduced ? (
+    <section className="bg-[var(--paper)] pt-[76px]" aria-label="Rebel Logistics">
+      {/* Image, uncovered */}
+      <div className="relative aspect-[4/5] w-full overflow-hidden bg-[var(--char)]">
+        {HERO_FRAMES.map((frame, n) => (
           <img
-            src={IMG.heroStill}
-            alt="A Rebel Logistics handler wrapping a designer armchair in protective blankets"
-            className="absolute inset-0 h-full w-full object-cover"
+            key={frame.src}
+            src={frame.src}
+            alt={n === 0 ? frame.alt : ''}
+            aria-hidden={n !== 0 ? true : undefined}
+            loading={n === 0 ? 'eager' : 'lazy'}
+            decoding="async"
+            className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[900ms] ease-out"
+            style={{ opacity: n === i ? 1 : 0 }}
           />
-        ) : (
-          <video
-            ref={videoRef}
-            className="absolute inset-0 h-full w-full object-cover"
-            src={IMG.heroVideo}
-            poster={IMG.heroStill}
-            muted
-            playsInline
-            preload="auto"
-            aria-hidden
-            onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
-          />
-        )}
+        ))}
+        <div
+          aria-hidden
+          className="absolute inset-x-0 bottom-0 h-24"
+          style={{ background: 'linear-gradient(180deg, transparent, rgba(252,251,248,0.9) 82%, var(--paper))' }}
+        />
+      </div>
 
-        {/* Scrims */}
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(15,13,9,0.52) 0%, rgba(15,13,9,0.04) 26%, rgba(15,13,9,0.14) 54%, rgba(15,13,9,0.8) 100%)' }} />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(15,13,9,0.58) 0%, rgba(15,13,9,0.08) 50%, transparent 74%)' }} />
+      {/* Copy, on the page rather than over the picture */}
+      <Container className="pb-14 pt-7">
+        <div className="flex items-center gap-3">
+          <span aria-hidden className="inline-block h-px w-8 bg-[var(--line-2)]" />
+          <span className="rl-kicker !gap-0 text-[var(--ink-faint)]">
+            {BUSINESS.suburb}&nbsp; ·&nbsp; Est. {BUSINESS.founded}
+          </span>
+        </div>
+
+        <div className="mt-5 grid">
+          {HERO_FRAMES.map((frame, n) => (
+            <h1
+              key={frame.src}
+              className="rl-display [grid-area:1/1] text-[clamp(2.1rem,9vw,2.9rem)] text-[var(--ink)] transition-opacity duration-500"
+              style={{ opacity: n === i ? 1 : 0, pointerEvents: n === i ? undefined : 'none' }}
+              aria-hidden={n !== 0 ? true : undefined}
+            >
+              <span className="block font-medium">{frame.line1}</span>
+              <span className="block font-light text-[var(--ink-soft)]">{frame.line2}</span>
+            </h1>
+          ))}
+        </div>
+
+        <p className="mt-5 text-[15.5px] font-light leading-relaxed text-[var(--ink-soft)]">
+          {BUSINESS.name} is Melbourne's specialist partner for luxury furniture, art and interiors:
+          logistics, warehousing and installation, handled with the care your pieces deserve.
+        </p>
+
+        <div className="mt-7 flex flex-col gap-3">
+          <Button to="/quote" size="lg" variant="ink" className="w-full">
+            Request a quote
+            <ArrowRight className="h-4 w-4" strokeWidth={1.6} />
+          </Button>
+          <a
+            href="#services"
+            className="inline-flex h-[52px] items-center justify-center rounded-[2px] border border-[var(--line-2)] px-8 text-[14px] font-medium text-[var(--ink)]"
+          >
+            Our services
+          </a>
+        </div>
+
+        {/* Tappable frame markers */}
+        <div className="mt-7 flex items-center gap-2">
+          {HERO_FRAMES.map((frame, n) => (
+            <button
+              key={frame.src}
+              type="button"
+              aria-label={`Show frame ${n + 1}`}
+              onClick={() => setI(n)}
+              className="py-3"
+            >
+              <span
+                className={cx(
+                  'block h-px transition-all duration-300',
+                  n === i ? 'w-10 bg-[var(--ink)]' : 'w-5 bg-[var(--line-2)]',
+                )}
+              />
+            </button>
+          ))}
+        </div>
+      </Container>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Desktop: sticky panel, frames crossfade with scroll position.       */
+/* ------------------------------------------------------------------ */
+
+function DesktopHero({ reduced }: { reduced: boolean }) {
+  const { ref, progress } = useScrollProgress<HTMLDivElement>();
+  const pos = progress * (HERO_FRAMES.length - 1);
+  const active = Math.min(HERO_FRAMES.length - 1, Math.round(pos));
+
+  return (
+    <section ref={ref} className="relative h-[240vh]" aria-label="Rebel Logistics">
+      <div className="sticky top-0 h-[100svh] w-full overflow-hidden bg-[var(--char)]">
+        {HERO_FRAMES.map((f, i) => {
+          const dist = Math.abs(pos - i);
+          const opacity = reduced ? (i === 0 ? 1 : 0) : Math.max(0, 1 - dist);
+          return (
+            <img
+              key={f.src}
+              src={f.src}
+              alt={i === 0 ? f.alt : ''}
+              aria-hidden={i !== 0 ? true : undefined}
+              loading={i === 0 ? 'eager' : 'lazy'}
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover"
+              style={{
+                opacity,
+                transform: `scale(${1.04 - Math.min(1, dist) * 0.04})`,
+                transition: 'opacity 220ms linear, transform 220ms linear',
+              }}
+            />
+          );
+        })}
+
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(15,13,9,0.52) 0%, rgba(15,13,9,0.06) 26%, rgba(15,13,9,0.16) 54%, rgba(15,13,9,0.82) 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(15,13,9,0.6) 0%, rgba(15,13,9,0.1) 52%, transparent 76%)' }} />
 
         <Container wide className="relative flex h-full flex-col justify-end pb-[13vh] sm:pb-[11vh]">
           <div className="max-w-[52rem]">
@@ -113,31 +185,26 @@ export function Hero() {
               </span>
             </div>
 
-            {/* Stacked in one grid cell: the box auto-sizes to the tallest
-                phrase, so nothing can overlap the paragraph below. */}
             <div className="grid">
-              {PHRASES.map((lines, i) => {
-                const dist = Math.abs(phraseFloat - i);
+              {HERO_FRAMES.map((f, i) => {
+                const dist = Math.abs(pos - i);
                 const opacity = reduced ? (i === 0 ? 1 : 0) : Math.max(0, 1 - dist * 1.7);
-                const y = reduced ? 0 : (phraseFloat - i) * -16;
-                // Only the first phrase is the document h1. The others are
-                // decorative duplicates for the scroll crossfade; three h1s
-                // would be both an SEO and a screen-reader defect.
+                const y = reduced ? 0 : (pos - i) * -16;
                 const Tag = (i === 0 ? 'h1' : 'div') as 'h1' | 'div';
                 return (
                   <Tag
-                    key={i}
+                    key={f.src}
                     className="rl-display [grid-area:1/1] text-[clamp(2.35rem,6vw,5.2rem)] text-white"
                     style={{
                       opacity,
                       transform: `translateY(${y}px)`,
-                      transition: 'opacity 140ms linear',
+                      transition: 'opacity 160ms linear',
                       pointerEvents: i === active ? undefined : 'none',
                     }}
                     aria-hidden={i !== 0 ? true : undefined}
                   >
-                    <span className="block whitespace-nowrap font-medium">{lines[0]}</span>
-                    <span className="block whitespace-nowrap font-light text-white/85">{lines[1]}</span>
+                    <span className="block font-medium">{f.line1}</span>
+                    <span className="block font-light text-white/85">{f.line2}</span>
                   </Tag>
                 );
               })}
@@ -160,13 +227,20 @@ export function Hero() {
                 Our services
               </a>
             </div>
+
+            <div className="mt-9 flex items-center gap-2" aria-hidden>
+              {HERO_FRAMES.map((f, i) => (
+                <span
+                  key={f.src}
+                  className={cx(
+                    'h-px transition-all duration-300',
+                    i === active ? 'w-10 bg-white' : 'w-5 bg-white/30',
+                  )}
+                />
+              ))}
+            </div>
           </div>
         </Container>
-
-        {/* Progress hairline */}
-        <div className="absolute bottom-0 left-0 h-px w-full bg-white/10">
-          <div className="h-full origin-left bg-white/70" style={{ width: `${progress * 100}%` }} />
-        </div>
       </div>
     </section>
   );
