@@ -1,10 +1,19 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Clock, ShieldCheck, MapPin, Instagram, Plus, Minus } from 'lucide-react';
-import { AREAS, BUSINESS, CLIENTS, CLIENT_NAMES, FAQS, GALLERY, SECTORS, SERVICES } from '../site/data';
-import { ClientNames, Container, Kicker, Marquee, Reveal, cx , goToQuoteForm } from '../site/ui';
+import { BUSINESS, CLIENTS, FAQS, GALLERY, SECTORS, SERVICES } from '../site/data';
+import { AREAS_DATA } from '../site/areas';
+import { Container, Kicker, Marquee, Reveal, cx, goToQuoteForm } from '../site/ui';
 import { LeadForm } from '../site/LeadForm';
 import { ReelRail } from '../site/Reels';
+
+const FEATURED_SLUGS = [
+  'toorak', 'south-yarra', 'brighton', 'melbourne-cbd', 'kew', 'malvern',
+  'armadale', 'hawthorn', 'camberwell', 'fitzroy', 'port-melbourne', 'mornington',
+];
+const FEATURED_AREAS = FEATURED_SLUGS
+  .map((s) => AREAS_DATA.find((a) => a.slug === s))
+  .filter((a): a is (typeof AREAS_DATA)[number] => Boolean(a));
 
 /* ---------------------------------------------------------------- */
 /* Trusted-by                                                       */
@@ -369,14 +378,32 @@ export function Coverage() {
             regional Victoria, with interstate work by arrangement.
           </p>
         </Reveal>
-        <Reveal delay={120} className="self-end">
-          <ul className="flex flex-wrap gap-x-6 gap-y-3">
-            {AREAS.map((a) => (
-              <li key={a} className="text-[14px] font-light text-white/60">
-                {a}
+        <Reveal delay={120}>
+          {/* A sample of real, linked suburb pages. Listing all of them here
+              would bury the section, so the rest live behind /areas. */}
+          <ul className="grid grid-cols-2 gap-x-8 gap-y-1 sm:grid-cols-3">
+            {FEATURED_AREAS.map((a) => (
+              <li key={a.slug}>
+                <Link
+                  to={`/areas/${a.slug}`}
+                  className="group flex items-center justify-between gap-3 border-b border-white/10 py-2.5 text-[14.5px] font-light text-white/60 transition-colors hover:text-white"
+                >
+                  {a.name}
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-70" />
+                </Link>
               </li>
             ))}
           </ul>
+          <div className="mt-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+            <Link
+              to="/areas"
+              className="group inline-flex h-[48px] items-center gap-2 rounded-[2px] bg-white px-6 text-[14px] font-medium text-[var(--ink)] transition-colors hover:bg-white/90"
+            >
+              View all {AREAS_DATA.length} service areas
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={1.7} />
+            </Link>
+            <p className="text-[13px] font-light text-white/45">Not listed? We travel. Ask us.</p>
+          </div>
         </Reveal>
       </Container>
     </section>

@@ -289,8 +289,10 @@ export function SiteFooter() {
       {/* Areas served — internal links into the suburb pages */}
       <Container wide className="border-t border-white/10 py-10">
         <p className="rl-kicker text-white/35">Servicing Melbourne and regional Victoria</p>
+        {/* A trimmed selection. Repeating all ~120 on every page clutters the
+            footer and dilutes internal link equity; the rest live on /areas. */}
         <ul className="mt-5 flex max-w-6xl flex-wrap gap-x-4 gap-y-2">
-          {AREAS_DATA.map((a) => (
+          {AREAS_DATA.slice(0, 24).map((a) => (
             <li key={a.slug}>
               <Link
                 to={`/areas/${a.slug}`}
