@@ -107,9 +107,9 @@ export default function WorkPage() {
   const [active, setActive] = useState(CHAPTERS[0].id);
 
   useSeo({
-    title: 'Our Work | Furniture, Art & Stone Logistics Melbourne | Rebel Logistics',
+    title: 'Our Work | Rebel Logistics Melbourne',
     description:
-      'See real Rebel Logistics jobs across Melbourne: crane lifts over pool houses, full-height stone slabs, designer installations, art handling and warehousing. Photography and film from site.',
+      'Real Rebel Logistics jobs across Melbourne: crane lifts, stone slabs, designer installations, art handling and warehousing. Photography and film from site.',
     path: '/work',
     image: IMG.craneAirborne,
   });

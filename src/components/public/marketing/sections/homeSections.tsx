@@ -83,14 +83,14 @@ export function QuoteBand() {
 /* Services — editorial alternating rows                            */
 /* ---------------------------------------------------------------- */
 
-export function ServicesOverview() {
+export function ServicesOverview({ place }: { place?: string } = {}) {
   return (
     <section id="services" className="scroll-mt-24 bg-[var(--paper)] py-24 sm:py-32">
       <Container wide>
         <Reveal className="max-w-3xl">
           <Kicker className="text-[var(--ink-soft)]">What we do</Kicker>
           <h2 className="rl-display mt-6 text-[clamp(2.2rem,4.6vw,3.8rem)] text-[var(--ink)]">
-            Our services.
+            Our services{place ? ` in ${place}` : ''}.
             <span className="block font-light text-[var(--ink-soft)]">Logistics, warehousing and labour.</span>
           </h2>
         </Reveal>
@@ -147,7 +147,7 @@ export function ServicesOverview() {
 /* Proof gallery                                                    */
 /* ---------------------------------------------------------------- */
 
-export function Proof() {
+export function Proof({ place }: { place?: string } = {}) {
   return (
     <section id="work" className="scroll-mt-24 bg-[var(--char)] py-24 text-white sm:py-32">
       <Container wide>
@@ -156,12 +156,12 @@ export function Proof() {
             <Kicker className="text-white/50">Selected work</Kicker>
             <h2 className="rl-display mt-6 text-[clamp(2.2rem,4.6vw,3.8rem)] text-white">
               Recent work
-              <span className="block font-light text-white/70">across Melbourne.</span>
+              <span className="block font-light text-white/70">across {place ?? 'Melbourne'}.</span>
             </h2>
           </div>
           <p className="max-w-sm text-[15px] font-light leading-relaxed text-white/55">
-            Real jobs across Melbourne's finest homes and showrooms. Craned in, wrapped, assembled and placed
-            exactly where they belong.
+            Real jobs across {place ? `${place} and greater Melbourne` : "Melbourne's finest homes and showrooms"}.
+            Craned in, wrapped, assembled and placed exactly where they belong.
           </p>
         </Reveal>
 
@@ -203,7 +203,7 @@ const STEPS = [
   { n: '04', t: 'Place', d: 'Delivered, assembled and positioned to the millimetre. Never just dropped off.' },
 ];
 
-export function Process() {
+export function Process({ place }: { place?: string } = {}) {
   return (
     <section className="bg-[var(--paper)] py-24 sm:py-32">
       <Container wide>
@@ -211,7 +211,7 @@ export function Process() {
           <Kicker className="text-[var(--ink-soft)]">How it works</Kicker>
           <h2 className="rl-display mt-6 text-[clamp(2.2rem,4.6vw,3.8rem)] text-[var(--ink)]">
             From quote
-            <span className="block font-light text-[var(--ink-soft)]">to placement.</span>
+            <span className="block font-light text-[var(--ink-soft)]">to placement{place ? ` in ${place}` : ''}.</span>
           </h2>
         </Reveal>
         <div className="mt-16 grid gap-x-12 gap-y-12 border-t border-[var(--line)] pt-12 sm:grid-cols-2 lg:grid-cols-4">
@@ -279,14 +279,14 @@ export function InstagramWall() {
 /* Sectors we serve                                                 */
 /* ---------------------------------------------------------------- */
 
-export function Sectors() {
+export function Sectors({ place }: { place?: string } = {}) {
   return (
     <section id="sectors" className="scroll-mt-24 bg-[var(--paper)] py-24 sm:py-32">
       <Container wide>
         <Reveal className="max-w-3xl">
           <Kicker className="text-[var(--ink-soft)]">Who we work with</Kicker>
           <h2 className="rl-display mt-6 text-[clamp(2.2rem,4.6vw,3.8rem)] text-[var(--ink)]">
-            Who we work with.
+            Who we work with{place ? ` in ${place}` : ''}.
             <span className="block font-light text-[var(--ink-soft)]">Designers, showrooms, galleries and private clients.</span>
           </h2>
         </Reveal>
@@ -307,8 +307,16 @@ export function Sectors() {
 /* FAQ — also the FAQPage structured data surface                   */
 /* ---------------------------------------------------------------- */
 
-export function Faq() {
+export function Faq({ place }: { place?: string } = {}) {
   const [open, setOpen] = useState<number | null>(0);
+  // Localise the coverage answer so the page is genuinely about this suburb.
+  const faqs = place
+    ? FAQS.map((f) =>
+        f.q.startsWith('Which areas')
+          ? { q: `Do you service ${place}?`, a: `Yes. ${place} is part of our regular Melbourne coverage, dispatched from our warehouse at ${BUSINESS.address}. We also cover the rest of Melbourne metro and regional Victoria, with interstate work by arrangement.` }
+          : f,
+      )
+    : FAQS;
   return (
     <section id="faq" className="scroll-mt-24 bg-[var(--paper-2)] py-24 sm:py-32">
       <Container wide className="grid gap-14 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20">
@@ -324,7 +332,7 @@ export function Faq() {
         </Reveal>
         <Reveal delay={100}>
           <ul className="border-t border-[var(--line-2)]">
-            {FAQS.map((f, i) => {
+            {faqs.map((f, i) => {
               const isOpen = open === i;
               return (
                 <li key={f.q} className="border-b border-[var(--line-2)]">

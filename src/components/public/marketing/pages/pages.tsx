@@ -12,15 +12,15 @@ const SERVICE_SEO: Record<string, { title: string; description: string }> = {
   logistics: {
     title: 'Furniture & Art Delivery Melbourne | Rebel Logistics',
     description:
-      'White-glove furniture delivery, art handling, craning and designer installation across Melbourne and regional Victoria. Placed to the millimetre, not just dropped off.',
+      'White-glove furniture delivery, art handling, craning and designer installation across Melbourne. Placed to the millimetre, not just dropped off.',
   },
   warehousing: {
     title: 'Furniture Storage & 3PL Melbourne | Rebel Logistics',
     description:
-      'Secure furniture and art warehousing in Flemington, Melbourne. Storage per cubic metre, container unpack, short and long-term storage and full third-party logistics.',
+      'Secure furniture and art warehousing in Flemington, Melbourne. Storage per cubic metre, container unpack, short and long-term storage and 3PL.',
   },
   labour: {
-    title: 'Onsite Labour Hire & Furniture Assembly Melbourne | Rebel Logistics',
+    title: 'Labour Hire & Furniture Assembly Melbourne | Rebel Logistics',
     description:
       'Trained crews for install days, showroom rearrangement, furniture assembly and trade-fair set-up across Melbourne. Skilled hands used to precious spaces.',
   },
@@ -313,7 +313,7 @@ export function AboutPage() {
   useSeo({
     title: 'About Rebel Logistics | Specialist Transport Melbourne',
     description:
-      'Founded in 2019, Rebel Logistics is a Melbourne specialist transport, warehousing and installation company trusted by leading Australian and international brands and interior designers.',
+      'Founded in 2019, Rebel Logistics is a Melbourne specialist transport, warehousing and installation company trusted by leading brands and designers.',
     path: '/about',
     image: IMG.artHall,
   });
@@ -580,7 +580,7 @@ export function ContactPage() {
 
       {/* Full-bleed scrolling rail, matching the service pages */}
       <section className="overflow-hidden bg-[var(--paper)]">
-        <PhotoRail images={GALLERY.map((g) => g.src)} fade="var(--paper)" />
+        <PhotoRail images={GALLERY.map((g) => g.src)} fade="var(--paper)" size="lg" />
       </section>
     </Shell>
   );

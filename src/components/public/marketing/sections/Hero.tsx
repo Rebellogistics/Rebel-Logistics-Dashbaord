@@ -102,8 +102,12 @@ export function Hero() {
                 const dist = Math.abs(phraseFloat - i);
                 const opacity = reduced ? (i === 0 ? 1 : 0) : Math.max(0, 1 - dist * 1.7);
                 const y = reduced ? 0 : (phraseFloat - i) * -16;
+                // Only the first phrase is the document h1. The others are
+                // decorative duplicates for the scroll crossfade; three h1s
+                // would be both an SEO and a screen-reader defect.
+                const Tag = (i === 0 ? 'h1' : 'div') as 'h1' | 'div';
                 return (
-                  <h1
+                  <Tag
                     key={i}
                     className="rl-display [grid-area:1/1] text-[clamp(2.35rem,6vw,5.2rem)] text-white"
                     style={{
@@ -112,11 +116,11 @@ export function Hero() {
                       transition: 'opacity 140ms linear',
                       pointerEvents: i === active ? undefined : 'none',
                     }}
-                    aria-hidden={i !== active}
+                    aria-hidden={i !== 0 ? true : undefined}
                   >
                     <span className="block whitespace-nowrap font-medium">{lines[0]}</span>
                     <span className="block whitespace-nowrap font-light text-white/85">{lines[1]}</span>
-                  </h1>
+                  </Tag>
                 );
               })}
             </div>

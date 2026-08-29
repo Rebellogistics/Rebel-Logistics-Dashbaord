@@ -15,9 +15,9 @@ import { useSeo } from './site/seo';
 
 export default function MarketingHome() {
   useSeo({
-    title: 'Rebel Logistics | White-Glove Furniture & Art Logistics Melbourne',
+    title: 'Rebel Logistics | White-Glove Furniture Logistics Melbourne',
     description:
-      'Melbourne specialists in white-glove furniture delivery, art handling, craning, warehousing and installation for luxury interiors. Trusted by leading designers and brands. Same-day quotes.',
+      'Melbourne specialists in white-glove furniture delivery, art handling, craning, warehousing and installation. Trusted by leading designers. Same-day quotes.',
     path: '/',
     faq: true,
   });
