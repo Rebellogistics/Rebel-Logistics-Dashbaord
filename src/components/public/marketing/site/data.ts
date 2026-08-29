@@ -94,7 +94,7 @@ export const SERVICES: Service[] = [
     heroVideo: '/site/reels/bg/logistics.mp4',
     rail: [
       IMG.craneAirborne, IMG.craneLift, IMG.craneVertical, IMG.marble,
-      IMG.marbleVertical, IMG.artHall, IMG.lounge, IMG.chandelier,
+      IMG.artHall, IMG.lounge, IMG.chandelier, IMG.warehouse,
     ],
     detail: [
       { t: 'Access planned before the day', d: 'We assess the approach first: driveway, doorway, lift car, stair turn. If a piece will not make the hallway, the crane is booked before the truck is loaded, not discovered on arrival.' },
@@ -120,8 +120,8 @@ export const SERVICES: Service[] = [
     imageAlt: 'High-value furniture wrapped and stored on pallets',
     heroVideo: '/site/reels/bg/warehousing.mp4',
     rail: [
-      IMG.warehouse, IMG.warehouseAlt, IMG.marble, IMG.marbleVertical,
-      IMG.craneLift, IMG.lounge, IMG.artDetail, IMG.dining,
+      IMG.warehouse, IMG.warehouseAlt, IMG.marble, IMG.craneLift,
+      IMG.lounge, IMG.artDetail, IMG.dining, IMG.craneAirborne,
     ],
     detail: [
       { t: 'Billed by the cubic metre', d: 'You pay for the space your pieces occupy, measured honestly, with no minimum pallet counts or padded volumes.' },
@@ -178,7 +178,7 @@ export type GalleryItem = { src: string; caption: string; tall?: boolean };
 export const GALLERY: GalleryItem[] = [
   { src: IMG.craneAirborne, caption: 'Craning a crated piece over a glass pool house' },
   { src: IMG.artHall, caption: 'Positioning gallery artwork in a private residence' },
-  { src: IMG.marbleVertical, caption: 'Delivering full-height stone slabs', tall: true },
+  { src: IMG.marble, caption: 'Delivering full-height stone slabs', tall: true },
   { src: IMG.lounge, caption: 'Styled, placed and finished' },
   { src: IMG.chandelier, caption: 'Assembling a bespoke lighting installation' },
   { src: IMG.warehouse, caption: 'Considered warehousing and 3PL' },
@@ -210,8 +210,7 @@ const reel = (slug: string, title: string, caption: string, duration: string): R
 });
 
 export const REELS: Reel[] = [
-  reel('warehouse-reset', 'Warehouse reset', 'A full clean-up and reset of the warehouse floor, start to finish.', '1:28'),
-  reel('styling-transformation', 'Before and after', 'An empty residence becomes a finished, styled interior.', '1:26'),
+  reel('styling-transformation', 'Before and after', 'A warehouse styling job, from bare floor to finished room.', '1:26'),
   reel('lighting-collab', 'Lighting collaboration', 'Specialist lighting delivered, assembled and installed on site.', '1:02'),
   reel('install-walkthrough', 'Install walkthrough', 'Walking a completed installation, piece by piece.', '0:53'),
   reel('onsite-highlights', 'On site highlights', 'Moments from a specialist install day.', '0:11'),

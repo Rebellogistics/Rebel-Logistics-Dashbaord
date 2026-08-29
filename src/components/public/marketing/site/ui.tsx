@@ -175,16 +175,22 @@ export function Marquee({ logos }: { logos: { name: string; file: string }[] }) 
         className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24"
         style={{ background: 'linear-gradient(270deg, var(--paper), transparent)' }}
       />
-      <div className="rl-marquee-track items-center gap-14 py-2 sm:gap-20">
+      <div className="rl-marquee-track items-center py-2">
         {row.map((l, i) => (
-          <img
+          // Every mark is pre-fitted to one 500x170 box, so a fixed cell keeps
+          // optical weight even and stops any logo being sliced at the edge.
+          <span
             key={l.name + i}
-            src={l.file}
-            alt={`${l.name}, a Rebel Logistics client`}
-            className="h-11 w-auto shrink-0 opacity-60 transition-opacity duration-300 hover:opacity-100 sm:h-14"
-            loading="lazy"
-            draggable={false}
-          />
+            className="flex w-[150px] shrink-0 items-center justify-center px-3 sm:w-[190px] sm:px-5"
+          >
+            <img
+              src={l.file}
+              alt={`${l.name}, a Rebel Logistics client`}
+              className="max-h-10 w-auto max-w-full object-contain opacity-65 transition-opacity duration-300 hover:opacity-100 sm:max-h-12"
+              loading="lazy"
+              draggable={false}
+            />
+          </span>
         ))}
       </div>
     </div>

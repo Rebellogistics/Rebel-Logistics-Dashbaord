@@ -60,13 +60,13 @@ export function SiteHeader({ overHero = false }: { overHero?: boolean }) {
         scrolled ? 'border-b border-[var(--line)] bg-[var(--paper)]/90 backdrop-blur-xl' : 'bg-transparent',
       )}
     >
-      <Container wide className="flex h-[76px] items-center justify-between gap-4">
+      <Container wide className="flex h-[76px] items-center justify-between gap-3 sm:gap-4">
         <Link to="/" className="flex items-center" aria-label={BUSINESS.name}>
           {/* Always the real gold wordmark; a soft plate keeps it legible on white. */}
           <img
             src="/site/brand/rebel-logo-gold.png"
             alt="Rebel Logistics"
-            className="h-9 w-auto sm:h-10"
+            className="h-8 w-auto shrink-0 sm:h-10"
             draggable={false}
           />
         </Link>
@@ -141,7 +141,11 @@ export function SiteHeader({ overHero = false }: { overHero?: boolean }) {
             <Lock className="h-3.5 w-3.5" strokeWidth={1.7} />
             Team login
           </Link>
-          <Button to="/quote" variant={light ? 'light' : 'ink'} className="hidden sm:inline-flex">
+          <Button
+            to="/quote"
+            variant={light ? 'light' : 'ink'}
+            className="hidden whitespace-nowrap px-5 sm:inline-flex"
+          >
             Get a quote
           </Button>
           <button
@@ -274,9 +278,9 @@ export function SiteFooter() {
             </a>
           </li>
           <li>
-            <a href={`mailto:${BUSINESS.email}`} className="flex items-start gap-2.5 break-all text-[14px] text-white/60 hover:text-white">
+            <a href={`mailto:${BUSINESS.email}`} className="flex items-start gap-2.5 text-[14px] text-white/60 hover:text-white">
               <Mail className="mt-0.5 h-4 w-4 shrink-0 text-white/40" strokeWidth={1.5} />
-              {BUSINESS.email}
+              <span className="[overflow-wrap:anywhere]">{BUSINESS.email}</span>
             </a>
           </li>
           <li className="flex items-start gap-2.5 text-[14px] font-light leading-relaxed text-white/60">

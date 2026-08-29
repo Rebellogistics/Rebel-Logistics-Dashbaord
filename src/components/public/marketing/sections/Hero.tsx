@@ -18,6 +18,20 @@ export function Hero() {
 
   useEffect(() => setReduced(prefersReducedMotion()), []);
 
+  // A refresh that restores mid-page scroll leaves the poster (frame 0)
+  // showing while progress is already advanced, so the first scroll snaps the
+  // video forward. Start every load at the top so the hero is deterministic.
+  useEffect(() => {
+    if ('scrollRestoration' in history) {
+      const prev = history.scrollRestoration;
+      history.scrollRestoration = 'manual';
+      window.scrollTo(0, 0);
+      return () => {
+        history.scrollRestoration = prev;
+      };
+    }
+  }, []);
+
   // Read duration imperatively as well as from the event. When the file is
   // already cached, `loadedmetadata` can fire before React attaches its
   // handler, leaving duration at 0 so the scrub never runs and the hero
@@ -49,9 +63,13 @@ export function Hero() {
   // on every frame, so seeking is cheap and stays smooth.
   useEffect(() => {
     const v = videoRef.current;
-    if (!v || !duration || reduced) return;
-    const target = Math.min(duration - 0.05, progress * duration);
-    if (Math.abs(v.currentTime - target) > 0.015) v.currentTime = target;
+    if (!v || !duration || reduced || v.readyState < 1) return;
+    // Quantise to the encoded frame grid (20fps) so tiny scroll deltas do not
+    // queue seeks the decoder cannot service, which is what reads as stutter.
+    const fps = 20;
+    const raw = Math.min(duration - 1 / fps, progress * duration);
+    const target = Math.round(raw * fps) / fps;
+    if (Math.abs(v.currentTime - target) >= 1 / fps) v.currentTime = target;
   }, [progress, duration, reduced]);
 
   // Map 0..1 onto 0..(last index) so the final phrase lands exactly on itself

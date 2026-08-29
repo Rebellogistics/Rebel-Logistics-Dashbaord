@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Clock, ShieldCheck, MapPin, Instagram, Plus, Minus } from 'lucide-react';
 import { BUSINESS, CLIENTS, FAQS, GALLERY, SECTORS, SERVICES } from '../site/data';
 import { AREAS_DATA } from '../site/areas';
-import { Container, Kicker, Marquee, Reveal, cx, goToQuoteForm } from '../site/ui';
+import { Container, Marquee, Reveal, cx, goToQuoteForm } from '../site/ui';
 import { LeadForm } from '../site/LeadForm';
 import { ReelRail } from '../site/Reels';
 
@@ -49,8 +49,7 @@ export function QuoteBand() {
     <section id="quote-form" className="scroll-mt-24 bg-[var(--paper-2)] py-24 sm:py-32">
       <Container wide className="grid items-start gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
         <Reveal>
-          <Kicker className="text-[var(--ink-soft)]">Request a quote</Kicker>
-          <h2 className="rl-display mt-6 text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
+          <h2 className="rl-display text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
             Request a quote.
             <span className="block font-light text-[var(--ink-soft)]">We reply the same business day.</span>
           </h2>
@@ -88,10 +87,8 @@ export function ServicesOverview({ place }: { place?: string } = {}) {
     <section id="services" className="scroll-mt-24 bg-[var(--paper)] py-24 sm:py-32">
       <Container wide>
         <Reveal className="max-w-3xl">
-          <Kicker className="text-[var(--ink-soft)]">What we do</Kicker>
-          <h2 className="rl-display mt-6 text-[clamp(2.2rem,4.6vw,3.8rem)] text-[var(--ink)]">
-            Our services{place ? ` in ${place}` : ''}.
-            <span className="block font-light text-[var(--ink-soft)]">Logistics, warehousing and labour.</span>
+          <h2 className="rl-display text-[clamp(2.2rem,4.6vw,3.8rem)] text-[var(--ink)]">
+            Logistics, warehousing and labour{place ? ` in ${place}` : ''}.
           </h2>
         </Reveal>
 
@@ -153,10 +150,8 @@ export function Proof({ place }: { place?: string } = {}) {
       <Container wide>
         <Reveal className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
           <div className="max-w-2xl">
-            <Kicker className="text-white/50">Selected work</Kicker>
             <h2 className="rl-display mt-6 text-[clamp(2.2rem,4.6vw,3.8rem)] text-white">
-              Recent work
-              <span className="block font-light text-white/70">across {place ?? 'Melbourne'}.</span>
+              Recent work across {place ?? 'Melbourne'}.
             </h2>
           </div>
           <p className="max-w-sm text-[15px] font-light leading-relaxed text-white/55">
@@ -181,7 +176,8 @@ export function Proof({ place }: { place?: string } = {}) {
                 loading="lazy"
                 className="h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-[1.04]"
               />
-              <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[rgba(10,8,5,0.82)] to-transparent p-4 text-[12.5px] font-light leading-snug text-white/85 opacity-0 transition-opacity duration-500 group-hover:opacity-100">
+              {/* Persistent, not hover-only: touch users never get :hover. */}
+              <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[rgba(10,8,5,0.9)] via-[rgba(10,8,5,0.45)] to-transparent p-4 pt-10 text-[12.5px] font-light leading-snug text-white">
                 {g.caption}
               </figcaption>
             </Reveal>
@@ -208,8 +204,7 @@ export function Process({ place }: { place?: string } = {}) {
     <section className="bg-[var(--paper)] py-24 sm:py-32">
       <Container wide>
         <Reveal className="max-w-3xl">
-          <Kicker className="text-[var(--ink-soft)]">How it works</Kicker>
-          <h2 className="rl-display mt-6 text-[clamp(2.2rem,4.6vw,3.8rem)] text-[var(--ink)]">
+          <h2 className="rl-display text-[clamp(2.2rem,4.6vw,3.8rem)] text-[var(--ink)]">
             From quote
             <span className="block font-light text-[var(--ink-soft)]">to placement{place ? ` in ${place}` : ''}.</span>
           </h2>
@@ -238,10 +233,8 @@ export function InstagramWall() {
       <Container wide>
         <Reveal className="mb-12 flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-end">
           <div className="max-w-xl">
-            <Kicker className="text-[var(--ink-soft)]">From the field</Kicker>
             <h2 className="rl-display mt-6 text-[clamp(2rem,4vw,3.2rem)] text-[var(--ink)]">
-              Video
-              <span className="block font-light text-[var(--ink-soft)]">from our jobs.</span>
+              Video from our jobs.
             </h2>
           </div>
           <a
@@ -284,10 +277,8 @@ export function Sectors({ place }: { place?: string } = {}) {
     <section id="sectors" className="scroll-mt-24 bg-[var(--paper)] py-24 sm:py-32">
       <Container wide>
         <Reveal className="max-w-3xl">
-          <Kicker className="text-[var(--ink-soft)]">Who we work with</Kicker>
-          <h2 className="rl-display mt-6 text-[clamp(2.2rem,4.6vw,3.8rem)] text-[var(--ink)]">
-            Who we work with{place ? ` in ${place}` : ''}.
-            <span className="block font-light text-[var(--ink-soft)]">Designers, showrooms, galleries and private clients.</span>
+          <h2 className="rl-display text-[clamp(2.2rem,4.6vw,3.8rem)] text-[var(--ink)]">
+            Designers, showrooms, galleries and private clients.
           </h2>
         </Reveal>
         <div className="mt-16 grid gap-x-12 gap-y-10 border-t border-[var(--line)] pt-12 sm:grid-cols-2 lg:grid-cols-3">
@@ -321,10 +312,8 @@ export function Faq({ place }: { place?: string } = {}) {
     <section id="faq" className="scroll-mt-24 bg-[var(--paper-2)] py-24 sm:py-32">
       <Container wide className="grid gap-14 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20">
         <Reveal>
-          <Kicker className="text-[var(--ink-soft)]">Common questions</Kicker>
-          <h2 className="rl-display mt-6 text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
-            Frequently asked
-            <span className="block font-light text-[var(--ink-soft)]">questions.</span>
+          <h2 className="rl-display text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
+            Frequently asked questions.
           </h2>
           <p className="mt-6 max-w-sm text-[15px] font-light leading-relaxed text-[var(--ink-soft)]">
             Something not covered here? Call {BUSINESS.phone} and we'll talk it through.
@@ -376,8 +365,7 @@ export function Coverage() {
     <section className="bg-[var(--char)] py-20 text-white sm:py-24">
       <Container wide className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
         <Reveal>
-          <Kicker className="text-white/45">Where we work</Kicker>
-          <h2 className="rl-display mt-6 text-[clamp(1.9rem,3.6vw,3rem)] text-white">
+          <h2 className="rl-display text-[clamp(1.9rem,3.6vw,3rem)] text-white">
             Melbourne metro
             <span className="block font-light text-white/70">and regional Victoria.</span>
           </h2>

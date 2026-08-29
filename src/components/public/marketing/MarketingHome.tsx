@@ -43,11 +43,11 @@ export default function MarketingHome() {
         <Hero />
         <BrandsBand />
         <QuoteBand />
-        <InstagramWall />
         <ServicesOverview />
         <Proof />
         <Sectors />
         <Process />
+        <InstagramWall />
         <Coverage />
         <Faq />
       </main>

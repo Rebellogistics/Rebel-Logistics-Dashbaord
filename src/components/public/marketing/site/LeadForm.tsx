@@ -54,12 +54,26 @@ export function LeadForm({
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  const canSubmit =
-    form.name.trim() && form.phone.trim() && form.pickup.trim() && state !== 'submitting';
+  const canSubmit = Boolean(
+    form.name.trim() && form.phone.trim() && form.pickup.trim() && state !== 'submitting',
+  );
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit) return;
+    // The control stays live and explains what is missing. A pre-disabled
+    // primary action reads as broken and costs conversions.
+    if (!canSubmit) {
+      if (state !== 'submitting') {
+        const missing = [
+          !form.name.trim() && 'your name',
+          !form.phone.trim() && 'a phone number',
+          !form.pickup.trim() && 'a pickup address',
+        ].filter(Boolean);
+        setError(`We still need ${missing.join(', ')}.`);
+        setState('error');
+      }
+      return;
+    }
     setState('submitting');
     setError('');
     const jobType = SERVICE_OPTIONS.find((s) => s.label === form.service)?.jobType ?? 'Standard';
@@ -243,7 +257,7 @@ export function LeadForm({
 
         {state === 'error' && (
           <p className="mt-6 border-l-2 border-[var(--accent)] bg-[var(--paper-2)] px-4 py-3 text-[13px] text-[var(--ink)]">
-            We couldn't send that. {error || 'Please try again'}, or call{' '}
+            {error || 'Please try again'}{' '}Or call{' '}
             <a href={`tel:${BUSINESS.phoneIntl}`} className="font-semibold underline">
               {BUSINESS.phone}
             </a>
@@ -256,8 +270,8 @@ export function LeadForm({
       <div className="border-t border-[var(--line-2)] px-6 py-5 sm:px-8">
         <button
           type="submit"
-          disabled={!canSubmit}
-          className="group flex h-[56px] w-full items-center justify-center gap-2.5 rounded-[2px] bg-[var(--ink)] text-[14.5px] font-medium tracking-[0.01em] text-white transition-colors hover:bg-[var(--char-2)] disabled:cursor-not-allowed disabled:opacity-40"
+          aria-busy={state === 'submitting'}
+          className="group flex h-[56px] w-full items-center justify-center gap-2.5 rounded-[2px] bg-[var(--ink)] text-[14.5px] font-medium tracking-[0.01em] text-white transition-colors hover:bg-[var(--char-2)]"
         >
           {state === 'submitting' ? 'Sending your enquiry' : 'Request my quote'}
           <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" strokeWidth={1.7} />

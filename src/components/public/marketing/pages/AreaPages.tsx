@@ -4,7 +4,7 @@ import { ArrowRight, Check, Clock, MapPin, Phone, ShieldCheck } from 'lucide-rea
 import { SiteHeader, SiteFooter } from '../site/Chrome';
 import { BUSINESS, CLIENTS, GALLERY, IMG, SERVICES } from '../site/data';
 import { AREAS_DATA, AREA_REGIONS, findArea, type Area } from '../site/areas';
-import { Button, Container, Kicker, Marquee, PhotoRail, Reveal, goToQuoteForm } from '../site/ui';
+import { Button, Container, Marquee, PhotoRail, Reveal, goToQuoteForm } from '../site/ui';
 import { ReelRail } from '../site/Reels';
 import { LeadForm } from '../site/LeadForm';
 import { useSeo } from '../site/seo';
@@ -38,8 +38,7 @@ export function AreasIndexPage() {
         <section className="bg-[var(--char)] pb-20 pt-40 text-white sm:pb-24 sm:pt-48">
           <Container wide>
             <Reveal>
-              <Kicker className="text-white/45">Service areas</Kicker>
-              <h1 className="rl-display mt-6 max-w-3xl text-[clamp(2.6rem,6vw,4.6rem)] text-white">
+              <h1 className="rl-display max-w-3xl text-[clamp(2.6rem,6vw,4.6rem)] text-white">
                 Across Melbourne
                 <span className="block font-light text-white/75">and regional Victoria.</span>
               </h1>
@@ -202,8 +201,7 @@ function AreaBody({ area }: { area: Area }) {
         <section id="quote-form" className="scroll-mt-24 bg-[var(--paper-2)] py-24 sm:py-28">
           <Container wide className="grid items-start gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
             <Reveal>
-              <Kicker className="text-[var(--ink-soft)]">Request a quote</Kicker>
-              <h2 className="rl-display mt-6 text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
+              <h2 className="rl-display text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
                 Moving something in {area.name}?
                 <span className="block font-light text-[var(--ink-soft)]">We reply the same business day.</span>
               </h2>
@@ -232,41 +230,11 @@ function AreaBody({ area }: { area: Area }) {
           </Container>
         </section>
 
-        {/* 04 — Motion */}
-        <section className="overflow-hidden bg-[var(--paper)] py-24 sm:py-28">
-          <Container wide>
-            <Reveal className="mb-12 max-w-2xl">
-              <Kicker className="text-[var(--ink-soft)]">From the field</Kicker>
-              <h2 className="rl-display mt-6 text-[clamp(2rem,4vw,3.2rem)] text-[var(--ink)]">
-                Video
-                <span className="block font-light text-[var(--ink-soft)]">from our jobs.</span>
-              </h2>
-            </Reveal>
-          </Container>
-          <ReelRail fade="var(--paper)" />
-          <Container wide>
-            <div className="mt-9 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-              <p className="text-[13px] font-light text-[var(--ink-faint)]">
-                Select any clip to play it with sound.
-              </p>
-              <a
-                href="#quote-form"
-                onClick={(e) => { if (goToQuoteForm()) e.preventDefault(); }}
-                className="group inline-flex h-[46px] items-center gap-2 rounded-[2px] bg-[var(--ink)] px-6 text-[13.5px] font-medium text-white transition-colors hover:bg-[var(--char-2)]"
-              >
-                Get a quote for your job
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={1.7} />
-              </a>
-            </div>
-          </Container>
-        </section>
-
-        {/* 05 — Local detail, unique to this suburb */}
+        {/* 04 — Local detail, unique to this suburb */}
         <section className="bg-[var(--paper-2)] py-24 sm:py-28">
           <Container wide className="grid gap-14 lg:grid-cols-[1fr_1fr] lg:gap-24">
             <Reveal>
-              <Kicker className="text-[var(--ink-soft)]">Working in {area.name}</Kicker>
-              <h2 className="rl-display mt-6 text-[clamp(1.9rem,3.4vw,2.8rem)] text-[var(--ink)]">
+              <h2 className="rl-display text-[clamp(1.9rem,3.4vw,2.8rem)] text-[var(--ink)]">
                 {area.angle}
               </h2>
               <p className="mt-7 text-[16.5px] font-light leading-relaxed text-[var(--ink-soft)]">{area.note}</p>
@@ -305,15 +273,41 @@ function AreaBody({ area }: { area: Area }) {
 
         <Sectors place={area.name} />
         <Process place={area.name} />
+        {/* Film: supporting texture, placed after the argument is made */}
+        <section className="overflow-hidden bg-[var(--paper)] py-24 sm:py-28">
+          <Container wide>
+            <Reveal className="mb-12 max-w-2xl">
+              <h2 className="rl-display text-[clamp(2rem,4vw,3.2rem)] text-[var(--ink)]">
+                Video
+                <span className="block font-light text-[var(--ink-soft)]">from our jobs.</span>
+              </h2>
+            </Reveal>
+          </Container>
+          <ReelRail fade="var(--paper)" />
+          <Container wide>
+            <div className="mt-9 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+              <p className="text-[13px] font-light text-[var(--ink-faint)]">
+                Select any clip to play it with sound.
+              </p>
+              <a
+                href="#quote-form"
+                onClick={(e) => { if (goToQuoteForm()) e.preventDefault(); }}
+                className="group inline-flex h-[46px] items-center gap-2 rounded-[2px] bg-[var(--ink)] px-6 text-[13.5px] font-medium text-white transition-colors hover:bg-[var(--char-2)]"
+              >
+                Get a quote for your job
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={1.7} />
+              </a>
+            </div>
+          </Container>
+        </section>
+
 
         {/* 10 — Nearby areas */}
         <section className="bg-[var(--char)] py-20 text-white sm:py-24">
           <Container wide className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
             <Reveal>
-              <Kicker className="text-white/45">Nearby</Kicker>
-              <h2 className="rl-display mt-6 text-[clamp(1.9rem,3.6vw,3rem)] text-white">
-                Also serving
-                <span className="block font-light text-white/70">around {area.name}.</span>
+              <h2 className="rl-display text-[clamp(1.9rem,3.6vw,3rem)] text-white">
+                Also serving around {area.name}.
               </h2>
               <Link
                 to="/areas"
@@ -356,8 +350,7 @@ function AreaEnquiry({ name }: { name?: string }) {
     <section id="quote-form" className="scroll-mt-24 bg-[var(--paper)] py-24 sm:py-28">
       <Container wide className="grid items-start gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
         <Reveal>
-          <Kicker className="text-[var(--ink-soft)]">Request a quote</Kicker>
-          <h2 className="rl-display mt-6 text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
+          <h2 className="rl-display text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
             {name ? `Moving something in ${name}?` : 'Moving something that matters?'}
             <span className="block font-light text-[var(--ink-soft)]">We'll take it from there.</span>
           </h2>

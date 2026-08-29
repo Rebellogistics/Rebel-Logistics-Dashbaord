@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { SiteHeader, SiteFooter } from '../site/Chrome';
 import { BUSINESS, CLIENTS, IMG, PHOTO } from '../site/data';
-import { Button, Container, Kicker, Marquee, Reveal, cx , goToQuoteForm } from '../site/ui';
+import { Button, Container, Marquee, Reveal, cx , goToQuoteForm } from '../site/ui';
 import { ReelRail } from '../site/Reels';
 import { LeadForm } from '../site/LeadForm';
 import { useSeo } from '../site/seo';
@@ -43,7 +43,7 @@ const CHAPTERS: Chapter[] = [
     body: 'Marble and engineered slabs travel on purpose-built A-frames, protected at every edge and walked into position by hand. One wrong angle ends a slab, so nothing is rushed.',
     images: [
       { src: IMG.marble, caption: 'Slabs staged on site before placement' },
-      { src: IMG.marbleVertical, caption: 'Full-height stone, upright and braced' },
+      { src: PHOTO('IMG-20200313-WA0025.jpg'), caption: 'Braced and upright for the walk-in' },
       { src: PHOTO('IMG-20200313-WA0023.jpg'), caption: 'Protected ground before the walk-in' },
       { src: PHOTO('IMG-20200313-WA0024.jpg'), caption: 'Hand-carrying the final metres' },
     ],
@@ -184,32 +184,6 @@ export default function WorkPage() {
           </div>
         </section>
 
-        {/* Film */}
-        <section id="film" className="scroll-mt-24 overflow-hidden bg-[var(--paper-2)] py-20 sm:py-24">
-          <Container wide>
-            <Reveal className="mb-10 max-w-2xl">
-              <Kicker className="text-[var(--ink-soft)]">In motion</Kicker>
-              <h2 className="rl-display mt-6 text-[clamp(2rem,4vw,3.2rem)] text-[var(--ink)]">
-                Film from site.
-              </h2>
-            </Reveal>
-          </Container>
-          <ReelRail />
-          <Container wide>
-            <div className="mt-9 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-              <p className="text-[13px] font-light text-[var(--ink-faint)]">
-                Select any clip to play it with sound.
-              </p>
-              <a href="#enquire"
-                className="group inline-flex h-[46px] items-center gap-2 rounded-[2px] bg-[var(--ink)] px-6 text-[13.5px] font-medium text-white transition-colors hover:bg-[var(--char-2)]"
-               onClick={(e) => { if (goToQuoteForm()) e.preventDefault(); }}>
-                Get a quote for your job
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={1.7} />
-              </a>
-            </div>
-          </Container>
-        </section>
-
         {/* Chapters with a sticky guide */}
         <section className="bg-[var(--paper)] py-20 sm:py-28">
           <Container wide className="grid gap-12 lg:grid-cols-[220px_1fr] lg:gap-16">
@@ -286,12 +260,36 @@ export default function WorkPage() {
           </Container>
         </section>
 
+        {/* Film */}
+        <section id="film" className="scroll-mt-24 overflow-hidden bg-[var(--paper-2)] py-20 sm:py-24">
+          <Container wide>
+            <Reveal className="mb-10 max-w-2xl">
+              <h2 className="rl-display text-[clamp(2rem,4vw,3.2rem)] text-[var(--ink)]">
+                Film from site.
+              </h2>
+            </Reveal>
+          </Container>
+          <ReelRail />
+          <Container wide>
+            <div className="mt-9 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+              <p className="text-[13px] font-light text-[var(--ink-faint)]">
+                Select any clip to play it with sound.
+              </p>
+              <a href="#enquire"
+                className="group inline-flex h-[46px] items-center gap-2 rounded-[2px] bg-[var(--ink)] px-6 text-[13.5px] font-medium text-white transition-colors hover:bg-[var(--char-2)]"
+               onClick={(e) => { if (goToQuoteForm()) e.preventDefault(); }}>
+                Get a quote for your job
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={1.7} />
+              </a>
+            </div>
+          </Container>
+        </section>
+
         {/* Enquiry */}
         <section id="enquire" className="scroll-mt-24 bg-[var(--paper-2)] py-24 sm:py-28">
           <Container wide className="grid items-start gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
             <Reveal>
-              <Kicker className="text-[var(--ink-soft)]">Start here</Kicker>
-              <h2 className="rl-display mt-6 text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
+              <h2 className="rl-display text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
                 Request a quote
                 <span className="block font-light text-[var(--ink-soft)]">for your job.</span>
               </h2>

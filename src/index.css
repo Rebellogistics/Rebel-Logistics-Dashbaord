@@ -287,7 +287,7 @@
   --paper-3:  #ECE9E1;   /* deeper warm grey */
   --ink:      #1B1A16;   /* near-black, faintly warm */
   --ink-soft: #56534B;   /* secondary text */
-  --ink-faint:#948F84;   /* tertiary / captions */
+  --ink-faint:#6E695E;   /* tertiary / captions (>=4.5:1 on --paper) */
   --line:     #E7E4DB;   /* hairline */
   --line-2:   #D6D2C7;   /* stronger hairline */
   --accent:   #6B2733;   /* deep oxblood — the one restrained accent */

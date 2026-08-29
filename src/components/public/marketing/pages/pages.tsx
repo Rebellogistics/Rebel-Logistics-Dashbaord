@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowUpRight, Check, MapPin, Phone, Mail, Clock, Instagram, Building2, ShieldCheck } from 'lucide-react';
 import { SiteHeader, SiteFooter } from '../site/Chrome';
 import { BUSINESS, CLIENTS, GALLERY, IMG, PHOTO, SERVICES, type Service } from '../site/data';
-import { Button, Container, Kicker, Marquee, PhotoRail, QuoteCTA, Reveal } from '../site/ui';
+import { Button, Container, Marquee, PhotoRail, QuoteCTA, Reveal } from '../site/ui';
 import { ReelRail } from '../site/Reels';
 import { LeadForm } from '../site/LeadForm';
 import { useSeo } from '../site/seo';
@@ -94,10 +94,8 @@ function ClosingCTA() {
     <section className="bg-[var(--paper-2)] py-24 sm:py-32" id="quote-form">
       <Container wide className="grid items-start gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
         <Reveal>
-          <Kicker className="text-[var(--ink-soft)]">Start here</Kicker>
-          <h2 className="rl-display mt-6 text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
-            Request a quote
-            <span className="block font-light text-[var(--ink-soft)]">for your job.</span>
+          <h2 className="rl-display text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
+            Request a quote for your job.
           </h2>
           <p className="mt-6 max-w-md text-[16px] font-light leading-relaxed text-[var(--ink-soft)]">
             Share a few details and we'll come back the same business day with a plan and a clear price.
@@ -159,8 +157,7 @@ export function ServicePage({ slug }: { slug: string }) {
       <section className="bg-[var(--paper)] py-24 sm:py-28">
         <Container wide className="grid gap-14 lg:grid-cols-[1fr_1fr] lg:gap-24">
           <Reveal>
-            <Kicker className="text-[var(--ink-soft)]">The service</Kicker>
-            <h2 className="rl-display mt-6 text-[clamp(1.9rem,3.4vw,2.8rem)] text-[var(--ink)]">{service.lead}</h2>
+            <h2 className="rl-display text-[clamp(1.9rem,3.4vw,2.8rem)] text-[var(--ink)]">{service.lead}</h2>
             <p className="mt-7 text-[16.5px] font-light leading-relaxed text-[var(--ink-soft)]">{service.blurb}</p>
             <p className="mt-4 text-[16.5px] font-light leading-relaxed text-[var(--ink-soft)]">
               Every job is handled by trained specialists who move precious, high-value pieces every day, with
@@ -187,10 +184,8 @@ export function ServicePage({ slug }: { slug: string }) {
       <section className="bg-[var(--paper)] py-24 sm:py-28">
         <Container wide>
           <Reveal className="max-w-3xl">
-            <Kicker className="text-[var(--ink-soft)]">How we work</Kicker>
-            <h2 className="rl-display mt-6 text-[clamp(2rem,4vw,3.2rem)] text-[var(--ink)]">
-              How we handle
-              <span className="block font-light text-[var(--ink-soft)]">every job.</span>
+            <h2 className="rl-display text-[clamp(2rem,4vw,3.2rem)] text-[var(--ink)]">
+              How we handle every job.
             </h2>
           </Reveal>
           <div className="mt-14 grid gap-x-14 gap-y-10 border-t border-[var(--line)] pt-12 sm:grid-cols-2">
@@ -213,8 +208,7 @@ export function ServicePage({ slug }: { slug: string }) {
       <section id="quote-form" className="scroll-mt-24 bg-[var(--paper-2)] py-20 sm:py-28">
         <Container wide className="grid items-start gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
           <Reveal>
-            <Kicker className="text-[var(--ink-soft)]">Request a quote</Kicker>
-            <h2 className="rl-display mt-6 text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
+            <h2 className="rl-display text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
               Need {service.title.toLowerCase()}?
               <span className="block font-light text-[var(--ink-soft)]">Tell us what you're moving.</span>
             </h2>
@@ -247,7 +241,6 @@ export function ServicePage({ slug }: { slug: string }) {
         <Container wide>
           <Reveal className="mb-10 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
-              <Kicker className="text-[var(--ink-soft)]">From the field</Kicker>
               <h2 className="rl-display mt-5 text-[clamp(1.7rem,3vw,2.4rem)] text-[var(--ink)]">
                 See the work in motion.
               </h2>
@@ -272,7 +265,9 @@ export function ServicePage({ slug }: { slug: string }) {
       <section className="bg-[var(--paper)] py-24">
         <Container wide>
           <Reveal className="mb-12">
-            <Kicker className="text-[var(--ink-soft)]">Also from Rebel</Kicker>
+            <h2 className="rl-display text-[clamp(1.7rem,3vw,2.4rem)] text-[var(--ink)]">
+              Also from Rebel
+            </h2>
           </Reveal>
           <div className="grid gap-6 sm:grid-cols-2">
             {others.map((s) => (
@@ -331,8 +326,7 @@ export function AboutPage() {
       <section className="bg-[var(--paper)] py-24 sm:py-32">
         <Container wide className="grid gap-16 lg:grid-cols-[1.1fr_1fr] lg:gap-24">
           <Reveal>
-            <Kicker className="text-[var(--ink-soft)]">Our story</Kicker>
-            <h2 className="rl-display mt-6 text-[clamp(1.9rem,3.6vw,3rem)] text-[var(--ink)]">
+            <h2 className="rl-display text-[clamp(1.9rem,3.6vw,3rem)] text-[var(--ink)]">
               What we do and who we do it for.
             </h2>
             <p className="mt-7 text-[16.5px] font-light leading-relaxed text-[var(--ink-soft)]">
@@ -394,8 +388,7 @@ export function AboutPage() {
             </div>
           </Reveal>
           <Reveal delay={120}>
-            <Kicker className="text-white/45">The founder</Kicker>
-            <h2 className="rl-display mt-6 text-[clamp(1.9rem,3.6vw,3rem)] text-white">Yamin Kassouah</h2>
+            <h2 className="rl-display text-[clamp(1.9rem,3.6vw,3rem)] text-white">Yamin Kassouah</h2>
             <p className="mt-6 text-[16.5px] font-light leading-relaxed text-white/65">
               Yamin started Rebel Logistics in {BUSINESS.founded} after years of moving high-value pieces for
               Melbourne showrooms and designers. He runs the yard at Flemington and is on site for the
@@ -461,8 +454,7 @@ export function QuotePage() {
       <section className="bg-[var(--char)] pb-20 pt-40 text-white sm:pb-24 sm:pt-48">
         <Container wide>
           <Reveal>
-            <Kicker className="text-white/45">Request a quote</Kicker>
-            <h1 className="rl-display mt-6 max-w-3xl text-[clamp(2.6rem,6vw,4.6rem)] text-white">
+            <h1 className="rl-display max-w-3xl text-[clamp(2.6rem,6vw,4.6rem)] text-white">
               Request a quote.
               <span className="block font-light text-white/75">We reply the same business day.</span>
             </h1>
@@ -529,8 +521,7 @@ export function ContactPage() {
       <section className="bg-[var(--char)] pb-20 pt-40 text-white sm:pb-24 sm:pt-48">
         <Container wide>
           <Reveal>
-            <Kicker className="text-white/45">Contact</Kicker>
-            <h1 className="rl-display mt-6 max-w-3xl text-[clamp(2.6rem,6vw,4.6rem)] text-white">
+            <h1 className="rl-display max-w-3xl text-[clamp(2.6rem,6vw,4.6rem)] text-white">
               Contact
               <span className="block font-light text-white/75">Rebel Logistics.</span>
             </h1>
