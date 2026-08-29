@@ -51,5 +51,19 @@ git rm -q --ignore-unmatch -- 'public/site/reels/styling-02.mp4'
 git rm -q --ignore-unmatch -- 'public/site/reels/styling-03.jpg'
 git rm -q --ignore-unmatch -- 'public/site/reels/styling-03.mp4'
 
+# Orphaned V4 marketing sections. Not imported by anything (so tree-shaken out
+# of the bundle already) and they still contain stale Sydney copy, which would
+# be wrong if anyone ever wired them back up.
+git rm -q --ignore-unmatch -- 'src/components/public/marketing/components.tsx'
+git rm -q --ignore-unmatch -- 'src/components/public/marketing/sections/Services.tsx'
+git rm -q --ignore-unmatch -- 'src/components/public/marketing/sections/Process.tsx'
+git rm -q --ignore-unmatch -- 'src/components/public/marketing/sections/Coverage.tsx'
+git rm -q --ignore-unmatch -- 'src/components/public/marketing/sections/Footer.tsx'
+
+# Superseded local encodes and working files (already gitignored, removed from disk)
+rm -f public/site/hero.mp4 public/site/hero-scrub.mp4 public/site/hero-still-alt.jpg
+rm -f public/site/_pidx_*.jpg public/site/_photoidx_*.jpg public/site/clients/_check.jpg
+rm -rf public/site/instagram public/site/photos/_nonphoto
+
 echo "Removed 46 unreferenced files."
 echo "Now run: npx tsc --noEmit && npx vite build"

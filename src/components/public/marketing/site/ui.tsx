@@ -180,7 +180,7 @@ export function Marquee({ logos }: { logos: { name: string; file: string }[] }) 
           <img
             key={l.name + i}
             src={l.file}
-            alt={`${l.name} — a Rebel Logistics client`}
+            alt={`${l.name}, a Rebel Logistics client`}
             className="h-11 w-auto shrink-0 opacity-60 transition-opacity duration-300 hover:opacity-100 sm:h-14"
             loading="lazy"
             draggable={false}

@@ -269,7 +269,7 @@ export default function WorkPage() {
                         <div className="aspect-[4/3] overflow-hidden rounded-[2px]">
                           <img
                             src={im.src}
-                            alt={`${c.title} — ${im.caption}, Melbourne`}
+                            alt={`${c.title}: ${im.caption}, Melbourne`}
                             loading="lazy"
                             className="h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-[1.03]"
                           />
