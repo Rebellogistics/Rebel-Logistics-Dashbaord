@@ -213,12 +213,6 @@ export function ServicePage({ slug }: { slug: string }) {
         </div>
       </section>
 
-      {/* Photography sits high, under the hero, so the page never runs two
-          scrolling rails back to back further down. */}
-      <section className="overflow-hidden bg-[var(--paper)]">
-        <PhotoRail images={service.rail} fade="var(--paper)" size="lg" />
-      </section>
-
       {/* 03 — What the service is and what it includes */}
       <section className="bg-[var(--paper)] py-24 sm:py-28">
         <Container wide className="grid gap-14 lg:grid-cols-[1fr_1fr] lg:gap-24">
@@ -244,6 +238,12 @@ export function ServicePage({ slug }: { slug: string }) {
             </div>
           </Reveal>
         </Container>
+      </section>
+
+      {/* The work itself, straight after the sentence that describes it, and
+          clear of the logo marquee so two scrolling bands never touch. */}
+      <section className="overflow-hidden bg-[var(--paper)]">
+        <PhotoRail images={service.rail} fade="var(--paper)" size="lg" />
       </section>
 
       {/* 04 — How we handle every job */}

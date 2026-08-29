@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { upsertCustomerByPhone } from '@/lib/customerUpsert';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
 import { format } from 'date-fns';
-import { ArrowRight, Check, ChevronDown, ShieldCheck } from 'lucide-react';
+import { ArrowDown, ArrowRight, Check, ChevronDown, ShieldCheck } from 'lucide-react';
 import { BUSINESS } from './data';
 import { cx, FORM_FOCUS_EVENT } from './ui';
 import type { JobType } from '@/lib/types';
@@ -165,7 +165,8 @@ export function LeadForm({
         aria-live="polite"
       >
         <div className="overflow-hidden">
-          <p className="border-b border-[var(--line)] bg-[#F3EDEE] px-6 py-3 text-[13.5px] text-[var(--ink)] sm:px-8">
+          <p className="flex items-center gap-2.5 border-b border-[var(--accent)] bg-[var(--accent)] px-5 py-3.5 text-[13.5px] font-medium text-white sm:px-7">
+            <ArrowDown className="h-4 w-4 shrink-0 animate-bounce" strokeWidth={2} />
             Fill in the form and we'll get back to you, usually the same business day.
           </p>
         </div>
