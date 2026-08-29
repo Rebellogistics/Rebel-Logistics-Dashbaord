@@ -35,48 +35,68 @@ export const NAV: NavItem[] = [
 
 export const PHOTO = (name: string) => `/site/photos/${name}`;
 
-// Featured, hand-picked photography (face-blurred, web-optimised locally).
+// Featured photography, tagged by LOCATION so no section shows the same place
+// twice under two different captions.
 export const IMG = {
   heroStill: '/site/hero-1.jpg',
-  craneAirborne: PHOTO('IMG-20200313-WA0012.jpg'),
-  craneLift: PHOTO('IMG-20200313-WA0006.jpg'),
-  craneVertical: PHOTO('IMG-20200313-WA0013.jpg'),
-  marble: PHOTO('IMG-20200313-WA0020.jpg'),
-  marbleVertical: PHOTO('IMG-20200313-WA0022.jpg'),
-  wrapping: PHOTO('IMG-20200313-WA0027.jpg'),
+
+  // A. crane over the glass pool house
+  poolHouseCrane: PHOTO('IMG-20200313-WA0012.jpg'),
+  poolHouseLift: PHOTO('IMG-20200313-WA0015.jpg'),
+  // B. crane job at the walled residence
+  craneResidence: PHOTO('IMG-20200313-WA0006.jpg'),
+  craneSpotting: PHOTO('IMG-20200313-WA0014.jpg'),
+  craneCrate: PHOTO('IMG-20200313-WA0010.jpg'),
   crew: PHOTO('IMG-20200313-WA0009.jpg'),
+  // C. full-height stone slabs
+  stoneSlabs: PHOTO('IMG-20200313-WA0020.jpg'),
+  stoneStaged: PHOTO('IMG-20200313-WA0024.jpg'),
+  // D. poolside terrace, protective wrapping
+  poolsideWrap: PHOTO('IMG-20200313-WA0027.jpg'),
+  poolsideCrew: PHOTO('IMG-20200313-WA0018.jpg'),
+  poolsideUnwrap: PHOTO('IMG-20200313-WA0030.jpg'),
+  // E. bespoke lighting installation
+  chandelier: PHOTO('IMG_3416.jpg'),
+  chandelierRoom: PHOTO('IMG_3419.jpg'),
+  // F. styled lounge
   lounge: PHOTO('IMG_3427.jpg'),
   loungeWide: PHOTO('IMG_3429.jpg'),
+  // G. gallery corridor
   artHall: PHOTO('IMG_3505.jpg'),
   artDetail: PHOTO('IMG_3504.jpg'),
-  chandelier: PHOTO('IMG_3416.jpg'),
+  artWide: PHOTO('IMG_3506.jpg'),
+  // H. warehouse and yard
   warehouse: PHOTO('IMG_3812.jpg'),
-  warehouseAlt: PHOTO('IMG_3817 2.jpg'),
-  dining: PHOTO('20210226_181535.jpg'),
+  warehouseAlt: PHOTO('IMG_3816 2.jpg'),
+  craneTruck: PHOTO('IMG_3817 2.jpg'),
+  // I. bar and dining fit-out
+  diningFitout: PHOTO('20210226_181535.jpg'),
+  // J. workshop
+  workshop: PHOTO('DSC04015.jpg'),
 } as const;
 
-// Hero: three static frames pulled from the client's own job footage. Each
-// carries its own line, so scrolling walks care -> method -> result.
+// Hero: three short clips from the client's own footage, each cut from a
+// continuous shot so nothing jump-cuts mid-beat.
 export type HeroFrame = { src: string; video: string; alt: string; line1: string; line2: string };
 export const HERO_FRAMES: HeroFrame[] = [
   {
     src: '/site/hero-1.jpg',
     video: '/site/hero-1.mp4',
-    alt: 'Rebel Logistics crew in white gloves setting a marble table into a styled Melbourne living room',
+    alt: 'Wrapped furniture waiting to travel in the Rebel Logistics warehouse',
     line1: 'Handled like',
     line2: "it's irreplaceable.",
   },
   {
     src: '/site/hero-2.jpg',
     video: '/site/hero-2.mp4',
-    alt: 'A Rebel Logistics handler in white cotton gloves talking a client through a piece',
+    alt: 'Rebel Logistics crew in white gloves setting a marble table into a styled room',
     line1: 'White gloves.',
     line2: 'Every piece.',
   },
   {
     src: '/site/hero-3.jpg',
     video: '/site/hero-3.mp4',
-    alt: 'A finished, styled interior after a Rebel Logistics delivery and installation',
+    alt: 'A finished, styled interior after a Rebel Logistics installation',
     line1: 'Left finished,',
     line2: 'not just delivered.',
   },
@@ -115,12 +135,12 @@ export const SERVICES: Service[] = [
       'Media and specialist event execution',
       'Full house relocation',
     ],
-    image: IMG.craneAirborne,
+    image: IMG.poolHouseCrane,
     imageAlt: 'Craning a crated piece over a glass pool house',
     heroVideo: '/site/reels/bg/logistics.mp4',
     rail: [
-      IMG.craneAirborne, IMG.craneLift, IMG.craneVertical, IMG.marble,
-      IMG.artHall, IMG.lounge, IMG.chandelier, IMG.warehouse,
+      IMG.poolHouseCrane, IMG.craneResidence, IMG.stoneSlabs, IMG.artHall,
+      IMG.lounge, IMG.chandelier, IMG.diningFitout, IMG.craneSpotting,
     ],
     heroLead:
       "We move furniture, stone, art and lighting into Melbourne's best homes and showrooms. Access is surveyed before we quote, the piece is wrapped before it travels, and it is assembled and placed to the drawing rather than left at the door.",
@@ -148,8 +168,8 @@ export const SERVICES: Service[] = [
     imageAlt: 'High-value furniture wrapped and stored on pallets',
     heroVideo: '/site/reels/bg/warehousing.mp4',
     rail: [
-      IMG.warehouse, IMG.warehouseAlt, IMG.marble, IMG.craneLift,
-      IMG.lounge, IMG.artDetail, IMG.dining, IMG.craneAirborne,
+      IMG.warehouse, IMG.warehouseAlt, IMG.craneTruck, IMG.stoneStaged,
+      IMG.workshop, IMG.craneCrate, IMG.loungeWide, IMG.artDetail,
     ],
     heroLead:
       "Secure storage for pieces that cannot be replaced, billed by the cubic metre at our Flemington warehouse. We take containers straight from the port, unpack and catalogue them, and deliver piece by piece on your schedule.",
@@ -173,12 +193,12 @@ export const SERVICES: Service[] = [
       'Showroom rearrangement and assembly',
       'Trade-fair and event set-up and pack-down',
     ],
-    image: IMG.wrapping,
+    image: IMG.poolsideWrap,
     imageAlt: 'Crew protectively wrapping furniture on site',
     heroVideo: '/site/reels/bg/labour.mp4',
     rail: [
-      IMG.wrapping, IMG.crew, IMG.lounge, IMG.loungeWide,
-      IMG.chandelier, IMG.dining, IMG.artHall, IMG.craneLift,
+      IMG.poolsideWrap, IMG.poolsideCrew, IMG.crew, IMG.chandelierRoom,
+      IMG.poolsideUnwrap, IMG.workshop, IMG.artWide, IMG.diningFitout,
     ],
     heroLead:
       "Trained crews for install days, showroom resets and event turnarounds. Not general labour hire: our people handle designer furniture, stone and artwork every day, and know how to carry it, wrap it and set it down.",
@@ -208,14 +228,14 @@ export const CLIENT_NAMES = CLIENTS.map((c) => c.name);
 
 export type GalleryItem = { src: string; caption: string; tall?: boolean };
 export const GALLERY: GalleryItem[] = [
-  { src: IMG.craneAirborne, caption: 'Craning a crated piece over a glass pool house' },
+  { src: IMG.poolHouseCrane, caption: 'Craning a crated piece over a glass pool house' },
   { src: IMG.artHall, caption: 'Positioning gallery artwork in a private residence' },
-  { src: IMG.marble, caption: 'Delivering full-height stone slabs', tall: true },
+  { src: IMG.stoneSlabs, caption: 'Delivering full-height stone slabs' },
   { src: IMG.lounge, caption: 'Styled, placed and finished' },
   { src: IMG.chandelier, caption: 'Assembling a bespoke lighting installation' },
   { src: IMG.warehouse, caption: 'Considered warehousing and 3PL' },
-  { src: IMG.craneVertical, caption: 'Heavy-lift access, done safely', tall: true },
-  { src: IMG.wrapping, caption: 'Protective wrapping, poolside handling' },
+  { src: IMG.poolsideWrap, caption: 'Protective wrapping on a poolside terrace' },
+  { src: IMG.diningFitout, caption: 'A completed bar and dining fit-out' },
 ];
 
 // Real client footage, cut and encoded locally from the supplied media.

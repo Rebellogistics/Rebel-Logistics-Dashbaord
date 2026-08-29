@@ -29,9 +29,9 @@ const CHAPTERS: Chapter[] = [
     lead: 'Craning crated furniture and stone into sites with no other access.',
     body: 'Crated furniture and full-height stone craned over pool houses, glass balustrades and tight side access. The lift is surveyed, planned and permitted before the truck is loaded, never improvised on the day.',
     images: [
-      { src: IMG.craneAirborne, caption: 'A crate airborne above a glass pool house' },
-      { src: IMG.craneLift, caption: 'Setting the lift from the street' },
-      { src: IMG.craneVertical, caption: 'Clearing the roofline into the rear garden' },
+      { src: IMG.poolHouseCrane, caption: 'A crate airborne above a glass pool house' },
+      { src: IMG.craneResidence, caption: 'Setting the lift from the street' },
+      { src: IMG.poolHouseLift, caption: 'Clearing the roofline into the rear garden' },
       { src: PHOTO('IMG-20200313-WA0014.jpg'), caption: 'Spotting the load in' },
     ],
   },
@@ -42,7 +42,7 @@ const CHAPTERS: Chapter[] = [
     lead: 'Full-height slabs delivered and set without damage.',
     body: 'Marble and engineered slabs travel on purpose-built A-frames, protected at every edge and walked into position by hand. One wrong angle ends a slab, so nothing is rushed.',
     images: [
-      { src: IMG.marble, caption: 'Slabs staged on site before placement' },
+      { src: IMG.stoneSlabs, caption: 'Slabs staged on site before placement' },
       { src: PHOTO('IMG-20200313-WA0024.jpg'), caption: 'Braced and upright for the walk-in' },
       { src: PHOTO('IMG-20200313-WA0023.jpg'), caption: 'Protected ground before the walk-in' },
       { src: PHOTO('IMG-20200313-WA0024.jpg'), caption: 'Hand-carrying the final metres' },
@@ -57,7 +57,7 @@ const CHAPTERS: Chapter[] = [
     images: [
       { src: IMG.lounge, caption: 'A finished living room, styled and placed' },
       { src: IMG.loungeWide, caption: 'The wider room, complete' },
-      { src: IMG.dining, caption: 'Formal dining, seated and aligned' },
+      { src: IMG.diningFitout, caption: 'Formal dining, seated and aligned' },
       { src: IMG.chandelier, caption: 'A bespoke lighting installation assembled on site' },
     ],
   },
@@ -94,7 +94,7 @@ const CHAPTERS: Chapter[] = [
     lead: 'Wrapping, protection and handling on site.',
     body: 'Protective wrapping, poolside handling, showroom resets and the patient work of getting large pieces through small openings.',
     images: [
-      { src: IMG.wrapping, caption: 'Protective wrapping before the move' },
+      { src: IMG.poolsideWrap, caption: 'Protective wrapping before the move' },
       { src: IMG.crew, caption: 'Planning the approach on site' },
       { src: PHOTO('IMG-20200313-WA0030.jpg'), caption: 'Poolside handling, protected ground' },
       { src: PHOTO('IMG-20200313-WA0018.jpg'), caption: 'Working the piece into position' },
@@ -111,7 +111,7 @@ export default function WorkPage() {
     description:
       'Real Rebel Logistics jobs across Melbourne: crane lifts, stone slabs, designer installations, art handling and warehousing. Photography and film from site.',
     path: '/work',
-    image: IMG.craneAirborne,
+    image: IMG.poolHouseCrane,
   });
 
   useEffect(() => {
@@ -142,7 +142,7 @@ export default function WorkPage() {
           <video
             className="absolute inset-0 h-full w-full object-cover"
             src="/site/reels/bg/logistics.mp4"
-            poster={IMG.craneAirborne}
+            poster={IMG.poolHouseCrane}
             autoPlay
             muted
             loop

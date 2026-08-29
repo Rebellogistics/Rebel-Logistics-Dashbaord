@@ -29,7 +29,7 @@ export function AreasIndexPage() {
     description:
       'White-glove delivery, storage and installation across Melbourne metro and regional Victoria, from Toorak and Brighton to the Peninsula and Geelong.',
     path: '/areas',
-    image: IMG.craneAirborne,
+    image: IMG.poolHouseCrane,
   });
 
   return (
@@ -128,7 +128,7 @@ function AreaBody({ area }: { area: Area }) {
     description:
       `White-glove furniture delivery, art handling, storage and installation in ${area.name} ${area.postcode}. Same-day quotes from our Flemington warehouse.`,
     path: `/areas/${area.slug}`,
-    image: IMG.craneAirborne,
+    image: IMG.poolHouseCrane,
     service: {
       name: `White-glove logistics in ${area.name}`,
       description: `Specialist furniture, art and stone delivery, installation and warehousing serving ${area.name}, Victoria.`,

@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowUpRight, Check, MapPin, Phone, Mail, Clock, Instagram, Building2, ShieldCheck } from 'lucide-react';
 import { SiteHeader, SiteFooter } from '../site/Chrome';
 import { BUSINESS, CLIENTS, GALLERY, IMG, PHOTO, SERVICES, type Service } from '../site/data';
-import { Button, Container, Marquee, PhotoRail, QuoteCTA, Reveal } from '../site/ui';
+import { Button, Container, Marquee, PhotoRail, QuoteCTA, Reveal, cx, prefersReducedMotion } from '../site/ui';
 import { ReelRail } from '../site/Reels';
 import { LeadForm } from '../site/LeadForm';
 import { useSeo } from '../site/seo';
@@ -177,7 +177,7 @@ function ClosingCTA() {
   );
 }
 
-const RELATED_IMG = [IMG.craneLift, IMG.marble, IMG.lounge, IMG.chandelier];
+const RELATED_IMG = [IMG.craneResidence, IMG.stoneSlabs, IMG.lounge, IMG.chandelier];
 
 export function ServicePage({ slug }: { slug: string }) {
   const service = SERVICES.find((s) => s.slug === slug) as Service;
@@ -365,6 +365,200 @@ const VALUES = [
   { t: 'Trusted by the best', d: 'Leading Australian and international brands and designers rely on Rebel for their most demanding installs and deliveries.' },
 ];
 
+
+/* ---------------------------------------------------------------- */
+/* About hero: the opening and the "what we do" section merged into  */
+/* one auto-advancing panel, so the page starts with something       */
+/* moving rather than a static image and a wall of prose below it.   */
+/* ---------------------------------------------------------------- */
+
+type AboutBeat = { src: string; alt: string; title: string; sub: string; body: string };
+
+const ABOUT_BEATS: AboutBeat[] = [
+  {
+    src: IMG.artHall,
+    alt: 'Artwork positioned along the approach of a private Melbourne residence',
+    title: 'Specialist logistics',
+    sub: 'for Melbourne.',
+    body: "Born in 2019, Rebel Logistics is a specialist transport company started by people known for their professionalism, and trusted by leading Australian and international organisations to handle their every need.",
+  },
+  {
+    src: IMG.poolHouseCrane,
+    alt: 'A crated piece craned over a glass pool house',
+    title: 'We move what',
+    sub: 'others will not.',
+    body: 'Full-height stone slabs craned over pool houses, bespoke lighting installed to a designer\'s plan, entire showrooms reset overnight. If a piece will not fit through the house, it goes over it.',
+  },
+  {
+    src: IMG.lounge,
+    alt: 'A finished, styled living room after a Rebel Logistics installation',
+    title: 'From the loading dock',
+    sub: 'to the finished room.',
+    body: 'Warehousing and 3PL, white-glove delivery, and skilled on-site labour. One partner from the moment a piece leaves the showroom to the moment the room is finished.',
+  },
+];
+
+const ABOUT_STATS = [
+  { k: `${new Date().getFullYear() - BUSINESS.founded}+`, v: 'Years specialising' },
+  { k: 'VIC', v: 'Metro and regional' },
+  { k: '3', v: 'Service pillars' },
+];
+
+function AboutHero() {
+  const isMobile = useIsMobile();
+  const [i, setI] = useState(0);
+  const [reduced, setReduced] = useState(false);
+
+  useEffect(() => setReduced(prefersReducedMotion()), []);
+  useEffect(() => {
+    if (reduced) return;
+    const id = window.setInterval(() => setI((v) => (v + 1) % ABOUT_BEATS.length), 6000);
+    return () => window.clearInterval(id);
+  }, [reduced]);
+
+  const media = (
+    <>
+      {ABOUT_BEATS.map((b, n) => (
+        <img
+          key={b.src}
+          src={b.src}
+          alt={n === 0 ? b.alt : ''}
+          aria-hidden={n !== 0 ? true : undefined}
+          loading={n === 0 ? 'eager' : 'lazy'}
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{
+            opacity: n === i ? 1 : 0,
+            transform: n === i && !reduced ? 'scale(1.07)' : 'scale(1)',
+            transition: 'opacity 1100ms ease-out, transform 7000ms linear',
+          }}
+        />
+      ))}
+    </>
+  );
+
+  const markers = (light: boolean) => (
+    <div className="mt-8 flex items-center gap-2">
+      {ABOUT_BEATS.map((b, n) => (
+        <button key={b.src} type="button" aria-label={`Show ${b.title}`} onClick={() => setI(n)} className="py-2">
+          <span
+            className={cx(
+              'block h-px transition-all duration-300',
+              n === i
+                ? light ? 'w-10 bg-white' : 'w-10 bg-[var(--ink)]'
+                : light ? 'w-5 bg-white/30' : 'w-5 bg-[var(--line-2)]',
+            )}
+          />
+        </button>
+      ))}
+    </div>
+  );
+
+  const stats = (light: boolean) => (
+    <div className={cx('mt-10 flex flex-wrap gap-10 border-t pt-7', light ? 'border-white/15' : 'border-[var(--line)]')}>
+      {ABOUT_STATS.map((s) => (
+        <div key={s.v}>
+          <p className={cx('rl-display text-[2.2rem]', light ? 'text-white' : 'text-[var(--ink)]')}>{s.k}</p>
+          <p className={cx('mt-1 text-[12px] uppercase tracking-[0.12em]', light ? 'text-white/50' : 'text-[var(--ink-faint)]')}>
+            {s.v}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+
+  // Mobile: photograph first, words beneath, matching every other page.
+  if (isMobile) {
+    return (
+      <section className="bg-[var(--paper)] pt-[76px]">
+        <div className="relative aspect-[4/5] w-full overflow-hidden bg-[var(--char)]">
+          {media}
+          <div
+            aria-hidden
+            className="absolute inset-x-0 bottom-0 h-24"
+            style={{ background: 'linear-gradient(180deg, transparent, rgba(252,251,248,0.9) 82%, var(--paper))' }}
+          />
+        </div>
+        <Container className="pb-14 pt-7">
+          <div className="flex items-center gap-3">
+            <span aria-hidden className="inline-block h-px w-8 bg-[var(--line-2)]" />
+            <span className="rl-kicker !gap-0 text-[var(--ink-faint)]">Melbourne&nbsp; ·&nbsp; Est. {BUSINESS.founded}</span>
+          </div>
+          <div className="mt-5 grid">
+            {ABOUT_BEATS.map((b, n) => (
+              <h1
+                key={b.src}
+                className="rl-display [grid-area:1/1] text-[clamp(2.1rem,9vw,2.9rem)] text-[var(--ink)] transition-opacity duration-500"
+                style={{ opacity: n === i ? 1 : 0, pointerEvents: n === i ? undefined : 'none' }}
+                aria-hidden={n !== 0 ? true : undefined}
+              >
+                <span className="block font-medium">{b.title}</span>
+                <span className="block font-light text-[var(--ink-soft)]">{b.sub}</span>
+              </h1>
+            ))}
+          </div>
+          <div className="mt-5 grid">
+            {ABOUT_BEATS.map((b, n) => (
+              <p
+                key={b.src}
+                className="[grid-area:1/1] text-[15.5px] font-light leading-relaxed text-[var(--ink-soft)] transition-opacity duration-500"
+                style={{ opacity: n === i ? 1 : 0 }}
+                aria-hidden={n !== 0 ? true : undefined}
+              >
+                {b.body}
+              </p>
+            ))}
+          </div>
+          {markers(false)}
+          {stats(false)}
+        </Container>
+      </section>
+    );
+  }
+
+  return (
+    <section className="relative flex h-[100svh] items-end overflow-hidden bg-[var(--char)]">
+      {media}
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(15,13,9,0.5) 0%, rgba(15,13,9,0.08) 30%, rgba(15,13,9,0.85) 100%)' }} />
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(15,13,9,0.62) 0%, rgba(15,13,9,0.12) 54%, transparent 78%)' }} />
+      <Container wide className="relative pb-14">
+        <div className="max-w-[46rem]">
+          <div className="mb-6 flex items-center gap-3">
+            <span aria-hidden className="inline-block h-px w-9 bg-white/40" />
+            <span className="rl-kicker !gap-0 text-white/70">Melbourne&nbsp; ·&nbsp; Est. {BUSINESS.founded}</span>
+          </div>
+          <div className="grid">
+            {ABOUT_BEATS.map((b, n) => (
+              <h1
+                key={b.src}
+                className="rl-display [grid-area:1/1] text-[clamp(2.4rem,5.2vw,4.4rem)] text-white transition-opacity duration-700"
+                style={{ opacity: n === i ? 1 : 0, pointerEvents: n === i ? undefined : 'none' }}
+                aria-hidden={n !== 0 ? true : undefined}
+              >
+                <span className="block font-medium">{b.title}</span>
+                <span className="block font-light text-white/80">{b.sub}</span>
+              </h1>
+            ))}
+          </div>
+          <div className="mt-6 grid max-w-[34rem]">
+            {ABOUT_BEATS.map((b, n) => (
+              <p
+                key={b.src}
+                className="[grid-area:1/1] text-[clamp(0.98rem,1.3vw,1.1rem)] font-light leading-relaxed text-white/72 transition-opacity duration-700"
+                style={{ opacity: n === i ? 1 : 0 }}
+                aria-hidden={n !== 0 ? true : undefined}
+              >
+                {b.body}
+              </p>
+            ))}
+          </div>
+          {markers(true)}
+          {stats(true)}
+        </div>
+      </Container>
+    </section>
+  );
+}
+
 export function AboutPage() {
   useSeo({
     title: 'About Rebel Logistics | Specialist Transport Melbourne',
@@ -375,51 +569,7 @@ export function AboutPage() {
   });
   return (
     <Shell overHero>
-      <ImageHero
-        eyebrow={`Melbourne / Est. ${BUSINESS.founded}`}
-        title="Specialist logistics"
-        sub="for Melbourne."
-        lead="Born in 2019, Rebel Logistics is a specialist transport company started by people known for their professionalism, and trusted by leading Australian and international organisations to handle their every need."
-        image={IMG.artHall}
-        alt="Positioning gallery artwork in a private residence"
-      />
-
-      <section className="bg-[var(--paper)] py-24 sm:py-32">
-        <Container wide className="grid gap-16 lg:grid-cols-[1.1fr_1fr] lg:gap-24">
-          <Reveal>
-            <h2 className="rl-display text-[clamp(1.9rem,3.6vw,3rem)] text-[var(--ink)]">
-              What we do and who we do it for.
-            </h2>
-            <p className="mt-7 text-[16.5px] font-light leading-relaxed text-[var(--ink-soft)]">
-              We move the pieces other companies will not. Full-height stone slabs craned over pool houses,
-              bespoke lighting installed to a designer's plan, entire showrooms reset overnight. From
-              warehousing and 3PL to white-glove delivery and skilled on-site labour, Rebel is the single
-              partner luxury interiors trust from the loading dock to the finished room.
-            </p>
-            <div className="mt-10 flex flex-wrap gap-12 border-t border-[var(--line)] pt-8">
-              {[
-                { k: `${new Date().getFullYear() - BUSINESS.founded}+`, v: 'Years specialising' },
-                { k: 'VIC', v: 'Metro and regional' },
-                { k: '3', v: 'Service pillars' },
-              ].map((s) => (
-                <div key={s.v}>
-                  <p className="rl-display text-[2.6rem] text-[var(--ink)]">{s.k}</p>
-                  <p className="mt-1 text-[12px] uppercase tracking-[0.12em] text-[var(--ink-faint)]">{s.v}</p>
-                </div>
-              ))}
-            </div>
-          </Reveal>
-          <Reveal delay={120} media className="grid gap-4">
-            <div className="overflow-hidden rounded-[2px]">
-              <img src={IMG.lounge} alt="A completed luxury install" className="h-full w-full object-cover" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <img src={IMG.craneVertical} alt="Heavy-lift access" className="aspect-[4/5] w-full rounded-[2px] object-cover" />
-              <img src={IMG.chandelier} alt="Bespoke lighting install" className="aspect-[4/5] w-full rounded-[2px] object-cover" />
-            </div>
-          </Reveal>
-        </Container>
-      </section>
+      <AboutHero />
 
       <section className="bg-[var(--paper-2)] py-24">
         <Container wide>
