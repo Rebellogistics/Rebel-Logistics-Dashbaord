@@ -24,14 +24,24 @@ export function SiteHeader({ overHero = false }: { overHero?: boolean }) {
   const loc = useLocation();
 
   useEffect(() => {
-    if (!overHero) {
-      setScrolled(true);
-      return;
-    }
-    const onScroll = () => setScrolled(window.scrollY > 72);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    // Below md the hero renders its image *under* the header rather than
+    // behind it, so a transparent bar would sit on white and then flip to
+    // solid mid-scroll. Keep it solid there.
+    const mq = window.matchMedia('(max-width: 767px)');
+    const apply = () => {
+      if (!overHero || mq.matches) {
+        setScrolled(true);
+        return;
+      }
+      setScrolled(window.scrollY > 72);
+    };
+    apply();
+    window.addEventListener('scroll', apply, { passive: true });
+    mq.addEventListener('change', apply);
+    return () => {
+      window.removeEventListener('scroll', apply);
+      mq.removeEventListener('change', apply);
+    };
   }, [overHero]);
 
   useEffect(() => {
