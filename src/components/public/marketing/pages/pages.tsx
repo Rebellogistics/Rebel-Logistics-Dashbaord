@@ -2,8 +2,8 @@ import { useEffect, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowUpRight, Check, MapPin, Phone, Mail, Clock, Instagram, Building2, ShieldCheck } from 'lucide-react';
 import { SiteHeader, SiteFooter } from '../site/Chrome';
-import { BUSINESS, CLIENTS, CLIENT_NAMES, GALLERY, IMG, SERVICES, type Service } from '../site/data';
-import { Button, ClientNames, Container, Kicker, Marquee, PhotoRail, Reveal } from '../site/ui';
+import { BUSINESS, CLIENTS, GALLERY, IMG, PHOTO, SERVICES, type Service } from '../site/data';
+import { Button, Container, Kicker, Marquee, PhotoRail, QuoteCTA, Reveal } from '../site/ui';
 import { ReelRail } from '../site/Reels';
 import { LeadForm } from '../site/LeadForm';
 import { useSeo } from '../site/seo';
@@ -24,6 +24,13 @@ const SERVICE_SEO: Record<string, { title: string; description: string }> = {
     description:
       'Trained crews for install days, showroom rearrangement, furniture assembly and trade-fair set-up across Melbourne. Skilled hands used to precious spaces.',
   },
+};
+
+/** Pre-selects the matching enquiry type on each service page. */
+const SERVICE_FORM_OPTION: Record<string, string> = {
+  logistics: 'Delivery & installation',
+  warehousing: 'Warehousing & storage',
+  labour: 'Labour & assembly',
 };
 
 function Shell({ children, overHero }: { children: ReactNode; overHero?: boolean }) {
@@ -72,9 +79,9 @@ function ImageHero({ eyebrow, title, sub, lead, image, alt, video }: { eyebrow: 
           </h1>
           <p className="mt-7 max-w-xl text-[clamp(1rem,1.35vw,1.14rem)] font-light leading-relaxed text-white/70">{lead}</p>
           <div className="mt-9">
-            <Button to="/quote" size="lg" variant="light">
+            <QuoteCTA variant="light">
               Request a quote <ArrowRight className="h-4 w-4" strokeWidth={1.6} />
-            </Button>
+            </QuoteCTA>
           </div>
         </Reveal>
       </Container>
@@ -89,8 +96,8 @@ function ClosingCTA() {
         <Reveal>
           <Kicker className="text-[var(--ink-soft)]">Start here</Kicker>
           <h2 className="rl-display mt-6 text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
-            Let's move it
-            <span className="block font-light text-[var(--ink-soft)]">beautifully.</span>
+            Request a quote
+            <span className="block font-light text-[var(--ink-soft)]">for your job.</span>
           </h2>
           <p className="mt-6 max-w-md text-[16px] font-light leading-relaxed text-[var(--ink-soft)]">
             Share a few details and we'll come back the same business day with a plan and a clear price.
@@ -136,7 +143,20 @@ export function ServicePage({ slug }: { slug: string }) {
         video={service.heroVideo}
       />
 
-      <section className="bg-[var(--paper)] py-24 sm:py-32">
+      {/* 02 — Authority before the ask */}
+      <section className="border-y border-[var(--line)] bg-[var(--paper)] py-12">
+        <Container wide>
+          <Reveal className="text-center">
+            <p className="rl-kicker text-[var(--ink-faint)]">Trusted to handle the irreplaceable</p>
+          </Reveal>
+        </Container>
+        <div className="mt-8">
+          <Marquee logos={CLIENTS} />
+        </div>
+      </section>
+
+      {/* 03 — What the service is and what it includes */}
+      <section className="bg-[var(--paper)] py-24 sm:py-28">
         <Container wide className="grid gap-14 lg:grid-cols-[1fr_1fr] lg:gap-24">
           <Reveal>
             <Kicker className="text-[var(--ink-soft)]">The service</Kicker>
@@ -163,27 +183,14 @@ export function ServicePage({ slug }: { slug: string }) {
         </Container>
       </section>
 
-      {/* Scrolling photo rail, right to left */}
-      <section className="overflow-hidden bg-[var(--paper-2)] py-16 sm:py-20">
-        <Container wide>
-          <Reveal className="mb-10">
-            <Kicker className="text-[var(--ink-soft)]">On the job</Kicker>
-            <h2 className="rl-display mt-5 text-[clamp(1.7rem,3vw,2.4rem)] text-[var(--ink)]">
-              {service.title} in practice.
-            </h2>
-          </Reveal>
-        </Container>
-        <PhotoRail images={service.rail} fade="var(--paper-2)" />
-      </section>
-
-      {/* Expanded detail */}
+      {/* 04 — How we handle every job */}
       <section className="bg-[var(--paper)] py-24 sm:py-28">
         <Container wide>
           <Reveal className="max-w-3xl">
             <Kicker className="text-[var(--ink-soft)]">How we work</Kicker>
             <h2 className="rl-display mt-6 text-[clamp(2rem,4vw,3.2rem)] text-[var(--ink)]">
-              The detail that
-              <span className="block font-light text-[var(--ink-soft)]">makes the difference.</span>
+              How we handle
+              <span className="block font-light text-[var(--ink-soft)]">every job.</span>
             </h2>
           </Reveal>
           <div className="mt-14 grid gap-x-14 gap-y-10 border-t border-[var(--line)] pt-12 sm:grid-cols-2">
@@ -202,7 +209,40 @@ export function ServicePage({ slug }: { slug: string }) {
         </Container>
       </section>
 
-      {/* Film rail */}
+      {/* 05 — Ask, once the offer and method are clear */}
+      <section id="quote-form" className="scroll-mt-24 bg-[var(--paper-2)] py-20 sm:py-28">
+        <Container wide className="grid items-start gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
+          <Reveal>
+            <Kicker className="text-[var(--ink-soft)]">Request a quote</Kicker>
+            <h2 className="rl-display mt-6 text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
+              Need {service.title.toLowerCase()}?
+              <span className="block font-light text-[var(--ink-soft)]">Tell us what you're moving.</span>
+            </h2>
+            <p className="mt-6 max-w-md text-[16px] font-light leading-relaxed text-[var(--ink-soft)]">
+              Share the pieces, the addresses and any access notes. We respond the same business day with a
+              considered plan and a clear price.
+            </p>
+            <ul className="mt-10 divide-y divide-[var(--line)] border-t border-[var(--line)]">
+              {service.points.slice(0, 3).map((p) => (
+                <li key={p} className="flex items-start gap-4 py-4">
+                  <Check className="mt-0.5 h-[18px] w-[18px] shrink-0 text-[var(--accent)]" strokeWidth={1.9} />
+                  <span className="text-[15px] text-[var(--ink-soft)]">{p}</span>
+                </li>
+              ))}
+            </ul>
+          </Reveal>
+          <Reveal delay={120}>
+            <LeadForm compact defaultService={SERVICE_FORM_OPTION[slug]} />
+          </Reveal>
+        </Container>
+      </section>
+
+      {/* 06 — Proof on sight: full-bleed rail, edge to edge */}
+      <section className="overflow-hidden bg-[var(--paper)]">
+        <PhotoRail images={service.rail} fade="var(--paper)" size="lg" />
+      </section>
+
+      {/* 07 — Motion holds attention */}
       <section className="overflow-hidden bg-[var(--paper-2)] py-20 sm:py-24">
         <Container wide>
           <Reveal className="mb-10 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -216,18 +256,17 @@ export function ServicePage({ slug }: { slug: string }) {
           </Reveal>
         </Container>
         <ReelRail />
-      </section>
-
-      {/* Client logos for authority */}
-      <section className="border-y border-[var(--line)] bg-[var(--paper)] py-14">
         <Container wide>
-          <Reveal className="text-center">
-            <p className="rl-kicker text-[var(--ink-faint)]">Trusted to handle the irreplaceable</p>
-          </Reveal>
+          <div className="mt-9 flex justify-start">
+            <a
+              href="#quote-form"
+              className="group inline-flex h-[46px] items-center gap-2 rounded-[2px] bg-[var(--ink)] px-6 text-[13.5px] font-medium text-white transition-colors hover:bg-[var(--char-2)]"
+            >
+              Get a quote for your job
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={1.7} />
+            </a>
+          </div>
         </Container>
-        <div className="mt-9">
-          <Marquee logos={CLIENTS} />
-        </div>
       </section>
 
       <section className="bg-[var(--paper)] py-24">
@@ -283,7 +322,7 @@ export function AboutPage() {
       <ImageHero
         eyebrow={`Melbourne / Est. ${BUSINESS.founded}`}
         title="Specialist logistics"
-        sub="for a discerning world."
+        sub="for Melbourne."
         lead="Born in 2019, Rebel Logistics is a specialist transport company started by people known for their professionalism, and trusted by leading Australian and international organisations to handle their every need."
         image={IMG.artHall}
         alt="Positioning gallery artwork in a private residence"
@@ -294,7 +333,7 @@ export function AboutPage() {
           <Reveal>
             <Kicker className="text-[var(--ink-soft)]">Our story</Kicker>
             <h2 className="rl-display mt-6 text-[clamp(1.9rem,3.6vw,3rem)] text-[var(--ink)]">
-              When you engage Rebel, your every need is at the forefront.
+              What we do and who we do it for.
             </h2>
             <p className="mt-7 text-[16.5px] font-light leading-relaxed text-[var(--ink-soft)]">
               We move the pieces other companies will not. Full-height stone slabs craned over pool houses,
@@ -341,15 +380,52 @@ export function AboutPage() {
         </Container>
       </section>
 
-      <section className="bg-[var(--paper)] py-16">
-        <Container wide>
-          <Reveal className="text-center">
-            <p className="rl-kicker text-[var(--ink-faint)]">Trusted to handle the irreplaceable</p>
-            <div className="mt-8">
-              <ClientNames names={CLIENT_NAMES} />
+      {/* Founder. Real photograph of Yamin on site, not a generated likeness. */}
+      <section className="bg-[var(--char)] py-20 text-white sm:py-28">
+        <Container wide className="grid items-center gap-12 lg:grid-cols-[1fr_1fr] lg:gap-20">
+          <Reveal>
+            <div className="overflow-hidden rounded-[2px]">
+              <img
+                src="/site/founder.jpg"
+                alt="Yamin Kassouah, founder of Rebel Logistics, in the Flemington warehouse"
+                loading="lazy"
+                className="aspect-[4/5] w-full object-cover"
+              />
+            </div>
+          </Reveal>
+          <Reveal delay={120}>
+            <Kicker className="text-white/45">The founder</Kicker>
+            <h2 className="rl-display mt-6 text-[clamp(1.9rem,3.6vw,3rem)] text-white">Yamin Kassouah</h2>
+            <p className="mt-6 text-[16.5px] font-light leading-relaxed text-white/65">
+              Yamin started Rebel Logistics in {BUSINESS.founded} after years of moving high-value pieces for
+              Melbourne showrooms and designers. He runs the yard at Flemington and is on site for the
+              difficult jobs, which is usually where the crane is.
+            </p>
+            <p className="mt-4 text-[16.5px] font-light leading-relaxed text-white/65">
+              The standard he set at the start has not changed: measure the access before quoting, protect the
+              space before the piece enters it, and leave the room finished.
+            </p>
+            <div className="mt-8 border-t border-white/15 pt-6">
+              <a
+                href={`tel:${BUSINESS.phoneIntl}`}
+                className="inline-flex items-center gap-3 text-[15px] text-white/70 transition-colors hover:text-white"
+              >
+                <Phone className="h-4 w-4" strokeWidth={1.6} /> Speak to the team on {BUSINESS.phone}
+              </a>
             </div>
           </Reveal>
         </Container>
+      </section>
+
+      <section className="border-y border-[var(--line)] bg-[var(--paper)] py-12">
+        <Container wide>
+          <Reveal className="text-center">
+            <p className="rl-kicker text-[var(--ink-faint)]">Trusted to handle the irreplaceable</p>
+          </Reveal>
+        </Container>
+        <div className="mt-8">
+          <Marquee logos={CLIENTS} />
+        </div>
       </section>
 
       <ClosingCTA />
@@ -387,8 +463,8 @@ export function QuotePage() {
           <Reveal>
             <Kicker className="text-white/45">Request a quote</Kicker>
             <h1 className="rl-display mt-6 max-w-3xl text-[clamp(2.6rem,6vw,4.6rem)] text-white">
-              Tell us what you're moving.
-              <span className="block font-light text-white/75">We'll take it from there.</span>
+              Request a quote.
+              <span className="block font-light text-white/75">We reply the same business day.</span>
             </h1>
             <p className="mt-6 max-w-xl text-[16px] font-light leading-relaxed text-white/60">
               Share the pieces, the addresses and any access notes. We'll come back the same business day with
@@ -455,8 +531,8 @@ export function ContactPage() {
           <Reveal>
             <Kicker className="text-white/45">Contact</Kicker>
             <h1 className="rl-display mt-6 max-w-3xl text-[clamp(2.6rem,6vw,4.6rem)] text-white">
-              Let's talk about
-              <span className="block font-light text-white/75">your next move.</span>
+              Contact
+              <span className="block font-light text-white/75">Rebel Logistics.</span>
             </h1>
             <p className="mt-6 max-w-xl text-[16px] font-light leading-relaxed text-white/60">
               Tell us what you're moving and where. We'll respond the same business day with a considered plan
@@ -502,12 +578,9 @@ export function ContactPage() {
         </Container>
       </section>
 
-      <section className="grid grid-cols-2 gap-1 bg-[var(--paper-2)] md:grid-cols-4">
-        {GALLERY.slice(0, 4).map((g) => (
-          <div key={g.src} className="aspect-[4/3] overflow-hidden">
-            <img src={g.src} alt={g.caption} loading="lazy" className="h-full w-full object-cover" />
-          </div>
-        ))}
+      {/* Full-bleed scrolling rail, matching the service pages */}
+      <section className="overflow-hidden bg-[var(--paper)]">
+        <PhotoRail images={GALLERY.map((g) => g.src)} fade="var(--paper)" />
       </section>
     </Shell>
   );

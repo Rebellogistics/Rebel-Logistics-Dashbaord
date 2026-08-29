@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { SiteHeader, SiteFooter } from '../site/Chrome';
 import { BUSINESS, CLIENTS, IMG, PHOTO } from '../site/data';
-import { Button, Container, Kicker, Marquee, Reveal, cx } from '../site/ui';
+import { Button, Container, Kicker, Marquee, Reveal, cx , goToQuoteForm } from '../site/ui';
 import { ReelRail } from '../site/Reels';
 import { LeadForm } from '../site/LeadForm';
 import { useSeo } from '../site/seo';
@@ -26,7 +26,7 @@ const CHAPTERS: Chapter[] = [
     id: 'craning',
     index: '01',
     title: 'Heavy lift and craning',
-    lead: 'When a piece will not fit through the house, it goes over it.',
+    lead: 'Craning crated furniture and stone into sites with no other access.',
     body: 'Crated furniture and full-height stone craned over pool houses, glass balustrades and tight side access. The lift is surveyed, planned and permitted before the truck is loaded, never improvised on the day.',
     images: [
       { src: IMG.craneAirborne, caption: 'A crate airborne above a glass pool house' },
@@ -39,7 +39,7 @@ const CHAPTERS: Chapter[] = [
     id: 'stone',
     index: '02',
     title: 'Stone and surfaces',
-    lead: 'Full-height slabs, delivered without a chip.',
+    lead: 'Full-height slabs delivered and set without damage.',
     body: 'Marble and engineered slabs travel on purpose-built A-frames, protected at every edge and walked into position by hand. One wrong angle ends a slab, so nothing is rushed.',
     images: [
       { src: IMG.marble, caption: 'Slabs staged on site before placement' },
@@ -52,7 +52,7 @@ const CHAPTERS: Chapter[] = [
     id: 'installation',
     index: '03',
     title: 'Designer installation',
-    lead: 'Delivered, assembled and placed to the drawing.',
+    lead: 'Whole rooms delivered, assembled and positioned to the drawing.',
     body: 'Whole rooms installed in a single visit for interior designers and showrooms: protection down first, pieces assembled in place, packaging removed. The room is finished when we leave, not started.',
     images: [
       { src: IMG.lounge, caption: 'A finished living room, styled and placed' },
@@ -65,7 +65,7 @@ const CHAPTERS: Chapter[] = [
     id: 'art',
     index: '04',
     title: 'Art and gallery handling',
-    lead: 'Works that cannot be replaced.',
+    lead: 'Crating, transport, positioning and hanging for galleries and collections.',
     body: 'Crating, transport, positioning and hanging for galleries, dealers and private collections. Handled with gloves, measured twice and hung to the millimetre.',
     images: [
       { src: IMG.artHall, caption: 'A private residence gallery corridor' },
@@ -78,7 +78,7 @@ const CHAPTERS: Chapter[] = [
     id: 'warehouse',
     index: '05',
     title: 'Warehousing and 3PL',
-    lead: 'Somewhere considered, between the showroom and the home.',
+    lead: 'Storage per cubic metre, container unpack and 3PL.',
     body: 'Wrapped, palletised and stored per cubic metre at our Flemington warehouse. Container unpack, short and long-term storage, and delivery piece by piece on your schedule.',
     images: [
       { src: IMG.warehouse, caption: 'High-value stock wrapped and palletised' },
@@ -91,7 +91,7 @@ const CHAPTERS: Chapter[] = [
     id: 'onsite',
     index: '06',
     title: 'On site with the crew',
-    lead: 'The part clients do not usually see.',
+    lead: 'Wrapping, protection and handling on site.',
     body: 'Protective wrapping, poolside handling, showroom resets and the patient work of getting large pieces through small openings.',
     images: [
       { src: IMG.wrapping, caption: 'Protective wrapping before the move' },
@@ -161,8 +161,8 @@ export default function WorkPage() {
                 <span className="rl-kicker !gap-0 text-white/70">Selected work</span>
               </div>
               <h1 className="rl-display max-w-4xl text-[clamp(2.6rem,6vw,5rem)] text-white">
-                <span className="block font-medium">Every job is</span>
-                <span className="block font-light text-white/80">a reference.</span>
+                <span className="block font-medium">Our work</span>
+                <span className="block font-light text-white/80">across Melbourne.</span>
               </h1>
               <p className="mt-7 max-w-xl text-[clamp(1rem,1.35vw,1.14rem)] font-light leading-relaxed text-white/70">
                 Real photography and film from Melbourne's finest homes, showrooms and galleries. Craned in,
@@ -200,10 +200,9 @@ export default function WorkPage() {
               <p className="text-[13px] font-light text-[var(--ink-faint)]">
                 Select any clip to play it with sound.
               </p>
-              <a
-                href="#enquire"
+              <a href="#enquire"
                 className="group inline-flex h-[46px] items-center gap-2 rounded-[2px] bg-[var(--ink)] px-6 text-[13.5px] font-medium text-white transition-colors hover:bg-[var(--char-2)]"
-              >
+               onClick={(e) => { if (goToQuoteForm()) e.preventDefault(); }}>
                 Get a quote for your job
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={1.7} />
               </a>
@@ -236,10 +235,9 @@ export default function WorkPage() {
                     </li>
                   ))}
                 </ul>
-                <a
-                  href="#enquire"
+                <a href="#enquire"
                   className="mt-8 inline-flex items-center gap-2 text-[13px] font-semibold uppercase tracking-[0.12em] text-[var(--ink)] hover:text-[var(--accent)]"
-                >
+                 onClick={(e) => { if (goToQuoteForm()) e.preventDefault(); }}>
                   Enquire <ArrowRight className="h-3.5 w-3.5" />
                 </a>
               </div>
@@ -294,8 +292,8 @@ export default function WorkPage() {
             <Reveal>
               <Kicker className="text-[var(--ink-soft)]">Start here</Kicker>
               <h2 className="rl-display mt-6 text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
-                Your job could be
-                <span className="block font-light text-[var(--ink-soft)]">the next one here.</span>
+                Request a quote
+                <span className="block font-light text-[var(--ink-soft)]">for your job.</span>
               </h2>
               <p className="mt-6 max-w-md text-[16px] font-light leading-relaxed text-[var(--ink-soft)]">
                 Tell us what you're moving and where. We'll come back the same business day with a considered

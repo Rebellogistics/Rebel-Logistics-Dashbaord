@@ -25,13 +25,27 @@ export default function MarketingHome() {
   return (
     <div className="rl min-h-screen">
       <SiteHeader overHero />
+      {/*
+        Section order is a conversion sequence, not a content list:
+        1  Hero          promise + primary action
+        2  Trust         borrowed authority before any ask
+        3  Quote form    capture while intent is highest
+        4  Film          motion holds attention, then pushes back to the form
+        5  Services      what we actually do
+        6  Proof         evidence it is real
+        7  Sectors       "this is for someone like me"
+        8  Process       removes the risk of saying yes
+        9  Coverage      local relevance
+        10 FAQ           handles the last objections
+        11 Footer CTA    final ask
+      */}
       <main>
         <Hero />
         <BrandsBand />
         <QuoteBand />
+        <InstagramWall />
         <ServicesOverview />
         <Proof />
-        <InstagramWall />
         <Sectors />
         <Process />
         <Coverage />

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Clock, ShieldCheck, MapPin, Instagram, Plus, Minus } from 'lucide-react';
 import { AREAS, BUSINESS, CLIENTS, CLIENT_NAMES, FAQS, GALLERY, SECTORS, SERVICES } from '../site/data';
-import { ClientNames, Container, Kicker, Marquee, Reveal, cx } from '../site/ui';
+import { ClientNames, Container, Kicker, Marquee, Reveal, cx , goToQuoteForm } from '../site/ui';
 import { LeadForm } from '../site/LeadForm';
 import { ReelRail } from '../site/Reels';
 
@@ -42,8 +42,8 @@ export function QuoteBand() {
         <Reveal>
           <Kicker className="text-[var(--ink-soft)]">Request a quote</Kicker>
           <h2 className="rl-display mt-6 text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
-            Tell us what you're moving.
-            <span className="block font-light text-[var(--ink-soft)]">We'll take it from there.</span>
+            Request a quote.
+            <span className="block font-light text-[var(--ink-soft)]">We reply the same business day.</span>
           </h2>
           <p className="mt-6 max-w-md text-[16px] font-light leading-relaxed text-[var(--ink-soft)]">
             Whether it is a single stone table or a full showroom fit-out, share the details and our team will
@@ -81,8 +81,8 @@ export function ServicesOverview() {
         <Reveal className="max-w-3xl">
           <Kicker className="text-[var(--ink-soft)]">What we do</Kicker>
           <h2 className="rl-display mt-6 text-[clamp(2.2rem,4.6vw,3.8rem)] text-[var(--ink)]">
-            Three disciplines,
-            <span className="block font-light text-[var(--ink-soft)]">one standard of care.</span>
+            Our services.
+            <span className="block font-light text-[var(--ink-soft)]">Logistics, warehousing and labour.</span>
           </h2>
         </Reveal>
 
@@ -146,8 +146,8 @@ export function Proof() {
           <div className="max-w-2xl">
             <Kicker className="text-white/50">Selected work</Kicker>
             <h2 className="rl-display mt-6 text-[clamp(2.2rem,4.6vw,3.8rem)] text-white">
-              The proof is in
-              <span className="block font-light text-white/70">the handling.</span>
+              Recent work
+              <span className="block font-light text-white/70">across Melbourne.</span>
             </h2>
           </div>
           <p className="max-w-sm text-[15px] font-light leading-relaxed text-white/55">
@@ -201,8 +201,8 @@ export function Process() {
         <Reveal className="max-w-3xl">
           <Kicker className="text-[var(--ink-soft)]">How it works</Kicker>
           <h2 className="rl-display mt-6 text-[clamp(2.2rem,4.6vw,3.8rem)] text-[var(--ink)]">
-            Considered from
-            <span className="block font-light text-[var(--ink-soft)]">quote to placement.</span>
+            From quote
+            <span className="block font-light text-[var(--ink-soft)]">to placement.</span>
           </h2>
         </Reveal>
         <div className="mt-16 grid gap-x-12 gap-y-12 border-t border-[var(--line)] pt-12 sm:grid-cols-2 lg:grid-cols-4">
@@ -231,8 +231,8 @@ export function InstagramWall() {
           <div className="max-w-xl">
             <Kicker className="text-[var(--ink-soft)]">From the field</Kicker>
             <h2 className="rl-display mt-6 text-[clamp(2rem,4vw,3.2rem)] text-[var(--ink)]">
-              See the work
-              <span className="block font-light text-[var(--ink-soft)]">in motion.</span>
+              Video
+              <span className="block font-light text-[var(--ink-soft)]">from our jobs.</span>
             </h2>
           </div>
           <a
@@ -254,10 +254,9 @@ export function InstagramWall() {
           <p className="text-[13px] font-light text-[var(--ink-faint)]">
             Select any clip to play it with sound.
           </p>
-          <a
-            href="#quote-form"
+          <a href="#quote-form"
             className="group inline-flex h-[46px] items-center gap-2 rounded-[2px] bg-[var(--ink)] px-6 text-[13.5px] font-medium text-white transition-colors hover:bg-[var(--char-2)]"
-          >
+           onClick={(e) => { if (goToQuoteForm()) e.preventDefault(); }}>
             Get a quote for your job
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={1.7} />
           </a>
@@ -278,8 +277,8 @@ export function Sectors() {
         <Reveal className="max-w-3xl">
           <Kicker className="text-[var(--ink-soft)]">Who we work with</Kicker>
           <h2 className="rl-display mt-6 text-[clamp(2.2rem,4.6vw,3.8rem)] text-[var(--ink)]">
-            Built for people whose
-            <span className="block font-light text-[var(--ink-soft)]">reputation travels with the piece.</span>
+            Who we work with.
+            <span className="block font-light text-[var(--ink-soft)]">Designers, showrooms, galleries and private clients.</span>
           </h2>
         </Reveal>
         <div className="mt-16 grid gap-x-12 gap-y-10 border-t border-[var(--line)] pt-12 sm:grid-cols-2 lg:grid-cols-3">
@@ -307,8 +306,8 @@ export function Faq() {
         <Reveal>
           <Kicker className="text-[var(--ink-soft)]">Common questions</Kicker>
           <h2 className="rl-display mt-6 text-[clamp(2rem,3.8vw,3.1rem)] text-[var(--ink)]">
-            Good to know
-            <span className="block font-light text-[var(--ink-soft)]">before you book.</span>
+            Frequently asked
+            <span className="block font-light text-[var(--ink-soft)]">questions.</span>
           </h2>
           <p className="mt-6 max-w-sm text-[15px] font-light leading-relaxed text-[var(--ink-soft)]">
             Something not covered here? Call {BUSINESS.phone} and we'll talk it through.
@@ -362,8 +361,8 @@ export function Coverage() {
         <Reveal>
           <Kicker className="text-white/45">Where we work</Kicker>
           <h2 className="rl-display mt-6 text-[clamp(1.9rem,3.6vw,3rem)] text-white">
-            Melbourne metro,
-            <span className="block font-light text-white/70">regional Victoria, and beyond.</span>
+            Melbourne metro
+            <span className="block font-light text-white/70">and regional Victoria.</span>
           </h2>
           <p className="mt-6 max-w-md text-[15px] font-light leading-relaxed text-white/55">
             Our warehouse sits at {BUSINESS.address}. From there we service the whole of Melbourne and

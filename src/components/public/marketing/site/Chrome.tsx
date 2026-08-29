@@ -214,11 +214,11 @@ export function SiteFooter() {
           <div className="max-w-2xl">
             <p className="rl-kicker text-white/45">Ready when you are</p>
             <h2 className="rl-display mt-6 text-[clamp(2.2rem,4.4vw,3.6rem)] text-white">
-              Moving something that matters?
+              Request a quote.
             </h2>
             <p className="mt-5 max-w-xl text-[15px] font-light leading-relaxed text-white/55">
-              Tell us what you're moving and where. We'll come back with a considered plan and a clear price,
-              usually the same day.
+              Send us the pieces, the addresses and any access notes. We reply the same business day with a
+              plan and a price.
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-3 sm:flex-row">

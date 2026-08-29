@@ -1,11 +1,11 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import { upsertCustomerByPhone } from '@/lib/customerUpsert';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
 import { format } from 'date-fns';
 import { ArrowRight, Check, ShieldCheck } from 'lucide-react';
 import { BUSINESS } from './data';
-import { cx } from './ui';
+import { cx, FORM_FOCUS_EVENT } from './ui';
 import type { JobType } from '@/lib/types';
 
 const SERVICE_OPTIONS: { label: string; jobType: JobType }[] = [
@@ -28,10 +28,28 @@ const initial = {
 
 type State = 'idle' | 'submitting' | 'success' | 'error';
 
-export function LeadForm({ compact = false }: { compact?: boolean }) {
-  const [form, setForm] = useState(initial);
+export function LeadForm({
+  compact = false,
+  defaultService,
+}: {
+  compact?: boolean;
+  /** Pre-selects the enquiry type, e.g. on a service page. */
+  defaultService?: string;
+}) {
+  const [form, setForm] = useState({ ...initial, service: defaultService ?? initial.service });
   const [state, setState] = useState<State>('idle');
   const [error, setError] = useState('');
+  const [flash, setFlash] = useState(false);
+
+  // Highlight only when a CTA sent the visitor here, never on its own.
+  useEffect(() => {
+    const onFocus = () => {
+      setFlash(true);
+      window.setTimeout(() => setFlash(false), 2600);
+    };
+    window.addEventListener(FORM_FOCUS_EVENT, onFocus);
+    return () => window.removeEventListener(FORM_FOCUS_EVENT, onFocus);
+  }, []);
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -110,13 +128,34 @@ export function LeadForm({ compact = false }: { compact?: boolean }) {
   }
 
   return (
-    <form onSubmit={submit} className="border border-[var(--line-2)] bg-[var(--paper)]">
+    <form
+      onSubmit={submit}
+      className={cx(
+        'border bg-[var(--paper)] transition-all duration-500',
+        flash
+          ? 'border-[var(--accent)] shadow-[0_0_0_4px_rgba(107,39,51,0.12)]'
+          : 'border-[var(--line-2)]',
+      )}
+    >
       {/* Header strip */}
       <div className="flex items-center justify-between gap-4 border-b border-[var(--line-2)] px-6 py-4 sm:px-8">
         <p className="rl-kicker text-[var(--ink)]">Request a quote</p>
         <p className="hidden text-[12px] font-light text-[var(--ink-faint)] sm:block">
           Takes about a minute
         </p>
+      </div>
+
+      {/* Only shown when a CTA brought the visitor here */}
+      <div
+        className="grid transition-all duration-500 ease-out"
+        style={{ gridTemplateRows: flash ? '1fr' : '0fr' }}
+        aria-live="polite"
+      >
+        <div className="overflow-hidden">
+          <p className="border-b border-[var(--line-2)] bg-[var(--paper-2)] px-6 py-3 text-[13.5px] text-[var(--ink)] sm:px-8">
+            Fill in the form and we'll get back to you, usually the same business day.
+          </p>
+        </div>
       </div>
 
       <div className={cx('px-6 sm:px-8', compact ? 'py-7' : 'py-9')}>

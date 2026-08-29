@@ -199,12 +199,19 @@ export function PhotoRail({
   images,
   fade = 'var(--paper)',
   duration = '58s',
+  size = 'md',
 }: {
   images: string[];
   fade?: string;
   duration?: string;
+  size?: 'md' | 'lg';
 }) {
-  const row = [...images, ...images];
+  // Three copies so the -50% translate never exposes a gap on wide screens.
+  const row = [...images, ...images, ...images];
+  const cell =
+    size === 'lg'
+      ? 'w-[320px] sm:w-[520px] lg:w-[600px]'
+      : 'w-[260px] sm:w-[380px]';
   return (
     <div className="rl-marquee relative overflow-hidden">
       <div
@@ -219,7 +226,7 @@ export function PhotoRail({
       />
       <div className="rl-marquee-track" style={{ ['--rl-marquee-dur' as string]: duration }}>
         {row.map((src, i) => (
-          <div key={src + i} className="aspect-[4/3] w-[260px] shrink-0 overflow-hidden sm:w-[380px]">
+          <div key={src + i} className={cx('aspect-[4/3] shrink-0 overflow-hidden', cell)}>
             <img
               src={src}
               alt="Rebel Logistics at work in Melbourne"
@@ -284,6 +291,53 @@ export function useScrollProgress<T extends HTMLElement>() {
     };
   }, []);
   return { ref, progress };
+}
+
+/* --------------------------------------------------------------------- */
+/* Quote CTA behaviour                                                   */
+/* --------------------------------------------------------------------- */
+
+export const FORM_FOCUS_EVENT = 'rl:focus-form';
+
+/**
+ * Sends the visitor to the lead form. If this page already has one, scroll to
+ * it and flash it so the destination is obvious; otherwise fall back to the
+ * dedicated quote page. Returns true when it handled the click.
+ */
+export function goToQuoteForm(): boolean {
+  if (typeof document === 'undefined') return false;
+  const el = document.getElementById('quote-form');
+  if (!el) return false;
+  el.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+  window.dispatchEvent(new CustomEvent(FORM_FOCUS_EVENT));
+  return true;
+}
+
+/** Primary "request a quote" action used inside page content. */
+export function QuoteCTA({
+  children = 'Request a quote',
+  className,
+  variant = 'ink',
+  size = 'lg',
+}: {
+  children?: ReactNode;
+  className?: string;
+  variant?: ButtonVariant;
+  size?: 'md' | 'lg';
+}) {
+  return (
+    <Button
+      variant={variant}
+      size={size}
+      className={className}
+      onClick={(e) => {
+        if (goToQuoteForm()) e.preventDefault();
+      }}
+      href="/quote"
+    >
+      {children}
+    </Button>
+  );
 }
 
 export const prefersReducedMotion = () =>
