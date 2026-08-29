@@ -166,7 +166,7 @@ export function LeadForm({
       >
         <div className="overflow-hidden">
           <p className="flex items-center gap-2.5 border-b border-[var(--accent)] bg-[var(--accent)] px-5 py-3.5 text-[13.5px] font-medium text-white sm:px-7">
-            <ArrowDown className="h-4 w-4 shrink-0 animate-bounce" strokeWidth={2} />
+            <ArrowDown className="h-4 w-4 shrink-0" strokeWidth={2} />
             Fill in the form and we'll get back to you, usually the same business day.
           </p>
         </div>
