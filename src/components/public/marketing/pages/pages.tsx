@@ -564,31 +564,21 @@ export function AboutPage() {
         </Container>
       </section>
 
-      {/* Founder. Real photograph of Yamin on site, not a generated likeness. */}
+      {/* Founder. Text-only section — the portrait was removed by request. */}
       <section className="bg-[var(--char)] py-20 text-white sm:py-28">
-        <Container wide className="grid items-center gap-12 lg:grid-cols-[1fr_1fr] lg:gap-20">
-          <Reveal media>
-            <div className="overflow-hidden rounded-[2px]">
-              <img
-                src="/site/founder.jpg"
-                alt="Yamin Kassouah, founder of Rebel Logistics, in the Flemington warehouse"
-                loading="lazy"
-                className="aspect-[4/5] w-full object-cover"
-              />
-            </div>
-          </Reveal>
-          <Reveal delay={120}>
+        <Container className="text-center">
+          <Reveal>
             <h2 className="rl-display text-[clamp(1.9rem,3.6vw,3rem)] text-white">Yamin Kassouah</h2>
-            <p className="mt-6 text-[16.5px] font-light leading-relaxed text-white/65">
+            <p className="mx-auto mt-6 max-w-[62ch] text-[16.5px] font-light leading-relaxed text-white/65">
               Yamin started Rebel Logistics in {BUSINESS.founded} after years of moving high-value pieces for
               Melbourne showrooms and designers. He runs the yard at Flemington and is on site for the
               difficult jobs, which is usually where the crane is.
             </p>
-            <p className="mt-4 text-[16.5px] font-light leading-relaxed text-white/65">
+            <p className="mx-auto mt-4 max-w-[62ch] text-[16.5px] font-light leading-relaxed text-white/65">
               The standard he set at the start has not changed: measure the access before quoting, protect the
               space before the piece enters it, and leave the room finished.
             </p>
-            <div className="mt-8 border-t border-white/15 pt-6">
+            <div className="mx-auto mt-8 w-fit border-t border-white/15 pt-6">
               <a
                 href={`tel:${BUSINESS.phoneIntl}`}
                 className="inline-flex items-center gap-3 text-[15px] text-white/70 transition-colors hover:text-white"

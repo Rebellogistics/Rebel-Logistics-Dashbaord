@@ -104,7 +104,6 @@ Web-ready assets are committed under `public/site/`:
 | `reels/bg/*.mp4` | silent hero background loops |
 | `photos/` | job photography |
 | `clients/` | client brand marks, normalised to one monochrome set |
-| `founder.jpg` | founder portrait, a frame from the warehouse footage |
 
 The camera originals, scrapers and virtualenvs live in `website assets/` and are
 **gitignored** (~3.7 GB). Regeneration scripts sit in `website assets/scripts/`
