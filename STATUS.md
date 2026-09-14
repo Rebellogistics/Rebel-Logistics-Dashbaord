@@ -5,7 +5,7 @@ cycles append at the bottom of the **Phase index**. Per-phase detail
 lives in `docs/archive/phases/<phase>.md`. In-flight phases stay
 inline at the bottom of this file until they ship.
 
-_Last refreshed: 2026-05-22 (folding in 2026-05-17 call)._
+_Last refreshed: 2026-09-14 (Twilio sender ID approved; item 11 corrected). Prior: 2026-05-22 (folding in 2026-05-17 call)._
 _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRANSCRIPT_20260517.md`](docs/archive/transcripts/TRANSCRIPT_20260517.md)._
 
 ---
@@ -48,9 +48,7 @@ _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRA
 
 10. **Call accountant Malik → $1,000 Remitly transfer.** Yamin emailed Malik before 2026-05-15 call; no response yet. **Not addressed on 2026-05-17 call** — still following up.
 
-### Awaiting external
-
-11. **Twilio AU sender registration** — Submitted live on 2026-05-15 call as `RBL Logistics`. Yamin then had to follow up with Twilio support **personally** to upload a business-extract document on top of the initial submission (back-and-forth, AUD ~$10 fee). Resubmitted with the extract; still in manual review as of 2026-05-17. Approval window still anchored to **~2026-06-19** (25 business days from initial submission). When the approval email lands → set `TWILIO_SENDER_ID="RBL Logistics"` on Vercel and outbound flips immediately.
+11. **Set `TWILIO_SENDER_ID="RBLogistics"` on Vercel** (Production scope). The AU sender registration **is approved** — confirmed by Yamin 2026-09-14. The approved string is `RBLogistics` — 11 characters, no space. This is **not** the `RBL Logistics` submitted on the 2026-05-15 call, which was 13 characters and over Twilio's hard 11-character limit; nor the `REBEL` / `RebelLGTCS` / `Rebel LGTCS` variants in `docs/archive/v4/V4_STATUS.md`. Set it verbatim — a mismatch fails every outbound send with a silent carrier rejection (the May 2026 test failure). No redeploy needed; Vercel hot-loads env on the next request. Verify on Settings → Integrations (the *Outbound from* tile flips to `RBLogistics` with the alphanumeric chip), then test-send to a handset. Reverting is instant: clear the var and outbound falls back to the AU number.
 
 ### Open thread (workaround in place)
 
