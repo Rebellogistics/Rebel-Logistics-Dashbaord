@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import { upsertCustomerByPhone } from '@/lib/customerUpsert';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
+import { locationForAddress } from '@/lib/metroPostcodes';
 import { format } from 'date-fns';
 import { ArrowDown, ArrowRight, Check, ChevronDown, ShieldCheck } from 'lucide-react';
 import { BUSINESS } from './data';
@@ -77,6 +78,13 @@ export function LeadForm({
     setState('submitting');
     setError('');
     const jobType = SERVICE_OPTIONS.find((s) => s.label === form.service)?.jobType ?? 'Standard';
+    // Web enquiries have no zone picker, so derive Metro/Regional from the
+    // delivery postcode rather than leaving it unset for someone to guess at
+    // later. House Move is priced hourly and carries no zone. Null when the
+    // visitor typed an address with no readable postcode — better unset than
+    // wrong, since the zone decides the pricing band.
+    const deliveryForZone = form.delivery.trim() || form.pickup.trim();
+    const location = jobType === 'House Move' ? null : locationForAddress(deliveryForZone);
     const notes = [
       `Enquiry: ${form.service}`,
       form.details.trim() && `Details: ${form.details.trim()}`,
@@ -101,6 +109,7 @@ export function LeadForm({
           delivery_address: form.delivery.trim() || form.pickup.trim(),
           type: jobType,
           status: 'Quote',
+          location,
           date: format(new Date(), 'yyyy-MM-dd'),
           fee: 0,
           fuel_levy: 0,

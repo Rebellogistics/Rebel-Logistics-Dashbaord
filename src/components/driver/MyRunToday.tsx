@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Phone,
+  User,
   StickyNote,
   Calendar,
   Play,
@@ -527,6 +528,27 @@ function DriverJobCard({ job, onMarkDelivered, onStartRun, onOpenDetail, startin
               >
                 {job.customerPhone}
               </a>
+            </div>
+          )}
+
+          {/* Recipient — who to ring at the door, which on trade jobs is not
+              the customer on the account. */}
+          {(job.recipientName || job.recipientPhone) && (
+            <div className="flex items-center gap-2 text-xs">
+              <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              <span className="min-w-0 truncate">
+                {job.recipientName}
+                {job.recipientName && job.recipientPhone && ' · '}
+                {job.recipientPhone && (
+                  <a
+                    href={`tel:${job.recipientPhone}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-rebel-accent font-medium hover:underline"
+                  >
+                    {job.recipientPhone}
+                  </a>
+                )}
+              </span>
             </div>
           )}
 

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
+import { ZoneHint } from '@/components/ui/zone-hint';
 import { useCreateJob } from '@/hooks/useSupabaseData';
 import { usePricingRates } from '@/hooks/usePricingRates';
 import { useRepeatCustomerLookup, type RepeatCustomerInfo } from '@/hooks/useRepeatCustomer';
@@ -48,6 +49,8 @@ function formFromJob(job: Job): typeof initial {
     customerId: job.customerId ?? '',
     pickupAddress: job.pickupAddress ?? '',
     deliveryAddress: job.deliveryAddress ?? '',
+    recipientName: job.recipientName ?? '',
+    recipientPhone: job.recipientPhone ?? '',
     type: job.type,
     location: (job.location as JobLocation) ?? 'Metro',
     cubicMetres: job.cubicMetres != null ? String(job.cubicMetres) : '',
@@ -70,6 +73,8 @@ function formFromStorage(record: StorageRecord): typeof initial {
     customerId: record.customerId ?? '',
     pickupAddress: '',
     deliveryAddress: '',
+    recipientName: '',
+    recipientPhone: '',
     type: 'Standard' as JobType,
     location: 'Metro' as JobLocation,
     cubicMetres: '',
@@ -89,6 +94,8 @@ const initial = {
   customerId: '',
   pickupAddress: '',
   deliveryAddress: '',
+  recipientName: '',
+  recipientPhone: '',
   type: 'Standard' as JobType,
   location: 'Metro' as JobLocation,
   cubicMetres: '',
@@ -320,6 +327,8 @@ export function NewQuoteDialog({
       customerPhone: form.customerPhone.trim() || undefined,
       pickupAddress: form.pickupAddress.trim(),
       deliveryAddress: form.deliveryAddress.trim(),
+      recipientName: form.recipientName.trim() || undefined,
+      recipientPhone: form.recipientPhone.trim() || undefined,
       type: form.type,
       status: 'Quote' as const,
       date: format(new Date(), 'yyyy-MM-dd'),
@@ -516,6 +525,26 @@ export function NewQuoteDialog({
             />
           </Field>
 
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              label="Recipient"
+              hint="Who is at the delivery address. On trade jobs this is not the customer on the account."
+            >
+              <Input
+                value={form.recipientName}
+                onChange={(e) => update('recipientName', e.target.value)}
+                placeholder="e.g. Tom Burke"
+              />
+            </Field>
+            <Field label="Recipient phone" hint="What the driver rings on the day.">
+              <Input
+                value={form.recipientPhone}
+                onChange={(e) => update('recipientPhone', e.target.value)}
+                placeholder="04xx xxx xxx"
+              />
+            </Field>
+          </div>
+
           <Field
             label="Job type"
             hint="Standard = regular delivery. White Glove = careful handling / inside placement. House Move = hourly, whole-home relocations."
@@ -539,6 +568,12 @@ export function NewQuoteDialog({
                   onChange={(v) => update('location', v as JobLocation)}
                 />
               </Field>
+
+              <ZoneHint
+                address={form.deliveryAddress}
+                selected={form.location}
+                onApply={(loc) => update('location', loc)}
+              />
 
               {isMetro ? (
                 <div className="grid grid-cols-2 gap-3">

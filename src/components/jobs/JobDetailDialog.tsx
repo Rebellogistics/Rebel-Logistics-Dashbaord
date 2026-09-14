@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
+import { ZoneHint } from '@/components/ui/zone-hint';
 import type { Job, JobLocation, JobType } from '@/lib/types';
 import {
   MapPin,
@@ -17,6 +18,8 @@ import {
   Calendar,
   DollarSign,
   Phone,
+  User,
+  PhoneCall,
   StickyNote,
   PenLine,
   Camera,
@@ -88,6 +91,10 @@ function buildDraftFromJob(job: Job) {
     pickupAddress: job.pickupAddress ?? '',
     deliveryAddress: job.deliveryAddress ?? '',
     customerPhone: job.customerPhone ?? '',
+    // Who is actually at the delivery address. On trade jobs the customer is
+    // the account (e.g. Bayliss Rugs) and this is the person the driver rings.
+    recipientName: job.recipientName ?? '',
+    recipientPhone: job.recipientPhone ?? '',
     type: (job.type ?? 'Standard') as JobType,
     location: (job.location ?? 'Metro') as JobLocation,
     cubicMetres: job.cubicMetres != null ? String(job.cubicMetres) : '',
@@ -124,6 +131,8 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
     pickupAddress: '',
     deliveryAddress: '',
     customerPhone: '',
+    recipientName: '',
+    recipientPhone: '',
     type: 'Standard' as JobType,
     location: 'Metro' as JobLocation,
     cubicMetres: '',
@@ -449,6 +458,27 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
       });
     }
 
+    // Recipient — nullable, so blank clears back to NULL rather than ''.
+    const newRecipientName = draft.recipientName.trim();
+    if (newRecipientName !== (job.recipientName ?? '')) {
+      changes.recipientName = newRecipientName || undefined;
+      historyEntries.push({
+        field: 'recipient_name',
+        oldValue: job.recipientName || null,
+        newValue: newRecipientName || null,
+      });
+    }
+
+    const newRecipientPhone = draft.recipientPhone.trim();
+    if (newRecipientPhone !== (job.recipientPhone ?? '')) {
+      changes.recipientPhone = newRecipientPhone || undefined;
+      historyEntries.push({
+        field: 'recipient_phone',
+        oldValue: job.recipientPhone || null,
+        newValue: newRecipientPhone || null,
+      });
+    }
+
     // Notes — nullable text, empty = clear (becomes SQL NULL via the
     // useUpdateJob normaliser when undefined is passed; we pass undefined
     // explicitly when blank).
@@ -735,6 +765,34 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                 <AddressWithMaps address={job.deliveryAddress} />
               )}
             </DetailRow>
+            <DetailRow icon={User} label="Recipient">
+              {editing ? (
+                <Input
+                  value={draft.recipientName}
+                  onChange={(e) => setDraft((d) => ({ ...d, recipientName: e.target.value }))}
+                  placeholder="Who is at the delivery address"
+                  className="h-10 sm:h-8 text-sm"
+                />
+              ) : (
+                job.recipientName || '—'
+              )}
+            </DetailRow>
+            <DetailRow icon={PhoneCall} label="Recipient phone">
+              {editing ? (
+                <Input
+                  value={draft.recipientPhone}
+                  onChange={(e) => setDraft((d) => ({ ...d, recipientPhone: e.target.value }))}
+                  placeholder="04xx xxx xxx"
+                  className="h-10 sm:h-8 text-sm"
+                />
+              ) : job.recipientPhone ? (
+                <a href={`tel:${job.recipientPhone}`} className="text-rebel-accent hover:underline">
+                  {job.recipientPhone}
+                </a>
+              ) : (
+                '—'
+              )}
+            </DetailRow>
             <DetailRow icon={Truck} label="Truck">
               <span className="inline-flex items-start gap-1.5 min-w-0 flex-col">
                 <span className="inline-flex items-center gap-1.5 min-w-0 w-full">
@@ -859,6 +917,12 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                         </button>
                       ))}
                     </div>
+                    <ZoneHint
+                      address={draft.deliveryAddress}
+                      selected={draft.location}
+                      onApply={(loc) => setDraft((d) => ({ ...d, location: loc }))}
+                      className="mt-2"
+                    />
                   </div>
                 )}
 

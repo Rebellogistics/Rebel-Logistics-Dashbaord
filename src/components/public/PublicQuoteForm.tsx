@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
+import { ZoneHint } from '@/components/ui/zone-hint';
 import { Card, CardContent } from '@/components/ui/card';
 import { CheckCircle2, Phone, Mail, MapPin, Package, Sparkles, Info, DollarSign } from 'lucide-react';
 import { Logo } from '@/components/ui/logo';
@@ -275,6 +276,11 @@ export function PublicQuoteForm() {
                     onChange={(v) => update('location', v as JobLocation)}
                   />
                 </Field>
+                <ZoneHint
+                  address={form.deliveryAddress}
+                  selected={form.location}
+                  onApply={(loc) => update('location', loc)}
+                />
                 {isMetro ? (
                   <Field
                     label="Approximate volume (m³)"

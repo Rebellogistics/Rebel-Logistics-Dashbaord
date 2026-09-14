@@ -116,6 +116,24 @@ export function DriverJobDetailSheet({
             </Row>
           )}
 
+          {/* Recipient — on trade jobs the customer is the account, and this
+              is the person actually at the door. */}
+          {(job.recipientName || job.recipientPhone) && (
+            <Row icon={UserIcon} label="Recipient">
+              <div className="flex flex-col gap-0.5">
+                {job.recipientName && <span className="font-bold">{job.recipientName}</span>}
+                {job.recipientPhone && (
+                  <a
+                    href={`tel:${job.recipientPhone}`}
+                    className="text-rebel-accent font-bold hover:underline"
+                  >
+                    {job.recipientPhone}
+                  </a>
+                )}
+              </div>
+            </Row>
+          )}
+
           {/* Pickup */}
           {job.pickupAddress && (
             <Row icon={MapPin} label="Pickup">
