@@ -51,6 +51,9 @@ function formFromJob(job: Job): typeof initial {
     deliveryAddress: job.deliveryAddress ?? '',
     recipientName: job.recipientName ?? '',
     recipientPhone: job.recipientPhone ?? '',
+    sendDayPrior: job.sendDayPrior ?? true,
+    sendEnRoute: job.sendEnRoute ?? true,
+    sendComplete: job.sendComplete ?? true,
     type: job.type,
     location: (job.location as JobLocation) ?? 'Metro',
     cubicMetres: job.cubicMetres != null ? String(job.cubicMetres) : '',
@@ -75,6 +78,9 @@ function formFromStorage(record: StorageRecord): typeof initial {
     deliveryAddress: '',
     recipientName: '',
     recipientPhone: '',
+    sendDayPrior: false,
+    sendEnRoute: false,
+    sendComplete: false,
     type: 'Standard' as JobType,
     location: 'Metro' as JobLocation,
     cubicMetres: '',
@@ -96,6 +102,17 @@ const initial = {
   deliveryAddress: '',
   recipientName: '',
   recipientPhone: '',
+  // Customer SMS toggles — all three default OFF (Yamin, 2026-09-15). He
+  // wants to opt each message IN per job rather than remember to opt out:
+  // day-prior in particular doesn't yet behave the way he wants, and he was
+  // switching it off by hand on every job.
+  //
+  // Note the `jobs.send_*` column defaults in Postgres are still `true`, so
+  // this is a UI-level default for the create dialog only — anything
+  // inserting a job by another route is unaffected.
+  sendDayPrior: false,
+  sendEnRoute: false,
+  sendComplete: false,
   type: 'Standard' as JobType,
   location: 'Metro' as JobLocation,
   cubicMetres: '',
@@ -329,6 +346,9 @@ export function NewQuoteDialog({
       deliveryAddress: form.deliveryAddress.trim(),
       recipientName: form.recipientName.trim() || undefined,
       recipientPhone: form.recipientPhone.trim() || undefined,
+      sendDayPrior: form.sendDayPrior,
+      sendEnRoute: form.sendEnRoute,
+      sendComplete: form.sendComplete,
       type: form.type,
       status: 'Quote' as const,
       date: format(new Date(), 'yyyy-MM-dd'),
@@ -651,6 +671,32 @@ export function NewQuoteDialog({
               </Field>
             </div>
           )}
+
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground font-medium">Customer SMS</Label>
+            <div className="space-y-1.5 rounded-lg border border-border bg-muted/30 p-3">
+              {(
+                [
+                  { key: 'sendDayPrior', label: 'Day-prior reminder', hint: 'sent the evening before' },
+                  { key: 'sendEnRoute', label: 'En-route notice', hint: 'driver still records en-route for dispatch' },
+                  { key: 'sendComplete', label: 'Job complete', hint: 'sent after sign-off' },
+                ] as const
+              ).map((row) => (
+                <label key={row.key} className="flex items-start gap-2 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form[row.key]}
+                    onChange={(e) => update(row.key, e.target.checked)}
+                    className="h-3.5 w-3.5 mt-0.5 rounded border-border"
+                  />
+                  <span>
+                    <span className="font-medium">{row.label}</span>
+                    <span className="text-muted-foreground"> — {row.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
 
           <div className="space-y-1">
             <div className="flex items-center justify-between">
