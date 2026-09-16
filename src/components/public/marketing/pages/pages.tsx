@@ -33,7 +33,7 @@ const SERVICE_FORM_OPTION: Record<string, string> = {
   labour: 'Labour service',
 };
 
-function Shell({ children, overHero }: { children: ReactNode; overHero?: boolean }) {
+export function Shell({ children, overHero }: { children: ReactNode; overHero?: boolean }) {
   const { pathname } = useLocation();
   // Block body: an implicit return here hands React a non-function "cleanup".
   useEffect(() => {
@@ -60,7 +60,7 @@ function useIsMobile() {
   return m;
 }
 
-function ImageHero({ eyebrow, title, sub, lead, image, alt, video }: { eyebrow: string; title: string; sub?: string; lead: string; image: string; alt: string; video?: string }) {
+export function ImageHero({ eyebrow, title, sub, lead, image, alt, video }: { eyebrow: string; title: string; sub?: string; lead: string; image: string; alt: string; video?: string }) {
   const isMobile = useIsMobile();
 
   const media = video ? (

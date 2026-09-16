@@ -8,6 +8,7 @@ import MarketingHome from './components/public/marketing/MarketingHome';
 import WorkPage from './components/public/marketing/pages/WorkPage';
 import { ServicePage, AboutPage, ContactPage, QuotePage } from './components/public/marketing/pages/pages';
 import { AreasIndexPage, AreaPage } from './components/public/marketing/pages/AreaPages';
+import { AudiencePage } from './components/public/marketing/pages/AudiencePages';
 import { PublicStatusPage } from './components/public/PublicStatusPage';
 import { GoogleOAuthCallback } from './components/public/GoogleOAuthCallback';
 import { LoginPage } from './components/auth/LoginPage';
@@ -68,6 +69,7 @@ const tree = (
           <Route path="/work" element={<WorkPage />} />
           <Route path="/areas" element={<AreasIndexPage />} />
           <Route path="/areas/:slug" element={<AreaPage />} />
+          <Route path="/for/:slug" element={<AudiencePage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/quote" element={<QuotePage />} />

@@ -62,6 +62,10 @@ _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRA
 
 15. **Cousin lead (referral).** Yamin gave his marketing-business cousin Sumanyu's portfolio + contact. Cousin lost customers for not bundling websites. **Not addressed on 2026-05-17 call** — carrying forward.
 
+16. **Two Google leftovers to retry from 2026-09-18** (Google throttled the UI after two removal requests on 2026-09-16):
+    - Request removal of `https://rebellogistics.com.au/?author=1` — the stale WordPress "admin" author archive. `?p=1` and `?cat=1` are already submitted and processing. Search Console → Removals → New Request.
+    - Clear the **"Located in: Kennards Self Storage Flemington"** association on the Business Profile. Check Business information → Location for a "Located in" field; if there isn't one it is a Google inference from the address, and the fix is "Suggest an edit" on the public listing or a GBP support request.
+
 ### Deferred (not blocking)
 
 **V4-era:**

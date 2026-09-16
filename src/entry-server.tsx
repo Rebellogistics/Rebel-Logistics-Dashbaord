@@ -22,7 +22,9 @@ import MarketingHome from './components/public/marketing/MarketingHome';
 import WorkPage from './components/public/marketing/pages/WorkPage';
 import { ServicePage, AboutPage, ContactPage, QuotePage } from './components/public/marketing/pages/pages';
 import { AreasIndexPage, AreaPage } from './components/public/marketing/pages/AreaPages';
+import { AudiencePage } from './components/public/marketing/pages/AudiencePages';
 import { AREAS_DATA } from './components/public/marketing/site/areas';
+import { AUDIENCES } from './components/public/marketing/site/audiences';
 import { SeoCollector, type HeadTag } from './components/public/marketing/site/seo';
 
 /** Every URL the build writes a static HTML file for. */
@@ -38,6 +40,7 @@ export function getPrerenderRoutes(): string[] {
     '/contact',
     '/quote',
     ...AREAS_DATA.map((a) => `/areas/${a.slug}`),
+    ...AUDIENCES.map((a) => `/for/${a.slug}`),
   ];
 }
 
@@ -65,6 +68,7 @@ export function render(url: string): RenderResult {
               <Route path="/work" element={<WorkPage />} />
               <Route path="/areas" element={<AreasIndexPage />} />
               <Route path="/areas/:slug" element={<AreaPage />} />
+              <Route path="/for/:slug" element={<AudiencePage />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/quote" element={<QuotePage />} />
