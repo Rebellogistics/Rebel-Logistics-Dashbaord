@@ -1,7 +1,9 @@
 import { createContext, useContext, useEffect } from 'react';
 import { AREAS, BUSINESS, FAQS, SERVICES } from './data';
 
-const SITE = 'https://rebellogistics.com.au';
+// www is the host Vercel actually serves; the apex 308-redirects to it. The
+// canonical must name the URL that returns 200, or Google indexes neither.
+const SITE = 'https://www.rebellogistics.com.au';
 
 /**
  * One head tag, described rather than applied.

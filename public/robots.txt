@@ -6,4 +6,4 @@ Disallow: /login
 Disallow: /status/
 Disallow: /integrations/
 
-Sitemap: https://rebellogistics.com.au/sitemap.xml
+Sitemap: https://www.rebellogistics.com.au/sitemap.xml
