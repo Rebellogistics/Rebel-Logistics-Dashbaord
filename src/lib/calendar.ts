@@ -36,12 +36,14 @@ export interface BuildCalendarEventOptions {
  *   White Glove → Blueberry (9, brand blue) — premium, careful work
  *   Standard    → Basil (10, green)         — bread-and-butter delivery
  *   Hourly rate → Tangerine (6, orange)     — full-day hourly work
+ *   Storage     → Grape (3, purple)         — held in the warehouse, not moving
  * Trucks share colour because the truck name is already in the title.
  */
 const TYPE_COLOR_MAP: Record<string, string> = {
   'White Glove': '9',
   Standard: '10',
   'Hourly rate': '6',
+  Storage: '3',
 };
 
 export function colorIdForJobType(type: string | undefined): string {

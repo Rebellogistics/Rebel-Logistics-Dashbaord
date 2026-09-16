@@ -892,6 +892,7 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                     <option value="Standard">Standard</option>
                     <option value="White Glove">White Glove</option>
                     <option value="Hourly rate">Hourly rate</option>
+                    <option value="Storage">Storage</option>
                   </select>
                 </div>
 

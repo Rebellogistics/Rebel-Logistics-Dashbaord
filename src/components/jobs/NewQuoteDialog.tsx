@@ -45,12 +45,13 @@ function defaultValidUntil() {
  * Whether "Job complete" starts ticked, by job type (Yamin, 2026-09-16).
  *
  * Deliveries end with the customer somewhere else, so the completion text
- * doing the review ask is the whole point. A house move ends with the crew
+ * doing the review ask is the whole point. Hourly rate ends with the crew
  * standing in the customer's new lounge room, where texting them "your job is
- * complete" reads as odd — so it stays off there and is ticked by hand if
- * wanted.
+ * complete" reads as odd; Storage ends with their furniture sitting in our
+ * warehouse, which is not a completed job from their side at all. Both stay
+ * off and are ticked by hand if wanted.
  */
-const completeDefaultFor = (type: JobType) => type !== 'Hourly rate';
+const completeDefaultFor = (type: JobType) => type === 'Standard' || type === 'White Glove';
 
 function formFromJob(job: Job): typeof initial {
   return {
@@ -597,12 +598,12 @@ export function NewQuoteDialog({
 
           <Field
             label="Job type"
-            hint="Standard = regular delivery. White Glove = careful handling / inside placement. Hourly rate = charged by the hour, typically whole-home relocations."
+            hint="Standard = regular delivery. White Glove = careful handling / inside placement. Hourly rate = charged by the hour, typically whole-home relocations. Storage = held in the warehouse; fee set by hand."
           >
             <NativeSelect
               value={form.type}
               onChange={(v) => handleTypeChange(v as JobType)}
-              options={['Standard', 'White Glove', 'Hourly rate']}
+              options={['Standard', 'White Glove', 'Hourly rate', 'Storage']}
             />
           </Field>
 

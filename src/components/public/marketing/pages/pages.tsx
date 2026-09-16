@@ -28,7 +28,7 @@ const SERVICE_SEO: Record<string, { title: string; description: string }> = {
 
 /** Pre-selects the matching enquiry type on each service page. */
 const SERVICE_FORM_OPTION: Record<string, string> = {
-  logistics: 'Delivery & installation',
+  logistics: 'White glove delivery & installation',
   warehousing: 'Warehousing & storage',
   labour: 'Labour & assembly',
 };

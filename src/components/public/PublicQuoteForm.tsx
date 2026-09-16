@@ -269,6 +269,7 @@ export function PublicQuoteForm() {
                   <option value="Standard">Standard delivery</option>
                   <option value="White Glove">White Glove</option>
                   <option value="Hourly rate">House move (hourly)</option>
+                  <option value="Storage">Warehousing &amp; storage</option>
                 </select>
               </Field>
               <Field label="Preferred date">

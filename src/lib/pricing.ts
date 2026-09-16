@@ -49,6 +49,7 @@ export interface QuoteBreakdown {
  * White Glove + Metro  → cubicMetres × wgMetroPerCubeAud
  * White Glove + Regional → flat wgRegionalMinimumAud
  * Hourly rate          → max(estimatedHours, minHours) × hourlyRateAud
+ * Storage              → 0; priced by hand (see below)
  *
  * The customer-level `overrideMetroRate` is intentionally type-agnostic: a
  * special-rate customer pays their negotiated per-cube regardless of whether
@@ -68,7 +69,14 @@ export function calculateQuote(input: QuoteInput): QuoteBreakdown {
   let subtotal = 0;
   let explainer = '';
 
-  if (type === 'Hourly rate') {
+  if (type === 'Storage') {
+    // Storage has no rate-book entry: it is billed per month against a storage
+    // record's `monthlyRate`, not per cube or per hour. Quoting zero here is
+    // deliberate — inventing a per-cube figure would look like a real price.
+    // Yamin sets the fee on the job.
+    subtotal = 0;
+    explainer = 'Storage — set the fee manually';
+  } else if (type === 'Hourly rate') {
     subtotal = billedHours * hourlyRate;
     explainer = `${billedHours} h × $${hourlyRate}`;
   } else if (location === 'Regional') {

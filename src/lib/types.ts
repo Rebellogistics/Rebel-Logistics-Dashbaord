@@ -1,4 +1,4 @@
-export type JobType = 'Standard' | 'White Glove' | 'Hourly rate';
+export type JobType = 'Standard' | 'White Glove' | 'Hourly rate' | 'Storage';
 export type JobStatus =
   | 'Quote'
   | 'Accepted'

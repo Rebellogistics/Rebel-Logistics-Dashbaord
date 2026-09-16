@@ -54,6 +54,7 @@ const TYPE_COLOR: Record<string, string> = {
   'White Glove': '9',
   Standard: '10',
   'Hourly rate': '6',
+  Storage: '3',
 };
 
 function pad2(n: number): string {

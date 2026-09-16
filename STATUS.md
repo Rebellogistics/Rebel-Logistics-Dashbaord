@@ -144,6 +144,7 @@ Triggered by Yamin asking how the site compared to hcotransport.com.au and inbox
 | 2 | Canonicalise on www | ✅ shipped 2026-09-16 | `61528f5` | [`phases/v6-phase-2.md`](docs/archive/phases/v6-phase-2.md) |
 | 3 | Review link + completion SMS + Job complete default | ✅ shipped 2026-09-16 | `ab6eae6`, `269bce8` | [`phases/v6-phase-3.md`](docs/archive/phases/v6-phase-3.md) |
 | 4 | Rename House Move → Hourly rate | ✅ shipped 2026-09-16 | `d976780`, `aee3501` | [`phases/v6-phase-4.md`](docs/archive/phases/v6-phase-4.md) |
+| 5 | Public form services → internal job types (+ Storage type) | ✅ shipped 2026-09-16 | — | [`phases/v6-phase-5.md`](docs/archive/phases/v6-phase-5.md) |
 
 **Search Console:** property `sc-domain:rebellogistics.com.au` verified; sitemap submitted (Success, 129 pages discovered); indexing requested on `/`, `/logistics`, `/warehousing`, `/labour`, `/areas`. Check **Indexing → Pages** around 2026-09-23 to see how many have moved across.
 
@@ -172,5 +173,6 @@ All applied to Yamin's Supabase project via the Supabase MCP — no manual SQL r
 | 15 | `20260516000006_v5_phase10_service_catalog.sql` | `services` table + seed 3 builtins (Standard / White Glove / House Move) + RLS |
 | 16 | `20260916000001_rename_house_move_to_hourly_rate.sql` | renames the `House Move` job type to `Hourly rate` across `jobs.type` (25), `customers.default_service` (1), `services.name` (1); widens then narrows `jobs_type_check` |
 | 17 | `20260916000002_drop_job_type_rename_backup.sql` | drops `_bak_job_type_rename`, the verified rename scaffolding |
+| 18 | `20260916000003_add_storage_job_type.sql` | widens `jobs_type_check` to allow `Storage` as a fourth job type |
 
 **Security advisor findings on the migrated project:** 14 warnings flagged post-V4 migration. **All pre-existing**, not caused by V4 / V5 (RLS-policy permissiveness on `job_history` / `truck_shifts` / `sms_templates`; SECURITY DEFINER functions exposed to anon / authenticated; missing RLS policy on `quote_number_counter`; leaked-password protection disabled). Listed in *Deferred* above for a future hardening pass.

@@ -9,11 +9,22 @@ import { BUSINESS } from './data';
 import { cx, FORM_FOCUS_EVENT } from './ui';
 import type { JobType } from '@/lib/types';
 
+/**
+ * What the visitor picks, and the job type the enquiry lands as.
+ *
+ * The customer's words on the left, ours on the right, so a job arrives on
+ * the board already classified instead of waiting to be sorted by hand.
+ * Delivery is split in two rather than guessed at: only the customer knows
+ * whether their piece needs careful handling and inside placement.
+ * "Something else" stays Standard because it is genuinely unknown — the one
+ * option that still expects a human to look at it.
+ */
 const SERVICE_OPTIONS: { label: string; jobType: JobType }[] = [
-  { label: 'Delivery & installation', jobType: 'White Glove' },
-  { label: 'Warehousing & storage', jobType: 'Standard' },
+  { label: 'Standard delivery', jobType: 'Standard' },
+  { label: 'White glove delivery & installation', jobType: 'White Glove' },
+  { label: 'Warehousing & storage', jobType: 'Storage' },
   { label: 'House / office relocation', jobType: 'Hourly rate' },
-  { label: 'Labour & assembly', jobType: 'Standard' },
+  { label: 'Labour & assembly', jobType: 'Hourly rate' },
   { label: 'Something else', jobType: 'Standard' },
 ];
 
@@ -80,11 +91,13 @@ export function LeadForm({
     const jobType = SERVICE_OPTIONS.find((s) => s.label === form.service)?.jobType ?? 'Standard';
     // Web enquiries have no zone picker, so derive Metro/Regional from the
     // delivery postcode rather than leaving it unset for someone to guess at
-    // later. Hourly rate is priced by the hour and carries no zone. Null when the
-    // visitor typed an address with no readable postcode — better unset than
-    // wrong, since the zone decides the pricing band.
+    // later. Hourly rate is priced by the hour and Storage sits in our own
+    // warehouse, so neither carries a zone. Null when the visitor typed an
+    // address with no readable postcode — better unset than wrong, since the
+    // zone decides the pricing band.
     const deliveryForZone = form.delivery.trim() || form.pickup.trim();
-    const location = jobType === 'Hourly rate' ? null : locationForAddress(deliveryForZone);
+    const zoneless = jobType === 'Hourly rate' || jobType === 'Storage';
+    const location = zoneless ? null : locationForAddress(deliveryForZone);
     const notes = [
       `Enquiry: ${form.service}`,
       form.details.trim() && `Details: ${form.details.trim()}`,
