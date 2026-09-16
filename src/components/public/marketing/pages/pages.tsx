@@ -30,7 +30,7 @@ const SERVICE_SEO: Record<string, { title: string; description: string }> = {
 const SERVICE_FORM_OPTION: Record<string, string> = {
   logistics: 'White glove delivery & installation',
   warehousing: 'Warehousing & storage',
-  labour: 'Labour & assembly',
+  labour: 'Labour service',
 };
 
 function Shell({ children, overHero }: { children: ReactNode; overHero?: boolean }) {

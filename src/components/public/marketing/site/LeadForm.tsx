@@ -18,13 +18,16 @@ import type { JobType } from '@/lib/types';
  * whether their piece needs careful handling and inside placement.
  * "Something else" stays Standard because it is genuinely unknown — the one
  * option that still expects a human to look at it.
+ *
+ * Relocations are not offered as their own option (Yamin, 2026-09-16). They
+ * come in through Labour service, which lands on the same Hourly rate type,
+ * so nothing is lost on the board — only the customer-facing wording changes.
  */
 const SERVICE_OPTIONS: { label: string; jobType: JobType }[] = [
   { label: 'Standard delivery', jobType: 'Standard' },
   { label: 'White glove delivery & installation', jobType: 'White Glove' },
   { label: 'Warehousing & storage', jobType: 'Storage' },
-  { label: 'House / office relocation', jobType: 'Hourly rate' },
-  { label: 'Labour & assembly', jobType: 'Hourly rate' },
+  { label: 'Labour service', jobType: 'Hourly rate' },
   { label: 'Something else', jobType: 'Standard' },
 ];
 

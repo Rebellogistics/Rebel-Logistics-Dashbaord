@@ -207,7 +207,7 @@ export interface StorageRecord {
 }
 
 /** V5 Phase 10: editable service catalog. Builtins ('Standard',
- *  'White Glove', 'Hourly rate') ship as `builtin: true` rows seeded by
+ *  'White Glove', 'Hourly rate', 'Storage') ship as `builtin: true` rows seeded by
  *  migration; the pricing calculator still hardcodes their behaviour.
  *  Custom services Yamin adds are flagged builtin: false and surface
  *  in the customer-pricing-preset dropdown (V5 P3 default_service). */

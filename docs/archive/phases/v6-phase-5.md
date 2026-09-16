@@ -7,13 +7,15 @@
 ## The problem
 A website enquiry inserts a `jobs` row with `status: 'Quote'` and a type from `SERVICE_OPTIONS` in `LeadForm.tsx`. Two of the five rows were wrong and one asked for something that did not exist:
 
-| Public option | Was | Now |
-|---|---|---|
-| Delivery & installation | White Glove | **split in two** |
-| Warehousing & storage | Standard | **Storage** |
-| House / office relocation | Hourly rate | unchanged |
-| Labour & assembly | Standard | **Hourly rate** |
-| Something else | Standard | unchanged |
+| Public option | Job type |
+|---|---|
+| Standard delivery | `Standard` |
+| White glove delivery & installation | `White Glove` |
+| Warehousing & storage | `Storage` |
+| Labour service | `Hourly rate` |
+| Something else | `Standard` |
+
+Previously: "Delivery & installation" → White Glove (now split in two), "Warehousing & storage" → Standard, "Labour & assembly" → Standard. "House / office relocation" was dropped as its own option — relocations come through Labour service, which lands on the same `Hourly rate` type, so nothing changes on the board.
 
 ## Storage is now a job type
 There was no `Storage` job type — only a `services` catalog row used for customer pricing presets, and a separate `storage_records` module. Added `Storage` to the `JobType` union and to `jobs_type_check`.
@@ -31,4 +33,4 @@ The constraint was widened **before** the code deployed. Purely additive — no 
 
 ## What's left
 - **Storage jobs price at $0 until Yamin sets a fee.** Deliberate, but it means a storage enquiry shows no quote. If storage should auto-price, it needs a rate-book field.
-- `services.builtin` for the Storage row is left `false`, so it stays editable in the catalog. The other three job types are `builtin: true` and locked. Worth aligning if the catalog should mirror the job types.
+- ~~`services.builtin` for the Storage row is left `false`~~ — **done 2026-09-16**, migration 19. All four catalog rows are now `builtin: true` and locked, mirroring the job types.

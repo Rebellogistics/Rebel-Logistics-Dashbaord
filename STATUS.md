@@ -174,5 +174,6 @@ All applied to Yamin's Supabase project via the Supabase MCP — no manual SQL r
 | 16 | `20260916000001_rename_house_move_to_hourly_rate.sql` | renames the `House Move` job type to `Hourly rate` across `jobs.type` (25), `customers.default_service` (1), `services.name` (1); widens then narrows `jobs_type_check` |
 | 17 | `20260916000002_drop_job_type_rename_backup.sql` | drops `_bak_job_type_rename`, the verified rename scaffolding |
 | 18 | `20260916000003_add_storage_job_type.sql` | widens `jobs_type_check` to allow `Storage` as a fourth job type |
+| 19 | `20260916000004_storage_service_builtin.sql` | locks the `Storage` services-catalog row as a builtin, mirroring the other three job types |
 
 **Security advisor findings on the migrated project:** 14 warnings flagged post-V4 migration. **All pre-existing**, not caused by V4 / V5 (RLS-policy permissiveness on `job_history` / `truck_shifts` / `sms_templates`; SECURITY DEFINER functions exposed to anon / authenticated; missing RLS policy on `quote_number_counter`; leaked-password protection disabled). Listed in *Deferred* above for a future hardening pass.
