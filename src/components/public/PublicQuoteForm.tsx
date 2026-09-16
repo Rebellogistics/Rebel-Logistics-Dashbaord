@@ -1,3 +1,22 @@
+// ---------------------------------------------------------------------------
+// NOT ROUTED. Nothing imports this component — `/quote` renders the marketing
+// site's `LeadForm` instead.
+//
+// It is kept deliberately, not by oversight. This is the V3 quote engine and
+// it still holds the only implementation of instant customer-facing pricing:
+// cubic-metre and hourly quoting against the live `rates`, GST, and repeat-
+// customer detection. `LeadForm` captures a lead and prices nothing, so
+// deleting this would discard that capability rather than tidy up after it.
+//
+// PRODUCT.md records that this logic "must be preserved when the form is
+// restyled/condensed into the new marketing site" — that port has not
+// happened. Either port the pricing into `LeadForm` and then delete this, or
+// leave it be. Do not delete it merely because it is unreferenced.
+//
+// It is kept compiling on purpose: it moves with refactors (it took the
+// Hourly rate rename in step), so it stays portable instead of rotting.
+// ---------------------------------------------------------------------------
+
 import { useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import { upsertCustomerByPhone } from '@/lib/customerUpsert';

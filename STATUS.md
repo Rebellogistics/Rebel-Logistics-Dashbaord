@@ -5,7 +5,7 @@ cycles append at the bottom of the **Phase index**. Per-phase detail
 lives in `docs/archive/phases/<phase>.md`. In-flight phases stay
 inline at the bottom of this file until they ship.
 
-_Last refreshed: 2026-09-14 (Twilio sender ID approved; item 11 corrected). Prior: 2026-05-22 (folding in 2026-05-17 call)._
+_Last refreshed: 2026-09-16 (V6 cycle shipped: pre-render, www canonical, review link, Hourly rate rename; items 3 / 7 / 9 closed). Prior: 2026-09-14 (Twilio sender ID approved)._
 _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRANSCRIPT_20260517.md`](docs/archive/transcripts/TRANSCRIPT_20260517.md)._
 
 ---
@@ -18,7 +18,7 @@ _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRA
 
 2. **Short-link shortener Settings tab (V5 P4 follow-up).** Build a new tab in Settings where any URL can be pasted and shortened against the existing `short_links` table (currently CRUD is SQL-only). Yamin's framing: "in case I want to customize any message in the future and have a URL there." Sumanyu committed on the 2026-05-17 call.
 
-3. **Verify `{{review.url}}` (or equivalent short-link token) resolves in the `job_complete` SMS template.** Yamin pivoted away from a separate review-request SMS — he'll edit the `job_complete` template in Settings to inline the Google review link, so every completion message carries the ask. If the variable engine doesn't expose the token globally today, expose it. Without this, item #7 (Yamin's Settings edit) becomes a hardcoded literal URL.
+3. ✅ **RESOLVED 2026-09-16 (V6 P3).** ~~Verify `{{review.url}}` (or equivalent short-link token) resolves in the `job_complete` SMS template.** Yamin pivoted away from a separate review-request SMS — he'll edit the `job_complete` template in Settings to inline the Google review link, so every completion message carries the ask. If the variable engine doesn't expose the token globally today, expose it. Without this, item #7 (Yamin's Settings edit) becomes a hardcoded literal URL.
 
 4. **Inbound webhook URL** on the AU Twilio number → `https://<vercel-domain>/api/sms/inbound` (POST). Without this, customer replies vanish into Twilio's default boilerplate instead of landing in the dashboard Replies tab.
 
@@ -40,11 +40,11 @@ _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRA
    - Phone: same business number Sumanyu already has.
    - Instagram handle for the footer link.
 
-7. **Edit the `job_complete` SMS template in Settings** to inline the Google review ask. Yamin's plan: copy the body of the seeded `review_request` template into `job_complete`, then drop in the review-URL token once #3 above is verified. (Until #3 lands, a literal short URL works as a stopgap.) This replaces the separate review SMS flow for the default usage; the standalone `review_request` template can stay as an opt-in.
+7. ✅ **RESOLVED 2026-09-16 (V6 P3).** ~~Edit the `job_complete` SMS template in Settings~~ to inline the Google review ask. Yamin's plan: copy the body of the seeded `review_request` template into `job_complete`, then drop in the review-URL token once #3 above is verified. (Until #3 lands, a literal short URL works as a stopgap.) This replaces the separate review SMS flow for the default usage; the standalone `review_request` template can stay as an opt-in.
 
 8. **Cancel Anthropic Claude $170/mo subscription.** Sumanyu now has own cloud. Agreed on 2026-05-15 call; data export ZIP already shared. Recurring charge until cancelled. **Not addressed on 2026-05-17 call.**
 
-9. **Send Sumanyu the Google review URL** (or grant edit access to the Rebel Logistics GMB page). The V5 P4 short link `rebel` is seeded with a placeholder Google search URL. When the real review URL arrives → run `UPDATE public.short_links SET target_url='<gmb-url>' WHERE slug='rebel';` via Supabase MCP. Until then any review SMS lands on Google search results instead of the direct review form. **Not addressed on 2026-05-17 call.**
+9. ✅ **RESOLVED 2026-09-16 (V6 P3).** Real URL is live: `https://g.page/r/CST_WS2b9N8sEBM/review`, set on the `rebel` short_links row. ~~Send Sumanyu the Google review URL~~ (or grant edit access to the Rebel Logistics GMB page). The V5 P4 short link `rebel` is seeded with a placeholder Google search URL. When the real review URL arrives → run `UPDATE public.short_links SET target_url='<gmb-url>' WHERE slug='rebel';` via Supabase MCP. Until then any review SMS lands on Google search results instead of the direct review form. **Not addressed on 2026-05-17 call.**
 
 10. **Call accountant Malik → $1,000 Remitly transfer.** Yamin emailed Malik before 2026-05-15 call; no response yet. **Not addressed on 2026-05-17 call** — still following up.
 
@@ -134,6 +134,21 @@ Yamin's 2026-05-15 batch + 4 proactive items he confirmed (customer history view
 | 9 | Clocked-time reconciliation on hourly jobs | ✅ shipped 2026-05-16 | `f07ec17` | [`phases/v5-phase-9.md`](docs/archive/phases/v5-phase-9.md) |
 | 10 | Editable service catalog (MVP) | ✅ shipped 2026-05-16 | `f07fa4d` | [`phases/v5-phase-10.md`](docs/archive/phases/v5-phase-10.md) |
 
+### V6 cycle (shipped 2026-09-16)
+
+Triggered by Yamin asking how the site compared to hcotransport.com.au and inboxaustralia.com.au. Measuring all three as Googlebot found the site serving 3,041 bytes of empty `<div id="root">` against Inbox's 5,078 characters of finished HTML — so the SEO work came first, then the SMS and naming items raised in the same session.
+
+| Phase | Name | Status | Commit | Detail |
+|---|---|---|---|---|
+| 1 | Pre-render the public marketing site | ✅ shipped 2026-09-16 | `47e316c` | [`phases/v6-phase-1.md`](docs/archive/phases/v6-phase-1.md) |
+| 2 | Canonicalise on www | ✅ shipped 2026-09-16 | `61528f5` | [`phases/v6-phase-2.md`](docs/archive/phases/v6-phase-2.md) |
+| 3 | Review link + completion SMS + Job complete default | ✅ shipped 2026-09-16 | `ab6eae6`, `269bce8` | [`phases/v6-phase-3.md`](docs/archive/phases/v6-phase-3.md) |
+| 4 | Rename House Move → Hourly rate | ✅ shipped 2026-09-16 | `d976780`, `aee3501` | [`phases/v6-phase-4.md`](docs/archive/phases/v6-phase-4.md) |
+
+**Search Console:** property `sc-domain:rebellogistics.com.au` verified; sitemap submitted (Success, 129 pages discovered); indexing requested on `/`, `/logistics`, `/warehousing`, `/labour`, `/areas`. Check **Indexing → Pages** around 2026-09-23 to see how many have moved across.
+
+**Competitive read (2026-09-16):** Inbox runs 29 pages + 16 keyword-targeted blog posts, segments by audience (`/designers`, `/retailers`, `/showroom`, `/residential`), publishes pricing guidelines and markets a client portal. Hunter & Co. is 2 pages, Sydney/Brisbane, competing on prestige not search. Rebel's structured data and 121 suburb pages already beat both — the gap is audience pages, reviews and published content.
+
 ### V3 cycle (archived)
 
 Fully shipped 2026-04 to 2026-05. Per-phase detail lives in [`docs/archive/v3/`](docs/archive/v3/). Read only if a question references V3 specifically.
@@ -155,5 +170,7 @@ All applied to Yamin's Supabase project via the Supabase MCP — no manual SQL r
 | 13 | `20260516000004_v5_phase5_storage_records.sql` | `storage_records` table + RLS + realtime + indexes |
 | 14 | `20260516000005_v5_phase6_task_driver_assignment.sql` | `tasks.assigned_to_driver_id` + `assigned_to_driver_name` |
 | 15 | `20260516000006_v5_phase10_service_catalog.sql` | `services` table + seed 3 builtins (Standard / White Glove / House Move) + RLS |
+| 16 | `20260916000001_rename_house_move_to_hourly_rate.sql` | renames the `House Move` job type to `Hourly rate` across `jobs.type` (25), `customers.default_service` (1), `services.name` (1); widens then narrows `jobs_type_check` |
+| 17 | `20260916000002_drop_job_type_rename_backup.sql` | drops `_bak_job_type_rename`, the verified rename scaffolding |
 
 **Security advisor findings on the migrated project:** 14 warnings flagged post-V4 migration. **All pre-existing**, not caused by V4 / V5 (RLS-policy permissiveness on `job_history` / `truck_shifts` / `sms_templates`; SECURITY DEFINER functions exposed to anon / authenticated; missing RLS policy on `quote_number_counter`; leaked-password protection disabled). Listed in *Deferred* above for a future hardening pass.
