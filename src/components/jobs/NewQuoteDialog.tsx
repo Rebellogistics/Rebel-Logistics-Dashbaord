@@ -41,6 +41,17 @@ function defaultValidUntil() {
   return format(addDays(new Date(), 30), 'yyyy-MM-dd');
 }
 
+/**
+ * Whether "Job complete" starts ticked, by job type (Yamin, 2026-09-16).
+ *
+ * Deliveries end with the customer somewhere else, so the completion text
+ * doing the review ask is the whole point. A house move ends with the crew
+ * standing in the customer's new lounge room, where texting them "your job is
+ * complete" reads as odd — so it stays off there and is ticked by hand if
+ * wanted.
+ */
+const completeDefaultFor = (type: JobType) => type !== 'House Move';
+
 function formFromJob(job: Job): typeof initial {
   return {
     customerName: job.customerName ?? '',
@@ -80,7 +91,7 @@ function formFromStorage(record: StorageRecord): typeof initial {
     recipientPhone: '',
     sendDayPrior: false,
     sendEnRoute: false,
-    sendComplete: false,
+    sendComplete: completeDefaultFor('Standard'),
     type: 'Standard' as JobType,
     location: 'Metro' as JobLocation,
     cubicMetres: '',
@@ -112,7 +123,7 @@ const initial = {
   // inserting a job by another route is unaffected.
   sendDayPrior: false,
   sendEnRoute: false,
-  sendComplete: false,
+  sendComplete: completeDefaultFor('Standard'),
   type: 'Standard' as JobType,
   location: 'Metro' as JobLocation,
   cubicMetres: '',
@@ -130,6 +141,9 @@ export function NewQuoteDialog({
 }: NewQuoteDialogProps) {
   const [form, setForm] = useState(initial);
   const [nameTouched, setNameTouched] = useState(false);
+  // Once Job complete is ticked or unticked by hand, stop re-deriving it from
+  // the job type — an explicit choice outranks the default.
+  const [completeTouched, setCompleteTouched] = useState(false);
   // Phase 19: when set, the combobox is showing the user picked an
   // existing customer record. We hold the full Customer here so the
   // "Linked to X" badge has the latest companyName / VIP status.
@@ -155,17 +169,21 @@ export function NewQuoteDialog({
       setSearchQuery(next.customerCompanyName || next.customerName);
       setLinkedCustomer(null);
       setNameTouched(true);
+      // Rebooking carries the original job's choice; don't re-derive it.
+      setCompleteTouched(true);
     } else if (open && prefillStorage) {
       const next = formFromStorage(prefillStorage);
       setForm(next);
       setSearchQuery(next.customerName);
       setLinkedCustomer(null);
       setNameTouched(true);
+      setCompleteTouched(false);
     } else if (!open) {
       setForm({ ...initial, validUntil: defaultValidUntil() });
       setSearchQuery('');
       setLinkedCustomer(null);
       setNameTouched(false);
+      setCompleteTouched(false);
     }
   }, [open, prefillJob, prefillStorage]);
 
@@ -217,11 +235,15 @@ export function NewQuoteDialog({
       const unit = basis === 'flat' ? 'flat (ex GST)' : 'per unit (ex GST)';
       noteParts.push(`Agreed rate: $${rate.toFixed(2)} ${unit}`);
     }
-    setForm((prev) => ({
-      ...prev,
-      type: basis === 'hourly' ? ('House Move' as JobType) : prev.type,
-      notes: noteParts.join('\n'),
-    }));
+    setForm((prev) => {
+      const nextType = basis === 'hourly' ? ('House Move' as JobType) : prev.type;
+      return {
+        ...prev,
+        type: nextType,
+        ...(completeTouched ? {} : { sendComplete: completeDefaultFor(nextType) }),
+        notes: noteParts.join('\n'),
+      };
+    });
     toast.success(
       `Pre-filled from ${c.companyName ?? c.name}`,
       basis === 'hourly'
@@ -270,6 +292,14 @@ export function NewQuoteDialog({
 
   const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  /** Changing the job type re-derives Job complete, until it is set by hand. */
+  const handleTypeChange = (next: JobType) =>
+    setForm((prev) => ({
+      ...prev,
+      type: next,
+      ...(completeTouched ? {} : { sendComplete: completeDefaultFor(next) }),
+    }));
 
   // V4 2.1: when no customer is linked, scan the customer book for a near-
   // match on what the user has typed (company name first, then customer
@@ -571,7 +601,7 @@ export function NewQuoteDialog({
           >
             <NativeSelect
               value={form.type}
-              onChange={(v) => update('type', v as JobType)}
+              onChange={(v) => handleTypeChange(v as JobType)}
               options={['Standard', 'White Glove', 'House Move']}
             />
           </Field>
@@ -686,7 +716,10 @@ export function NewQuoteDialog({
                   <input
                     type="checkbox"
                     checked={form[row.key]}
-                    onChange={(e) => update(row.key, e.target.checked)}
+                    onChange={(e) => {
+                      if (row.key === 'sendComplete') setCompleteTouched(true);
+                      update(row.key, e.target.checked);
+                    }}
                     className="h-3.5 w-3.5 mt-0.5 rounded border-border"
                   />
                   <span>
