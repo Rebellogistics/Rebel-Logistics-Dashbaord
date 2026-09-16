@@ -30,7 +30,7 @@ export function AudiencePage() {
     title: audience?.seoTitle ?? 'Rebel Logistics',
     description: audience?.seoDescription ?? '',
     path: audience ? `/for/${audience.slug}` : '/',
-    image: IMG.artHall,
+    image: audience?.image ?? IMG.artHall,
     service: audience ? { name: audience.label, description: audience.seoDescription } : undefined,
   });
 
@@ -42,8 +42,8 @@ export function AudiencePage() {
         eyebrow="Who we work with"
         title={audience.title}
         lead={audience.lead}
-        image={IMG.artHall}
-        alt="A finished installation in a private Melbourne residence"
+        image={audience.image}
+        alt={audience.imageAlt}
       />
 
       <section className="border-y border-[var(--line)] bg-[var(--paper)] py-12">
