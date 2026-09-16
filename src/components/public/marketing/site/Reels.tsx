@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Play, ChevronLeft, ChevronRight } from 'lucide-react';
 import { REELS, type Reel } from './data';
@@ -12,13 +12,20 @@ export function ReelRail({ fade = 'var(--paper-2)' }: { fade?: string }) {
   const [open, setOpen] = useState<number | null>(null);
 
   // Shuffle once per mount so the rail does not always open on the same clip.
-  const order = useMemo(() => {
-    const a = REELS.map((_, i) => i);
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
+  // The shuffle has to wait for mount: these pages are pre-rendered, and a
+  // random order picked during render would differ between the server's HTML
+  // and the browser's first render, which fails hydration. Hydration only
+  // compares that first render, so start in source order and reorder after.
+  const [order, setOrder] = useState(() => REELS.map((_, i) => i));
+  useEffect(() => {
+    setOrder((current) => {
+      const a = [...current];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    });
   }, []);
 
   // Three copies: the track must exceed twice the viewport so the -50%

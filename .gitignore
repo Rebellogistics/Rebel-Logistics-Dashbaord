@@ -33,3 +33,5 @@ public/site/hero-still-alt.jpg
 # Instagram thumbnails, replaced by the real client footage in public/site/reels
 public/site/instagram/
 public/site/photos/_nonphoto/
+
+dist-ssr
