@@ -50,7 +50,7 @@ function defaultValidUntil() {
  * complete" reads as odd — so it stays off there and is ticked by hand if
  * wanted.
  */
-const completeDefaultFor = (type: JobType) => type !== 'House Move';
+const completeDefaultFor = (type: JobType) => type !== 'Hourly rate';
 
 function formFromJob(job: Job): typeof initial {
   return {
@@ -217,7 +217,7 @@ export function NewQuoteDialog({
   };
 
   // V5 Phase 3: apply the linked customer's billing preset. For hourly
-  // we flip the job type to House Move so the hours input + auto-calc
+  // we flip the job type to Hourly rate so the hours input + auto-calc
   // (which already respects overrideHourlyRate) light up. For flat /
   // per-item we can't override the auto-priced fee from this dialog,
   // so we surface the agreed rate via a notes line — Yamin sets the
@@ -236,7 +236,7 @@ export function NewQuoteDialog({
       noteParts.push(`Agreed rate: $${rate.toFixed(2)} ${unit}`);
     }
     setForm((prev) => {
-      const nextType = basis === 'hourly' ? ('House Move' as JobType) : prev.type;
+      const nextType = basis === 'hourly' ? ('Hourly rate' as JobType) : prev.type;
       return {
         ...prev,
         type: nextType,
@@ -285,7 +285,7 @@ export function NewQuoteDialog({
 
   // Default the estimated-hours field to the minimum once rates load.
   useEffect(() => {
-    if (form.type === 'House Move' && rates && !form.estimatedHours) {
+    if (form.type === 'Hourly rate' && rates && !form.estimatedHours) {
       setForm((prev) => ({ ...prev, estimatedHours: String(rates.minimumHours) }));
     }
   }, [form.type, rates, form.estimatedHours]);
@@ -337,7 +337,7 @@ export function NewQuoteDialog({
     });
   }, [form, rates, repeatInfo]);
 
-  const isHouseMove = form.type === 'House Move';
+  const isHouseMove = form.type === 'Hourly rate';
   const isMetro = !isHouseMove && form.location === 'Metro';
   const isRegional = !isHouseMove && form.location === 'Regional';
   const usingOverride =
@@ -597,12 +597,12 @@ export function NewQuoteDialog({
 
           <Field
             label="Job type"
-            hint="Standard = regular delivery. White Glove = careful handling / inside placement. House Move = hourly, whole-home relocations."
+            hint="Standard = regular delivery. White Glove = careful handling / inside placement. Hourly rate = charged by the hour, typically whole-home relocations."
           >
             <NativeSelect
               value={form.type}
               onChange={(v) => handleTypeChange(v as JobType)}
-              options={['Standard', 'White Glove', 'House Move']}
+              options={['Standard', 'White Glove', 'Hourly rate']}
             />
           </Field>
 

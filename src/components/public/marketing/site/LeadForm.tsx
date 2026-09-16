@@ -12,7 +12,7 @@ import type { JobType } from '@/lib/types';
 const SERVICE_OPTIONS: { label: string; jobType: JobType }[] = [
   { label: 'Delivery & installation', jobType: 'White Glove' },
   { label: 'Warehousing & storage', jobType: 'Standard' },
-  { label: 'House / office relocation', jobType: 'House Move' },
+  { label: 'House / office relocation', jobType: 'Hourly rate' },
   { label: 'Labour & assembly', jobType: 'Standard' },
   { label: 'Something else', jobType: 'Standard' },
 ];
@@ -80,11 +80,11 @@ export function LeadForm({
     const jobType = SERVICE_OPTIONS.find((s) => s.label === form.service)?.jobType ?? 'Standard';
     // Web enquiries have no zone picker, so derive Metro/Regional from the
     // delivery postcode rather than leaving it unset for someone to guess at
-    // later. House Move is priced hourly and carries no zone. Null when the
+    // later. Hourly rate is priced by the hour and carries no zone. Null when the
     // visitor typed an address with no readable postcode — better unset than
     // wrong, since the zone decides the pricing band.
     const deliveryForZone = form.delivery.trim() || form.pickup.trim();
-    const location = jobType === 'House Move' ? null : locationForAddress(deliveryForZone);
+    const location = jobType === 'Hourly rate' ? null : locationForAddress(deliveryForZone);
     const notes = [
       `Enquiry: ${form.service}`,
       form.details.trim() && `Details: ${form.details.trim()}`,

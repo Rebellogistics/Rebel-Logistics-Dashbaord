@@ -1,4 +1,4 @@
-export type JobType = 'Standard' | 'White Glove' | 'House Move';
+export type JobType = 'Standard' | 'White Glove' | 'Hourly rate';
 export type JobStatus =
   | 'Quote'
   | 'Accepted'
@@ -20,8 +20,8 @@ export interface PricingRates {
   wgMetroPerCubeAud: number;
   /** White Glove — flat minimum for regional jobs (separate from Standard). */
   wgRegionalMinimumAud: number;
-  /** House Move — hourly rate. Same for both Standard and White Glove handling
-   *  styles since House Move is its own job type. */
+  /** Hourly rate jobs. Same for both Standard and White Glove handling
+   *  styles, since Hourly rate is its own job type. */
   hourlyRateAud: number;
   minimumHours: number;
   gstPercent: number;
@@ -207,7 +207,7 @@ export interface StorageRecord {
 }
 
 /** V5 Phase 10: editable service catalog. Builtins ('Standard',
- *  'White Glove', 'House Move') ship as `builtin: true` rows seeded by
+ *  'White Glove', 'Hourly rate') ship as `builtin: true` rows seeded by
  *  migration; the pricing calculator still hardcodes their behaviour.
  *  Custom services Yamin adds are flagged builtin: false and surface
  *  in the customer-pricing-preset dropdown (V5 P3 default_service). */

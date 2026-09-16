@@ -48,12 +48,12 @@ export interface QuoteBreakdown {
  * Standard + Regional  → flat regionalMinimumAud
  * White Glove + Metro  → cubicMetres × wgMetroPerCubeAud
  * White Glove + Regional → flat wgRegionalMinimumAud
- * House Move           → max(estimatedHours, minHours) × hourlyRateAud
+ * Hourly rate          → max(estimatedHours, minHours) × hourlyRateAud
  *
  * The customer-level `overrideMetroRate` is intentionally type-agnostic: a
  * special-rate customer pays their negotiated per-cube regardless of whether
  * the booking is Standard or White Glove. Same for `overrideHourlyRate` on
- * House Move bookings.
+ * Hourly rate bookings.
  */
 export function calculateQuote(input: QuoteInput): QuoteBreakdown {
   const { type, location, cubicMetres = 0, estimatedHours = 0, rates } = input;
@@ -68,7 +68,7 @@ export function calculateQuote(input: QuoteInput): QuoteBreakdown {
   let subtotal = 0;
   let explainer = '';
 
-  if (type === 'House Move') {
+  if (type === 'Hourly rate') {
     subtotal = billedHours * hourlyRate;
     explainer = `${billedHours} h × $${hourlyRate}`;
   } else if (location === 'Regional') {

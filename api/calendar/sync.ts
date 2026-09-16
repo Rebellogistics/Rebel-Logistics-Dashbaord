@@ -53,7 +53,7 @@ interface CalendarEventPayload {
 const TYPE_COLOR: Record<string, string> = {
   'White Glove': '9',
   Standard: '10',
-  'House Move': '6',
+  'Hourly rate': '6',
 };
 
 function pad2(n: number): string {

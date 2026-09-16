@@ -120,7 +120,7 @@ const SYNCABLE_STATUSES = new Set(['Accepted', 'Scheduled', 'Notified', 'In Deli
 const TYPE_COLOR: Record<string, string> = {
   'White Glove': '9',
   Standard: '10',
-  'House Move': '6',
+  'Hourly rate': '6',
 };
 
 /**

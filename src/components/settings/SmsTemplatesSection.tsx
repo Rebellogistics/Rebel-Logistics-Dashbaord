@@ -52,7 +52,7 @@ const VARIABLES: { token: string; description: string }[] = [
   { token: '{{job.fee}}', description: 'Total fee incl levy' },
   { token: '{{job.truck}}', description: 'Assigned truck' },
   { token: '{{job.eta}}', description: 'Estimated arrival time' },
-  { token: '{{job.type}}', description: 'Standard / White Glove / House Move' },
+  { token: '{{job.type}}', description: 'Standard / White Glove / Hourly rate' },
   { token: '{{owner.businessName}}', description: 'Your business name' },
   { token: '{{owner.name}}', description: 'Your name' },
   { token: '{{owner.phone}}', description: 'Your support phone (for auto-reply)' },

@@ -155,7 +155,7 @@ export function AssignTruckDialog({ job, onClose, setScheduled = true }: AssignT
 function estimateHoursFromType(job: Job): number {
   if (job.hoursEstimated && job.hoursEstimated > 0) return job.hoursEstimated;
   switch (job.type) {
-    case 'House Move':
+    case 'Hourly rate':
       return 4;
     case 'White Glove':
       return 1.5;

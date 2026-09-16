@@ -128,7 +128,7 @@ export function PricingPanel() {
           <Divider />
 
           <Section
-            title="House Move (Hourly)"
+            title="Hourly rate"
             subtitle="Customer is billed per hour with a minimum charge."
           >
             <FieldRow>
@@ -192,7 +192,7 @@ export function PricingPanel() {
             <p>· <span className="font-semibold">Standard + Regional</span> — Standard regional minimum.</p>
             <p>· <span className="font-semibold">White Glove + Metro</span> — cubic metres × White Glove metro rate.</p>
             <p>· <span className="font-semibold">White Glove + Regional</span> — White Glove regional minimum.</p>
-            <p>· <span className="font-semibold">House Move</span> — max(estimated hours, minimum) × hourly rate.</p>
+            <p>· <span className="font-semibold">Hourly rate</span> — max(estimated hours, minimum) × hourly rate.</p>
             <p>· GST is added on top of the subtotal at the percentage above.</p>
             <p>· A specific customer can override the metro per-cube and the hourly rate from their customer page — applies to whatever type they book.</p>
           </div>

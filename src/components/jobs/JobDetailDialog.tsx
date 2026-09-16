@@ -346,7 +346,7 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
   const showLegacyTotal = job.gstAmount == null;
   const savedTotal = job.fee + (job.fuelLevy ?? 0) + (job.gstAmount ?? 0);
 
-  const isHouseMove = draft.type === 'House Move';
+  const isHouseMove = draft.type === 'Hourly rate';
   const isMetro = !isHouseMove && draft.location === 'Metro';
   const isRegional = !isHouseMove && draft.location === 'Regional';
 
@@ -495,7 +495,7 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
     // Type
     pushChange('type', draft.type as JobType, 'type');
 
-    // Location is null on House Move jobs.
+    // Location is null on Hourly rate jobs.
     const nextLocation: JobLocation | null = isHouseMove ? null : draft.location;
     pushChange('location', nextLocation as Job['location'], 'location');
 
@@ -512,7 +512,7 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
       });
     }
 
-    // Hours estimated only applies to House Move.
+    // Hours estimated only applies to Hourly rate.
     const nextHours: number | null = isHouseMove && draft.estimatedHours
       ? parseFloat(draft.estimatedHours)
       : null;
@@ -667,17 +667,17 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                 <span className="inline-flex items-center gap-1 h-5 px-2 rounded-md bg-rebel-accent-surface text-rebel-accent text-[10px] font-bold uppercase tracking-wider">
                   {job.type}
                 </span>
-                {job.type !== 'House Move' && job.location && (
+                {job.type !== 'Hourly rate' && job.location && (
                   <span className="inline-flex items-center gap-1 h-5 px-2 rounded-md bg-indigo-100 text-indigo-700 text-[10px] font-semibold">
                     {job.location}
                   </span>
                 )}
-                {job.type !== 'House Move' && job.cubicMetres != null && (
+                {job.type !== 'Hourly rate' && job.cubicMetres != null && (
                   <span className="inline-flex items-center gap-1 h-5 px-2 rounded-md bg-muted text-muted-foreground text-[10px] font-semibold">
                     {job.cubicMetres} m³
                   </span>
                 )}
-                {job.type === 'House Move' && job.hoursEstimated != null && (
+                {job.type === 'Hourly rate' && job.hoursEstimated != null && (
                   <span className="inline-flex items-center gap-1 h-5 px-2 rounded-md bg-muted text-muted-foreground text-[10px] font-semibold">
                     {job.hoursEstimated} hrs
                   </span>
@@ -880,9 +880,9 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                         // Clear inputs that don't apply to the new type so
                         // recompute is honest. Keeps the saved DB null
                         // semantics correct on save.
-                        cubicMetres: next === 'House Move' ? '' : d.cubicMetres,
+                        cubicMetres: next === 'Hourly rate' ? '' : d.cubicMetres,
                         estimatedHours:
-                          next === 'House Move'
+                          next === 'Hourly rate'
                             ? d.estimatedHours || String(rates?.minimumHours ?? 3)
                             : '',
                       }));
@@ -891,7 +891,7 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                   >
                     <option value="Standard">Standard</option>
                     <option value="White Glove">White Glove</option>
-                    <option value="House Move">House Move</option>
+                    <option value="Hourly rate">Hourly rate</option>
                   </select>
                 </div>
 
@@ -1525,7 +1525,7 @@ function ClockedTimeReconciliation({
   billedHours: number | null;
 }) {
   // Hourly jobs only — Standard / White Glove are priced on volume.
-  const isHourly = job.type === 'House Move' || job.pricingType === 'hourly';
+  const isHourly = job.type === 'Hourly rate' || job.pricingType === 'hourly';
   if (!isHourly) return null;
 
   // En-route SMS timestamp is the cleanest "started driving" signal we

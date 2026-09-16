@@ -142,7 +142,7 @@ export function QuickQuoteDialog({ open, onOpenChange }: QuickQuoteDialogProps) 
             >
               <option value="Standard">Standard</option>
               <option value="White Glove">White Glove</option>
-              <option value="House Move">House Move (hourly)</option>
+              <option value="Hourly rate">Hourly rate</option>
             </select>
           </Field>
 

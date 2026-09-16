@@ -61,14 +61,14 @@ export function PublicQuoteForm() {
     }
   }, [repeatInfo, nameTouched, form.customerName]);
 
-  // Default estimated hours to the minimum when picking House Move.
+  // Default estimated hours to the minimum when picking Hourly rate.
   useEffect(() => {
-    if (form.type === 'House Move' && rates && !form.estimatedHours) {
+    if (form.type === 'Hourly rate' && rates && !form.estimatedHours) {
       setForm((prev) => ({ ...prev, estimatedHours: String(rates.minimumHours) }));
     }
   }, [form.type, rates, form.estimatedHours]);
 
-  const isHouseMove = form.type === 'House Move';
+  const isHouseMove = form.type === 'Hourly rate';
   const isMetro = !isHouseMove && form.location === 'Metro';
   const isRegional = !isHouseMove && form.location === 'Regional';
 
@@ -249,7 +249,7 @@ export function PublicQuoteForm() {
                 >
                   <option value="Standard">Standard delivery</option>
                   <option value="White Glove">White Glove</option>
-                  <option value="House Move">House move (hourly)</option>
+                  <option value="Hourly rate">House move (hourly)</option>
                 </select>
               </Field>
               <Field label="Preferred date">

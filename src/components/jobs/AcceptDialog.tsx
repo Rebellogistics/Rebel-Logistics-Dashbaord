@@ -96,9 +96,9 @@ function buildSuggestion(
     });
     // For Regional, breakdown.subtotal is the flat minimum (always positive).
     // For Metro, it's only useful if cubic_metres is set (otherwise = 0).
-    const isRegional = job.type !== 'House Move' && job.location === 'Regional';
+    const isRegional = job.type !== 'Hourly rate' && job.location === 'Regional';
     const isMetroWithCubes =
-      job.type !== 'House Move' && job.location === 'Metro' && (job.cubicMetres ?? 0) > 0;
+      job.type !== 'Hourly rate' && job.location === 'Metro' && (job.cubicMetres ?? 0) > 0;
     if (breakdown.subtotal > 0 && (isRegional || isMetroWithCubes)) {
       const tag = job.type === 'White Glove' ? ' (White Glove rate)' : '';
       const label = isRegional
@@ -113,7 +113,7 @@ function buildSuggestion(
   const matchesProfile = (j: Job): boolean =>
     j.id !== job.id &&
     j.type === job.type &&
-    (job.type === 'House Move' ? true : (j.location ?? null) === (job.location ?? null)) &&
+    (job.type === 'Hourly rate' ? true : (j.location ?? null) === (job.location ?? null)) &&
     j.pricingType === 'fixed' &&
     j.fee > 0;
 

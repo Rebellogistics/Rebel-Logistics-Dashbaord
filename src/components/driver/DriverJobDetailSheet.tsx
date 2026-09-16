@@ -87,12 +87,12 @@ export function DriverJobDetailSheet({
             <Badge className="bg-rebel-accent-surface text-rebel-accent border-none text-[11px] font-bold uppercase tracking-wider">
               {job.type}
             </Badge>
-            {job.type !== 'House Move' && job.location && (
+            {job.type !== 'Hourly rate' && job.location && (
               <Badge variant="secondary" className="bg-indigo-100 text-indigo-700 border-none text-[11px]">
                 {job.location}
               </Badge>
             )}
-            {job.type !== 'House Move' && job.cubicMetres != null && (
+            {job.type !== 'Hourly rate' && job.cubicMetres != null && (
               <Badge variant="secondary" className="bg-muted text-muted-foreground border-none text-[11px]">
                 {job.cubicMetres} m³
               </Badge>
