@@ -1,0 +1,1563 @@
+<!--
+  Rebel Rate Sandbox — the working model for the revised rate book.
+  Published as a private Artifact: https://claude.ai/code/artifact/ca1fe366-85dd-41af-84b3-139040caa57a
+
+  This is a standalone page, not part of the Vite app — nothing imports it and
+  it ships with no build step. The published Artifact is the live copy: its
+  rate figures are stored server-side against the artifact, not in this file,
+  so the numbers hard-coded in LIVE below are only first-run defaults.
+
+  It deliberately does NOT touch src/lib/pricing.ts, the pricing_rates table,
+  or Settings → Pricing. See the project notes for the model it describes and
+  the decisions behind it.
+-->
+    var deliveries = job.outbound.filter(function (o) { return o.type !== 'Storage'; });
+    var held = job.outbound.filter(function (o) { return o.type === 'Storage'; });
+    var no = 1;
+
+    function combined(list, title, levied) {
+      var baseSum = 0, levy = 0, leviedSum = 0;
+      var rows = list.map(function (o) {
+        var q = priceOutbound(o);
+        baseSum += q.chargeable;
+        levy += q.levy;
+        leviedSum += q.levyBase;
+        return line(o.type === 'Hourly rate' ? 'Hourly' : o.type,
+                    q.explain + ' — ' + q.detail, money(q.base)) +
+          q.extras.map(function (e) { return line(e.label, e.note, money(e.amount)); }).join('');
+      }).join('');
+      baseSum = round2(baseSum); levy = round2(levy); leviedSum = round2(leviedSum);
+      var ex = round2(baseSum + levy);
+      var gst = round2(ex * (rates.gstPercent / 100));
+      var total = round2(ex + gst);
+      no += 1;
+      return {
+        total: total,
+        html: '<div class="inv"><div class="inv-h"><span>Invoice ' + no + ' — ' + title +
+          '</span><em>' + money(total) + '</em></div>' + rows +
+          line('Subtotal', list.length + (list.length === 1 ? ' job' : ' jobs') + ', ex GST', money(baseSum), 'sub') +
+          (levied
+            ? line('Fuel levy', !levyActive(rates, job)
+                ? 'not applied — switched off in the rate book'
+                : leviedSum === baseSum
+                  ? rates.fuelLevy + '% of the delivery total, ex GST'
+                  : rates.fuelLevy + '% on the delivery time only — not on the disposal', money(levy))
+            : line('Fuel levy', 'not charged on warehousing — the stock sits still', money(0), 'muted')) +
+          line('GST', rates.gstPercent + '%', money(gst)) +
+          '</div>'
+      };
+    }
+
+    if (deliveries.length) {
+      var dlv = combined(deliveries, 'deliveries out of the container', true);
+      grand = round2(grand + dlv.total); html += dlv.html;
+    }
+    if (held.length) {
+      // Held until the client is ready — a week or a year. Its own recurring
+      // bill, never folded into the delivery invoice.
+      var hld = combined(held, 'storage', false);
+      grand = round2(grand + hld.total); html += hld.html;
+    }
+    var n = job.outbound.length;
+
+<title>Rebel Rate Sandbox</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --canvas:#F4F6FB; --surface:#FFFFFF; --sunken:#F1F4F9;
+    --border:#E6E9F2; --border-strong:#CFD4E3;
+    --text:#0D1220; --text-2:#5B6477; --text-3:#9AA1B2;
+    --accent:#2D5BFF; --accent-surface:#EAF0FF; --accent-ink:#1E47E6;
+    --success:#0E9F6E; --success-surface:#E6F7F0;
+    --warning:#C2410C; --warning-surface:#FFF1E6; --warning-line:#F97316;
+    --radius:0.875rem;
+    --ui:"Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --canvas:#0B0E17; --surface:#11151F; --sunken:#0E1219;
+      --border:#1E2433; --border-strong:#2A3142;
+      --text:#F5F7FB; --text-2:#8B92A5; --text-3:#5B6477;
+      --accent:#3D5AFE; --accent-surface:rgba(61,90,254,.16); --accent-ink:#8FA2FF;
+      --success:#10B981; --success-surface:rgba(16,185,129,.14);
+      --warning:#FB923C; --warning-surface:rgba(249,115,22,.14); --warning-line:#F97316;
+    }
+  }
+  :root[data-theme="dark"] {
+    --canvas:#0B0E17; --surface:#11151F; --sunken:#0E1219;
+    --border:#1E2433; --border-strong:#2A3142;
+    --text:#F5F7FB; --text-2:#8B92A5; --text-3:#5B6477;
+    --accent:#3D5AFE; --accent-surface:rgba(61,90,254,.16); --accent-ink:#8FA2FF;
+    --success:#10B981; --success-surface:rgba(16,185,129,.14);
+    --warning:#FB923C; --warning-surface:rgba(249,115,22,.14); --warning-line:#F97316;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--canvas); color: var(--text);
+    font-family: var(--ui); font-size: 15px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  /* ---------- header ---------- */
+  .masthead { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .masthead h1 { margin: 0; font-size: clamp(1.7rem, 3.4vw, 2.3rem); font-weight: 600; letter-spacing: -0.022em; text-wrap: balance; }
+  .masthead p { margin: 8px 0 0; color: var(--text-2); max-width: 62ch; font-size: 14.5px; }
+  .stamp { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; padding: 5px 9px; border-radius: 6px; background: var(--sunken); border: 1px solid var(--border); color: var(--text-2); white-space: nowrap; }
+  .chip.warn { background: var(--warning-surface); border-color: color-mix(in srgb, var(--warning-line) 40%, transparent); color: var(--warning); }
+  .chip.ok { background: var(--success-surface); border-color: color-mix(in srgb, var(--success) 35%, transparent); color: var(--success); }
+
+  /* ---------- layout ---------- */
+  .cols { display: grid; grid-template-columns: 320px minmax(0,1fr); gap: 24px; margin-top: 28px; align-items: start; }
+  @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+  .panel > header { padding: 16px 18px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .panel > header h2 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
+  .panel .body { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 18px; }
+
+  .grp { display: flex; flex-direction: column; gap: 9px; }
+  .grp > .grp-t { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
+  .row { display: grid; grid-template-columns: minmax(0,1fr) 106px; align-items: center; gap: 10px; }
+  .row label { font-size: 13.5px; color: var(--text-2); }
+  .field { display: flex; align-items: center; background: var(--sunken); border: 1px solid var(--border); border-radius: 8px; padding: 0 8px; }
+  .field .pre, .field .suf { font-family: var(--mono); font-size: 12px; color: var(--text-3); }
+  .field input { width: 100%; min-width: 0; border: 0; background: transparent; color: var(--text); font-family: var(--mono); font-size: 13.5px; font-weight: 500; padding: 7px 4px; text-align: right; -moz-appearance: textfield; }
+  .field input::-webkit-outer-spin-button, .field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-surface); }
+  .field input:focus { outline: none; }
+
+  .btn { font-family: var(--ui); font-size: 12.5px; font-weight: 500; color: var(--text-2); background: transparent; border: 1px solid var(--border-strong); border-radius: 7px; padding: 5px 10px; cursor: pointer; }
+  .btn:hover { color: var(--text); border-color: var(--text-3); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- builder ---------- */
+  .builder { display: flex; flex-direction: column; gap: 0; }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg button { font-family: var(--ui); font-size: 13.5px; font-weight: 500; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-2); cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px,1fr)); gap: 14px; margin-top: 18px; }
+  .inputs .row { grid-template-columns: minmax(0,1fr); gap: 6px; }
+  .inputs .row label, .inputs .row .seg-label { font-size: 12.5px; color: var(--text-3); }
+  .inputs .field { max-width: 190px; }
+  .hint { margin: 14px 0 0; font-size: 12.5px; color: var(--text-3); }
+  .sel { width: 100%; max-width: 240px; background: var(--sunken); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-family: var(--ui); font-size: 13.5px; color: var(--text); }
+  .sel:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-surface); }
+  .tick { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--text-2); cursor: pointer; padding: 6px 0; }
+  .tick input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+  .tick:has(input:checked) { color: var(--text); font-weight: 500; }
+  .tick input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .incl { font-size: 12.5px; color: var(--text-3); line-height: 1.45; }
+  .verdict { margin: 16px 0 0; padding: 9px 12px; border-radius: 8px; font-size: 13px; background: var(--sunken); color: var(--text-2); border: 1px solid var(--border); }
+  .verdict.ok { background: var(--success-surface); border-color: color-mix(in srgb, var(--success) 30%, transparent); color: var(--success); }
+  .verdict.warn { background: var(--warning-surface); border-color: color-mix(in srgb, var(--warning-line) 45%, transparent); color: var(--warning); }
+  .verdict b { font-family: var(--mono); font-weight: 600; }
+
+  /* ---------- outbound jobs off a container ---------- */
+  .ob-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; }
+  .ob-head .seg-label { font-size: 12.5px; color: var(--text-3); }
+  #outboundList { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+  #outboundList:empty::after { content: 'Nothing booked out yet — the container unload stands alone.'; display: block; font-size: 12.5px; color: var(--text-3); padding: 10px 0; }
+  .ob { border: 1px solid var(--border); border-radius: 10px; padding: 12px 13px; background: var(--sunken); }
+  .ob-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .ob-fields { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 11px; }
+  .ob-f { display: flex; align-items: center; gap: 7px; }
+  .ob-f span { font-size: 12.5px; color: var(--text-3); white-space: nowrap; }
+  .ob-f .field { width: 104px; }
+  .ob-zone { font-family: var(--mono); font-size: 11.5px; padding: 3px 7px; border-radius: 5px; background: var(--surface); border: 1px solid var(--border); color: var(--text-2); }
+  .ob-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 11px; padding-top: 9px; border-top: 1px dashed var(--border); font-size: 12.5px; color: var(--text-3); }
+  .ob-foot b { font-family: var(--mono); font-size: 13.5px; color: var(--text); font-variant-numeric: tabular-nums; }
+
+  /* ---------- breakdown ---------- */
+  .quote { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(0,1fr); gap: 0; }
+  @media (max-width: 760px) { .quote { grid-template-columns: 1fr; } }
+  .lines { padding: 18px; border-right: 1px solid var(--border); }
+  @media (max-width: 760px) { .lines { border-right: 0; border-bottom: 1px solid var(--border); } }
+  .line { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px dashed var(--border); }
+  .line:last-of-type { border-bottom: 0; }
+  .line .k { font-size: 13.5px; color: var(--text-2); }
+  .line .k small { display: block; font-size: 11.5px; color: var(--text-3); font-family: var(--mono); margin-top: 2px; }
+  .line .v { font-family: var(--mono); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .line.sub { border-top: 1px solid var(--border-strong); border-bottom: 0; margin-top: 4px; padding-top: 11px; }
+  .line.sub .k, .line.sub .v { font-weight: 600; color: var(--text); }
+  .line.muted .v { color: var(--text-3); }
+  .inv + .inv { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--border-strong); }
+  .inv-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
+  .inv-h em { font-style: normal; color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+  .total { padding: 18px; display: flex; flex-direction: column; justify-content: center; gap: 4px; background: var(--sunken); }
+  .total .lbl { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
+  .total .big { font-family: var(--mono); font-size: clamp(2rem, 4.4vw, 2.7rem); font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .total .eff { font-size: 13px; color: var(--text-2); margin-top: 6px; }
+  .delta { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-2); }
+  .delta b { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 600; }
+  .delta .up { color: var(--success); }
+
+  /* ---------- scenarios ---------- */
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { padding: 10px 14px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
+  th:first-child, td:first-child { text-align: left; white-space: normal; min-width: 210px; }
+  thead th { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); font-weight: 500; }
+  tbody td { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--text-2); }
+  tbody td:first-child { font-family: var(--ui); color: var(--text); }
+  tbody td.strong { color: var(--text); font-weight: 600; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td .note { display: block; font-family: var(--ui); font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+
+  /* ---------- provenance ---------- */
+  .notes { margin-top: 24px; }
+  .notes ul { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap: 0 28px; }
+  .notes li { padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-2); }
+  .notes li b { color: var(--text); font-weight: 600; }
+  .notes li span { font-family: var(--mono); font-size: 11px; color: var(--text-3); display: block; margin-top: 2px; }
+  footer.foot { margin-top: 28px; font-size: 12.5px; color: var(--text-3); max-width: 70ch; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <div>
+      <h1>Rebel Rate Sandbox</h1>
+      <p>Model Rebel&rsquo;s rate book against the Inbox Australia charging structure before anything is committed to the live pricing engine. Nothing here writes to the database.</p>
+    </div>
+    <div class="stamp">
+      <span class="chip">AUD &middot; ex/inc GST</span>
+      <span class="chip">Flemington VIC</span>
+      <span class="chip warn" id="dirtyChip" hidden>Edited &mdash; not live rates</span>
+      <span class="chip" id="levyChip"></span>
+      <span class="chip" id="saveChip">Loading&hellip;</span>
+    </div>
+  </header>
+
+  <div class="cols">
+    <!-- ============ RATE BOOK ============ -->
+    <aside class="panel">
+      <header>
+        <h2>Rate book</h2>
+        <button class="btn" id="resetBtn" type="button">Reset to live</button>
+      </header>
+      <div class="body">
+        <div class="grp">
+          <div class="grp-t">Standard delivery</div>
+          <div class="row">
+            <label for="metroPerCube">Metro per m&sup3;</label>
+            <div class="field"><span class="pre">$</span><input id="metroPerCube" type="number" min="0" step="5" inputmode="decimal"></div>
+          </div>
+          <div class="row">
+            <label for="regionalMin">Regional flat</label>
+            <div class="field"><span class="pre">$</span><input id="regionalMin" type="number" min="0" step="10" inputmode="decimal"></div>
+          </div>
+        </div>
+
+        <div class="grp">
+          <div class="grp-t">White Glove</div>
+          <div class="row">
+            <label for="wgMetroPerCube">Metro per m&sup3;</label>
+            <div class="field"><span class="pre">$</span><input id="wgMetroPerCube" type="number" min="0" step="5" inputmode="decimal"></div>
+          </div>
+          <div class="row">
+            <label for="wgRegionalMin">Regional flat</label>
+            <div class="field"><span class="pre">$</span><input id="wgRegionalMin" type="number" min="0" step="10" inputmode="decimal"></div>
+          </div>
+        </div>
+
+        <div class="grp">
+          <div class="grp-t">Hourly rate</div>
+          <div class="row">
+            <label for="hourlyRate">Standard truck / hour</label>
+            <div class="field"><span class="pre">$</span><input id="hourlyRate" type="number" min="0" step="5" inputmode="decimal"></div>
+          </div>
+          <div class="row">
+            <label for="hourlyRateLarge">Large truck / hour</label>
+            <div class="field"><span class="pre">$</span><input id="hourlyRateLarge" type="number" min="0" step="5" inputmode="decimal"></div>
+          </div>
+          <div class="row">
+            <label for="minHours">Minimum hours</label>
+            <div class="field"><input id="minHours" type="number" min="0" step="0.5" inputmode="decimal"><span class="suf">h</span></div>
+          </div>
+        </div>
+
+        <div class="grp">
+          <div class="grp-t">Labour &mdash; new service</div>
+          <div class="row">
+            <label for="labourPerHour">Per labourer / hour</label>
+            <div class="field"><span class="pre">$</span><input id="labourPerHour" type="number" min="0" step="5" inputmode="decimal"></div>
+          </div>
+          <div class="row">
+            <label for="minLabourers">Minimum crew</label>
+            <div class="field"><input id="minLabourers" type="number" min="1" step="1" inputmode="numeric"><span class="suf">pax</span></div>
+          </div>
+          <div class="row">
+            <label for="labourMinHours">Minimum hours</label>
+            <div class="field"><input id="labourMinHours" type="number" min="0" step="0.5" inputmode="decimal"><span class="suf">h</span></div>
+          </div>
+        </div>
+
+        <div class="grp">
+          <div class="grp-t">Warehousing &mdash; three tiers</div>
+          <div class="row">
+            <label for="storagePerCube">Standard / m&sup3; / mo</label>
+            <div class="field"><span class="pre">$</span><input id="storagePerCube" type="number" min="0" step="1" inputmode="decimal"></div>
+          </div>
+          <div class="row">
+            <label for="storagePerCubeHigh">High end / m&sup3; / mo</label>
+            <div class="field"><span class="pre">$</span><input id="storagePerCubeHigh" type="number" min="0" step="1" inputmode="decimal"></div>
+          </div>
+          <div class="row">
+            <label for="storagePerCubeInsured">Insured / m&sup3; / mo</label>
+            <div class="field"><span class="pre">$</span><input id="storagePerCubeInsured" type="number" min="0" step="1" inputmode="decimal"></div>
+          </div>
+          <div class="row">
+            <label for="container20">20 ft unload</label>
+            <div class="field"><span class="pre">$</span><input id="container20" type="number" min="0" step="10" inputmode="decimal"></div>
+          </div>
+          <div class="row">
+            <label for="container40">40 ft unload</label>
+            <div class="field"><span class="pre">$</span><input id="container40" type="number" min="0" step="10" inputmode="decimal"></div>
+          </div>
+          <div class="row">
+            <label for="graceDays">Free grace days</label>
+            <div class="field"><input id="graceDays" type="number" min="0" step="1" inputmode="numeric"><span class="suf">d</span></div>
+          </div>
+        </div>
+
+        <div class="grp">
+          <div class="grp-t">Additional services</div>
+          <div class="row">
+            <label for="whRateOutbound">Outbound warehouse</label>
+            <div class="field"><span class="pre">$</span><input id="whRateOutbound" type="number" min="0" step="5" inputmode="decimal"><span class="suf">/pax/h</span></div>
+          </div>
+          <div class="row">
+            <label for="whRateQC">Quality control check</label>
+            <div class="field"><span class="pre">$</span><input id="whRateQC" type="number" min="0" step="5" inputmode="decimal"><span class="suf">/pax/h</span></div>
+          </div>
+          <div class="row">
+            <label for="whRateUnload">Additional unload labour</label>
+            <div class="field"><span class="pre">$</span><input id="whRateUnload" type="number" min="0" step="5" inputmode="decimal"><span class="suf">/pax/h</span></div>
+          </div>
+          <div class="row">
+            <label for="whLabourMinCrew">Minimum crew</label>
+            <div class="field"><input id="whLabourMinCrew" type="number" min="0" step="1" inputmode="numeric"><span class="suf">pax</span></div>
+          </div>
+          <div class="row">
+            <label for="whLabourMinHours">Minimum hours</label>
+            <div class="field"><input id="whLabourMinHours" type="number" min="0" step="0.5" inputmode="decimal"><span class="suf">h</span></div>
+          </div>
+          <div class="row">
+            <label for="shortTermUpliftPct">Short-term uplift</label>
+            <div class="field"><input id="shortTermUpliftPct" type="number" min="0" step="1" inputmode="decimal"><span class="suf">%</span></div>
+          </div>
+          <div class="row">
+            <label for="containerIncludedHours">Unload time included</label>
+            <div class="field"><input id="containerIncludedHours" type="number" min="0" step="0.5" inputmode="decimal"><span class="suf">h</span></div>
+          </div>
+          <div class="row">
+            <label for="disposalVan">Rubbish &mdash; van load</label>
+            <div class="field"><span class="pre">$</span><input id="disposalVan" type="number" min="0" step="10" inputmode="decimal"></div>
+          </div>
+          <div class="row">
+            <label for="disposalTrailer">Rubbish &mdash; trailer load</label>
+            <div class="field"><span class="pre">$</span><input id="disposalTrailer" type="number" min="0" step="10" inputmode="decimal"></div>
+          </div>
+          <div class="row">
+            <label for="disposalTransport">Transport, van / trailer</label>
+            <div class="field"><span class="pre">$</span><input id="disposalTransport" type="number" min="0" step="10" inputmode="decimal"></div>
+          </div>
+          <div class="row">
+            <label for="disposalTransportLarge">Transport, larger load</label>
+            <div class="field"><span class="pre">$</span><input id="disposalTransportLarge" type="number" min="0" step="10" inputmode="decimal"></div>
+          </div>
+        </div>
+
+        <div class="grp">
+          <div class="grp-t">Levies</div>
+          <div class="row" style="grid-template-columns:1fr">
+            <label class="tick" for="fuelLevyOn"><input type="checkbox" id="fuelLevyOn"> Apply fuel levy</label>
+          </div>
+          <div class="row">
+            <label for="fuelLevy">Fuel levy <span style="color:var(--text-3)">(transport only)</span></label>
+            <div class="field"><input id="fuelLevy" type="number" min="0" step="0.5" inputmode="decimal"><span class="suf">%</span></div>
+          </div>
+          <div class="row">
+            <label for="gstPercent">GST</label>
+            <div class="field"><input id="gstPercent" type="number" min="0" step="1" inputmode="decimal"><span class="suf">%</span></div>
+          </div>
+        </div>
+
+        <p class="hint" style="margin:0">Every figure here is <b>yours</b>, saved against this page and editable at any time. The live rate book, <span style="font-family:var(--mono);font-size:12px">pricing_rates</span>, and <span style="font-family:var(--mono);font-size:12px">src/lib/pricing.ts</span> are untouched.</p>
+      </div>
+    </aside>
+
+    <!-- ============ BUILDER + QUOTE ============ -->
+    <div style="display:flex;flex-direction:column;gap:24px;min-width:0">
+      <section class="panel">
+        <header><h2>Job</h2></header>
+        <div class="body builder">
+          <div class="seg" id="typeSeg" role="group" aria-label="Job type">
+            <button type="button" data-type="Standard" aria-pressed="true">Standard</button>
+            <button type="button" data-type="White Glove" aria-pressed="false">White Glove</button>
+            <button type="button" data-type="Hourly rate" aria-pressed="false">Hourly rate</button>
+            <button type="button" data-type="Labour" aria-pressed="false">Labour</button>
+            <button type="button" data-type="Storage" aria-pressed="false">Warehousing</button>
+          </div>
+
+          <div class="inputs">
+            <div class="row" id="wrapPostcode">
+              <label for="postcode">Delivery postcode</label>
+              <div class="field"><input id="postcode" type="text" inputmode="numeric" maxlength="4" placeholder="3121" value="3121" style="text-align:left"></div>
+            </div>
+            <div class="row" id="wrapCubes">
+              <label for="cubes">Volume</label>
+              <div class="field"><input id="cubes" type="number" min="0" step="0.5" value="2" inputmode="decimal"><span class="suf">m&sup3;</span></div>
+            </div>
+            <div class="row" id="wrapHours">
+              <label for="hours">Estimated time on site</label>
+              <div class="field"><input id="hours" type="number" min="0" step="0.5" value="4" inputmode="decimal"><span class="suf">h</span></div>
+            </div>
+            <div class="row" id="wrapTruck">
+              <span class="seg-label">Truck</span>
+              <div class="seg" role="group" aria-label="Truck" id="truckSeg">
+                <button type="button" data-truck="Standard" aria-pressed="true">Standard</button>
+                <button type="button" data-truck="Large" aria-pressed="false">Large</button>
+              </div>
+            </div>
+            <div class="row" id="wrapLabourers">
+              <label for="labourers">Crew on site</label>
+              <div class="field"><input id="labourers" type="number" min="0" step="1" value="2" inputmode="numeric"><span class="suf">pax</span></div>
+            </div>
+            <div class="row" id="wrapDisposalTick">
+              <span class="seg-label">Extras</span>
+              <label class="tick" id="disposalTickLabel" for="disposalTick"><input type="checkbox" id="disposalTick"> Rubbish disposal</label>
+              <span class="incl" id="disposalIncluded" hidden>Removal is already in the White Glove rate &mdash; chargeable over 10 m&sup3;</span>
+              <label class="tick" id="packagingTickLabel" for="packagingTick"><input type="checkbox" id="packagingTick"> Packaging materials</label>
+            </div>
+            <div class="row" id="wrapDisposal">
+              <label for="disposalLoad">Load size</label>
+              <select class="sel" id="disposalLoad">
+                <option value="Standard van load">Standard van load</option>
+                <option value="Trailer load">Trailer load</option>
+                <option value="Larger load">Larger load — measured on the day</option>
+              </select>
+            </div>
+            <div class="row" id="wrapDisposalAmount">
+              <label for="disposalAmount">Disposal charge</label>
+              <div class="field"><span class="pre">$</span><input id="disposalAmount" type="number" min="0" step="10" value="0" inputmode="decimal"></div>
+            </div>
+            <div class="row" id="wrapPackagingAmount">
+              <label for="packagingAmount">Materials supplied</label>
+              <div class="field"><span class="pre">$</span><input id="packagingAmount" type="number" min="0" step="10" value="0" inputmode="decimal"></div>
+            </div>
+            <div class="row" id="wrapWhService">
+              <span class="seg-label">Service</span>
+              <div class="seg" role="group" aria-label="Warehousing service" id="whSeg">
+                <button type="button" data-wh="Storage" aria-pressed="true">Storage</button>
+                <button type="button" data-wh="Container unload" aria-pressed="false">Container unload</button>
+                <button type="button" data-wh="Labour work" aria-pressed="false">Labour work</button>
+              </div>
+            </div>
+            <div class="row" id="wrapLevyMode">
+              <span class="seg-label">Fuel levy on this quote</span>
+              <div class="seg" role="group" aria-label="Fuel levy on this quote" id="levySeg">
+                <button type="button" data-levy="Rate book" aria-pressed="true">As quoted</button>
+                <button type="button" data-levy="On" aria-pressed="false">Add</button>
+                <button type="button" data-levy="Off" aria-pressed="false">Remove</button>
+              </div>
+            </div>
+            <div class="row" id="wrapWhLabourType">
+              <label for="whLabourType">Work</label>
+              <select class="sel" id="whLabourType">
+                <option value="Outbound warehouse charges">Outbound warehouse charges</option>
+                <option value="Quality control check">Quality control check</option>
+                <option value="Additional labour to unload the container">Additional labour to unload the container</option>
+              </select>
+            </div>
+            <div class="row" id="wrapExtraLabourTick">
+              <span class="seg-label">Extras</span>
+              <label class="tick" for="extraLabourTick"><input type="checkbox" id="extraLabourTick"> Additional labour</label>
+            </div>
+            <div class="row" id="wrapContainer">
+              <span class="seg-label">Container size</span>
+              <div class="seg" role="group" aria-label="Container size" id="containerSeg">
+                <button type="button" data-container="20 ft" aria-pressed="true">20 ft</button>
+                <button type="button" data-container="40 ft" aria-pressed="false">40 ft</button>
+              </div>
+            </div>
+            <div class="row" id="wrapLegs">
+              <span class="seg-label">Pick-up &amp; delivery</span>
+              <div class="seg" role="group" aria-label="Pick-up and delivery" id="legsSeg">
+                <button type="button" data-legs="off" aria-pressed="true">Not required</button>
+                <button type="button" data-legs="on" aria-pressed="false">Required</button>
+              </div>
+            </div>
+            <div class="row" id="wrapLegHours">
+              <label for="legHours">Leg hours, both ends</label>
+              <div class="field"><input id="legHours" type="number" min="0" step="0.5" value="4" inputmode="decimal"><span class="suf">h</span></div>
+            </div>
+            <div class="row" id="wrapStorageTerm">
+              <label for="storageTerm">Term</label>
+              <select class="sel" id="storageTerm">
+                <option value="Long term">Long term</option>
+                <option value="Short term">Short term</option>
+              </select>
+            </div>
+            <div class="row" id="wrapTier">
+              <span class="seg-label">Tier</span>
+              <div class="seg" role="group" aria-label="Storage tier" id="tierSeg">
+                <button type="button" data-tier="Standard" aria-pressed="true">Standard</button>
+                <button type="button" data-tier="High end" aria-pressed="false">High end</button>
+                <button type="button" data-tier="Insurance added" aria-pressed="false">Insurance added</button>
+              </div>
+            </div>
+            <div class="row" id="wrapDays">
+              <label for="days">Days in the warehouse</label>
+              <div class="field"><input id="days" type="number" min="0" step="1" value="45" inputmode="numeric"><span class="suf">d</span></div>
+            </div>
+          </div>
+          <div id="outboundBlock" hidden>
+            <div class="ob-head">
+              <span class="seg-label">Out of this container — delivered, or held in storage</span>
+              <button class="btn" id="addOutbound" type="button">Add a job</button>
+            </div>
+            <div id="outboundList"></div>
+          </div>
+          <p class="verdict" id="zoneVerdict" hidden></p>
+          <p class="hint" id="builderHint"></p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <header><h2>Breakdown</h2><span class="chip" id="modeChip">Standard &middot; Metro</span></header>
+        <div class="quote">
+          <div class="lines" id="lines"></div>
+          <div class="total">
+            <div class="lbl">Total inc GST</div>
+            <div class="big" id="grandTotal">$0.00</div>
+            <div class="eff" id="effective"></div>
+            <div class="delta" id="delta"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ============ SCENARIOS ============ -->
+  <section class="panel notes" style="margin-top:24px">
+    <header><h2>The same rate book across five typical jobs</h2></header>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Job</th>
+            <th scope="col">Base</th>
+            <th scope="col">Fuel levy</th>
+            <th scope="col">Ex GST</th>
+            <th scope="col">GST</th>
+            <th scope="col">Inc GST</th>
+            <th scope="col">vs engine today</th>
+          </tr>
+        </thead>
+        <tbody id="scenarioBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="notes">
+    <ul>
+      <li><b>Fuel levy &mdash; transport only, ex GST</b><span>A quote captures the rate book's setting at the moment it is raised and keeps it &mdash; March quotes stay levied when September's setting is off, approved or not. Add or remove it by hand on a quote raised in one month but carried out in another. When on it rides delivery and hourly work, and stays exempt on labour and warehousing, where no vehicle moves. Inbox charges 12% fixed on interstate, discretionary elsewhere.</span></li>
+      <li><b>Warehouse labour &mdash; no minimums</b><span>Outbound warehouse charges, quality control checks and extra container time each carry their own editable rate, billed per labourer in 30-minute increments and named on their own invoice line. Unlike a Labour job there is no crew or hours floor &mdash; both are editable in the rate book if that changes.</span></li>
+      <li><b>Warehousing &mdash; three tiers, grace then round up</b><span>Long term pays the tier rate &mdash; Standard $25, High end $40, Insurance added $50 per m&sup3; per month &mdash; and a short-term hold adds an uplift on top. All share the 5-day grace. Pick-up and delivery is an add-on, hourly with no minimum; Container unload sits alongside as its own service, flat at $550 for a 20 ft and $800 for a 40 ft, covering 2 hours on site with extra time ticked on as additional labour. Rebel prices storage entirely by hand today.</span></li>
+      <li><b>Rubbish disposal &mdash; preset loads</b><span>Never a job of its own &mdash; always a tick on the job that created the rubbish: an hourly job, a storage job, a container unload, an hourly job out of a container, or a White Glove job over 10 m&sup3;. Van $190 and trailer $290 each plus a $150 transport fee; a larger load is measured at the end of the job and carries $220. No fuel levy &mdash; transport is already its own line. Every rate behind these pull-downs lives in the Additional services group of the rate book.</span></li>
+      <li><b>Labour &mdash; per head, per hour</b><span>$60 per labourer per hour &times; crew &times; hours. Floors at 2 pax and 3 h. The site already sells onsite labour hire; the engine has no job type for it.</span></li>
+      <li><b>Packaging is counted, not estimated</b><span>Hourly and Labour jobs can each carry a packaging-materials line, filled in once the job is done and it is known what was supplied. No fuel levy &mdash; it is goods, not a run.</span></li>
+      <li><b>White Glove covers its own rubbish</b><span>Removal is priced into the White Glove rate up to 10 m&sup3;. Past that the volume stops being incidental and disposal becomes a chargeable extra, the same two lines as everywhere else.</span></li>
+      <li><b>Zone comes from the postcode</b><span>Applies to every delivery, including jobs out of a container. The postcode decides it outright &mdash; on Rebel’s list is Metro, everything else is Regional. Same 192-postcode set the dashboard uses in src/lib/metroPostcodes.ts.</span></li>
+      <li><b>Hourly &mdash; two trucks, 30-minute increments</b><span>Standard $180/h, Large $200/h, both off the same 3 h minimum. Time rounds up to the next half hour &mdash; the same rule on labour and on storage legs.</span></li>
+    </ul>
+  </section>
+
+  <footer class="foot">
+    Inbox Australia publishes no dollar figures, only a charging structure &mdash; every rate above is Rebel&rsquo;s own. &ldquo;vs engine today&rdquo; compares against <span style="font-family:var(--mono);font-size:12px">calculateQuote()</span> as it currently ships: no levy, storage quoted at zero.
+  </footer>
+</div>
+
+<script>
+  /* Rebel's own definition of the Melbourne Metropolitan Area, from
+     "Melbourne Metro — As defined by Rebel Logistics" and identical to
+     src/lib/metroPostcodes.ts. It reaches further out than "metro"
+     suggests — Kangaroo Ground, Berwick, Langwarrin and the Cranbourne
+     group are all Metro here — so judge by the number, never the feel. */
+  var METRO_POSTCODES = new Set([
+    3000, 3002, 3003, 3004, 3006, 3008, 3011, 3012, 3013, 3015, 3016, 3018, 3019, 3020,
+    3021, 3022, 3023, 3024, 3025, 3026, 3027, 3028, 3029, 3030, 3031, 3032, 3033, 3034,
+    3036, 3037, 3038, 3040, 3041, 3042, 3043, 3044, 3045, 3046, 3047, 3048, 3049, 3051,
+    3052, 3053, 3054, 3055, 3056, 3057, 3058, 3059, 3060, 3061, 3062, 3063, 3064, 3065,
+    3066, 3067, 3068, 3070, 3071, 3072, 3073, 3074, 3075, 3076, 3078, 3079, 3081, 3082,
+    3083, 3084, 3085, 3087, 3088, 3089, 3090, 3091, 3093, 3094, 3095, 3096, 3097, 3099,
+    3101, 3102, 3103, 3104, 3105, 3106, 3107, 3108, 3109, 3111, 3113, 3114, 3115, 3116,
+    3121, 3122, 3123, 3124, 3125, 3126, 3127, 3128, 3129, 3130, 3131, 3132, 3133, 3134,
+    3135, 3136, 3137, 3138, 3140, 3141, 3142, 3143, 3144, 3145, 3146, 3147, 3148, 3149,
+    3150, 3151, 3152, 3153, 3154, 3155, 3156, 3158, 3159, 3160, 3161, 3162, 3163, 3165,
+    3166, 3167, 3168, 3169, 3170, 3171, 3172, 3173, 3174, 3175, 3177, 3178, 3179, 3180,
+    3181, 3182, 3183, 3184, 3185, 3186, 3187, 3188, 3189, 3190, 3191, 3192, 3193, 3194,
+    3195, 3196, 3197, 3198, 3199, 3200, 3201, 3202, 3204, 3205, 3206, 3207, 3796, 3802,
+    3803, 3804, 3805, 3806, 3807, 3910, 3975, 3976, 3977, 3978
+  ]);
+
+  function zoneForPostcode(raw) {
+    if (!/^3\d{3}$/.test(String(raw || '').trim())) return null;
+    return METRO_POSTCODES.has(Number(raw)) ? 'Metro' : 'Regional';
+  }
+
+  var LIVE = {
+    metroPerCube: 90, regionalMin: 480,
+    wgMetroPerCube: 90, wgRegionalMin: 480,
+    hourlyRate: 180, hourlyRateLarge: 200, minHours: 3,
+    labourPerHour: 60, minLabourers: 2, labourMinHours: 3,
+    storagePerCube: 25, storagePerCubeHigh: 40, storagePerCubeInsured: 50,
+    container20: 550, container40: 800, containerIncludedHours: 2, shortTermUpliftPct: 20,
+    whLabourMinCrew: 0, whLabourMinHours: 0, graceDays: 5,
+    whRateOutbound: 60, whRateQC: 60, whRateUnload: 60,
+    disposalVan: 190, disposalTrailer: 290, disposalTransport: 150, disposalTransportLarge: 220,
+    fuelLevy: 12, fuelLevyOn: 1, gstPercent: 10
+  };
+  var KEYS = Object.keys(LIVE);
+  var rates = Object.assign({}, LIVE);
+  var job = { type: 'Standard', location: 'Metro', cubes: 2, hours: 4, days: 45, labourers: 2, truck: 'Standard', tier: 'Standard', postcode: '3121', legs: false, legHours: 4, whService: 'Storage', container: '20 ft', storageTerm: 'Long term',
+    // What the rate book said when this quote was raised. In production this
+    // is captured on the job record and never re-read from the rate book, so
+    // a March quote keeps its levy when September's setting is off.
+    levyMode: 'Rate book',
+    disposalLoad: 'Standard van load', disposalAmount: 0, disposalOn: false,
+    packagingOn: false, packagingAmount: 0,
+    whLabourType: 'Outbound warehouse charges', extraLabourOn: false,
+    // A container's contents can split across several jobs, each priced its
+    // own way. An empty list means the unload is invoiced on its own.
+    outbound: [
+      { type: 'Standard', postcode: '3121', cubes: 4, hours: 4, truck: 'Standard', tier: 'Standard', days: 30 },
+      { type: 'White Glove', postcode: '3186', cubes: 3, hours: 4, truck: 'Standard', tier: 'Standard', days: 30 },
+      { type: 'Storage', postcode: '3121', cubes: 6, hours: 4, truck: 'Standard', tier: 'Standard', days: 45, storageTerm: 'Short term' }
+    ] };
+
+  try {
+    var saved = JSON.parse(localStorage.getItem('rebel-rate-sandbox') || 'null');
+    if (saved) KEYS.forEach(function (k) { if (typeof saved[k] === 'number') rates[k] = saved[k]; });
+  } catch (e) { /* private window, blocked storage — defaults stand */ }
+
+  /* ---------- where the rate book is kept ----------
+     The artifact's own store is the record: it outlives a reload, a
+     republish and this browser, and Claude can read the figures back.
+     localStorage stays as the fallback for a view that cannot run db,
+     and seeds the store the first time. */
+  var dbDoc = null, saveTimer = null, lastSaved = null, seeded = false;
+
+  function saveState(text, ok) {
+    var c = el('saveChip');
+    c.textContent = text;
+    c.className = ok ? 'chip ok' : 'chip';
+  }
+
+  function snapshotRates() {
+    var out = {};
+    KEYS.forEach(function (k) { out[k] = rates[k]; });
+    return out;
+  }
+  function sameRates(a, b) {
+    return !!a && !!b && KEYS.every(function (k) { return a[k] === b[k]; });
+  }
+
+  function writeNow() {
+    var snap = snapshotRates();
+    if (sameRates(lastSaved, snap)) { saveState('Saved', true); return; }
+    dbDoc.set(snap).then(function () {
+      lastSaved = snap;
+      saveState('Saved', true);
+    }).catch(function (err) {
+      var code = err && err.code;
+      saveState(code === 'not_granted' || code === 'capability_disabled' ? 'This device only' : 'Not saved');
+    });
+  }
+
+  function queueSave() {
+    if (!dbDoc) return;
+    saveState('Saving…');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(writeNow, 700);
+  }
+
+  function connectStore() {
+    if (!window.claude || !window.claude.use) { saveState('This device only'); return; }
+    window.claude.use('db').then(function (db) {
+      if (!db) { saveState('This device only'); return; }
+      dbDoc = db.doc('config/rates');
+      dbDoc.onSnapshot(function (snap) {
+        if (snap.exists) {
+          var d = snap.data() || {};
+          var next = {};
+          KEYS.forEach(function (k) { next[k] = typeof d[k] === 'number' ? d[k] : rates[k]; });
+          var missing = KEYS.some(function (k) { return typeof d[k] !== 'number'; });
+          lastSaved = next;
+          if (!sameRates(next, rates)) { rates = next; renderInputs(); renderAll(); }
+          if (missing && !seeded) {
+            // Stored before this rate existed — write the full set back.
+            seeded = true;
+            lastSaved = null;
+            writeNow();
+          } else {
+            saveState('Saved', true);
+          }
+        } else if (!seeded) {
+          // Nothing stored yet — lift whatever this browser was holding.
+          seeded = true;
+          writeNow();
+        }
+      }, function () {
+        dbDoc = null;
+        saveState('This device only');
+      });
+    }).catch(function () { saveState('This device only'); });
+  }
+
+  function money(n) {
+    return '$' + n.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function round2(n) { return Math.round(n * 100) / 100; }
+
+  /** Time on the clock bills in half hours, always rounded up. */
+  function bill30(hours) { return Math.ceil((hours || 0) * 2) / 2; }
+
+  // Mirrors calculateQuote() in src/lib/pricing.ts, plus the two adopted
+  // Inbox mechanics. `live` = true reproduces the engine as it ships today:
+  // no fuel levy, storage quoted at zero and set by hand.
+  /** Above this many m³, White Glove rubbish removal stops being included. */
+  var WG_DISPOSAL_THRESHOLD = 10;
+
+  /**
+   * The per-m³ storage rate: the tier sets the figure, and a short-term hold
+   * carries an uplift on top of it. Long term pays the rate as set.
+   */
+  function storageRate(r, tier, term) {
+    var base = tier === 'Insurance added' ? r.storagePerCubeInsured
+      : tier === 'High end' ? r.storagePerCubeHigh
+      : r.storagePerCube;
+    return term === 'Short term' ? round2(base * (1 + r.shortTermUpliftPct / 100)) : base;
+  }
+
+  /**
+   * Whether this particular quote carries the levy. 'Rate book' follows the
+   * current setting — what a quote raised today would capture. 'On' and 'Off'
+   * are the manual override: a job quoted in a levy-off month but carried out
+   * in a levy-on one can have it added by hand, and vice versa.
+   */
+  function levyActive(r, j) {
+    if (j.levyMode === 'On') return true;
+    if (j.levyMode === 'Off') return false;
+    return !!r.fuelLevyOn;
+  }
+
+  /** Each item on the work pull-down carries its own rate. */
+  function whLabourRate(r, type) {
+    return type === 'Quality control check' ? r.whRateQC
+      : type === 'Additional labour to unload the container' ? r.whRateUnload
+      : r.whRateOutbound;
+  }
+
+  /** Warehouse crew time: no minimum by default, both floors editable. */
+  function warehouseLabour(r, j) {
+    var rate = whLabourRate(r, j.whLabourType);
+    var crew = Math.max(j.labourers || 0, r.whLabourMinCrew);
+    var hrs = Math.max(bill30(j.hours), r.whLabourMinHours);
+    return {
+      crew: crew, hours: hrs, rate: rate,
+      amount: round2(crew * hrs * rate),
+      calc: crew + ' pax × ' + hrs + ' h × $' + rate
+    };
+  }
+
+  /** Materials actually supplied — only knowable once the job is over. */
+  function packagingLine(j) {
+    var pk = j.packagingAmount || 0;
+    return {
+      label: 'Packaging materials',
+      amount: pk,
+      note: pk > 0 ? 'as supplied on the job' : 'entered at the end of the job — nothing yet',
+      levied: false
+    };
+  }
+
+  /** The disposal pair: the load charge, then its flat transport fee. */
+  function disposalLines(r, j) {
+    var larger = (j.disposalLoad === 'Larger load');
+    return [
+      { label: 'Rubbish disposal',
+        amount: larger ? (j.disposalAmount || 0)
+          : (j.disposalLoad === 'Trailer load' ? r.disposalTrailer : r.disposalVan),
+        note: j.disposalLoad + (larger ? ' — measured at the end of the job' : ' — preset'),
+        levied: false },
+      { label: 'Transport fee',
+        amount: larger ? r.disposalTransportLarge : r.disposalTransport,
+        note: larger ? 'flat, larger load' : 'flat, van or trailer',
+        levied: false }
+    ];
+  }
+
+  function price(r, j, live) {
+    var wg = j.type === 'White Glove';
+    var base = 0, explain = '', detail = '', baseLabel = 'Base charge', extras = [];
+
+    if (j.type === 'Storage') {
+      if (live) {
+        base = 0; explain = 'Warehousing'; detail = 'set the fee manually';
+      } else {
+        if (j.whService === 'Container unload') {
+          // A service in its own right: one fee for the container. No volume
+          // and no monthly term to multiply it by.
+          baseLabel = 'Container unload';
+          base = (j.container === '40 ft') ? r.container40 : r.container20;
+          explain = j.container + ' container — flat';
+          detail = 'covers ' + r.containerIncludedHours + ' h of unload time; beyond that is charged as additional labour';
+        } else if (j.whService === 'Labour work') {
+          var wl = warehouseLabour(r, j);
+          baseLabel = 'Warehouse labour';
+          base = wl.amount;
+          explain = j.whLabourType;
+          detail = wl.calc + ' · 30 min increments' +
+            (r.whLabourMinCrew > 0 || r.whLabourMinHours > 0 ? '' : ' · no crew or hours minimum');
+        } else {
+          var term = j.storageTerm || 'Long term';
+          var tierRate = storageRate(r, j.tier, term);
+          var m3 = Math.ceil(j.cubes || 0);
+          var billableDays = Math.max(0, (j.days || 0) - r.graceDays);
+          var months = Math.ceil(billableDays / 30);
+          base = m3 * tierRate * months;
+          baseLabel = 'Storage';
+          explain = m3 + ' m³ × $' + tierRate + ' × ' + months + ' mo (' + j.tier + ' · ' + term.toLowerCase() + ')';
+          detail = j.cubes + ' m³ rounded up · ' + r.graceDays + ' d grace off ' + (j.days || 0) + ' d' +
+            (term === 'Short term' ? ' · short-term uplift +' + r.shortTermUpliftPct + '%' : '');
+        }
+        // Storage and container unload both take crew work and a clean-up.
+        // Labour work is already labour, so it takes neither.
+        if (j.whService !== 'Labour work') {
+          if (j.extraLabourOn) {
+            var xl = warehouseLabour(r, j);
+            // Extra time on an unload and a requested quality check are
+            // different services at the same rate — the invoice must say which.
+            var onContainer = (j.whService === 'Container unload');
+            var overrun = onContainer &&
+              (j.whLabourType === 'Additional labour to unload the container');
+            extras.push({
+              label: j.whLabourType,
+              amount: xl.amount,
+              note: xl.calc + ' · 30 min increments · ' + (overrun
+                ? 'beyond the ' + r.containerIncludedHours + ' h included'
+                : onContainer ? 'requested on top of the unload'
+                : 'on the stored stock'),
+              levied: false
+            });
+          }
+          if (j.disposalOn) extras = extras.concat(disposalLines(r, j));
+        }
+        if (j.legs) {
+          // Collection and return, billed at the truck's hourly rate with no
+          // minimum — the minimum is for a booked job, not a leg of one.
+          var legRate = (j.truck === 'Large') ? r.hourlyRateLarge : r.hourlyRate;
+          var legHrs = bill30(j.legHours);
+          extras.push({
+            label: 'Pick-up &amp; delivery',
+            amount: round2(legHrs * legRate),
+            note: legHrs + ' h × $' + legRate + ' (' + j.truck + ' truck) — 30 min increments, no minimum',
+            levied: true
+          });
+        }
+      }
+        } else if (j.type === 'Labour') {
+      if (live) {
+        base = 0; explain = 'Labour'; detail = 'no such job type in the engine yet';
+      } else {
+        var crew = Math.max(j.labourers || 0, r.minLabourers);
+        var lRounded = bill30(j.hours);
+        var lh = Math.max(lRounded, r.labourMinHours);
+        base = crew * lh * r.labourPerHour;
+        explain = crew + ' pax × ' + lh + ' h × $' + r.labourPerHour;
+        var lifts = [];
+        if (crew > (j.labourers || 0)) lifts.push('crew lifted to the ' + r.minLabourers + ' pax minimum');
+        if (lRounded > (j.hours || 0)) lifts.push('rounded up to the next 30 min');
+        if (lh > lRounded) lifts.push('lifted to the ' + r.labourMinHours + ' h minimum');
+        detail = lifts.length ? lifts.join(' · ') : 'both above the minimums';
+        if (j.packagingOn) extras.push(packagingLine(j));
+      }
+    } else if (j.type === 'Hourly rate') {
+      var big = (j.truck === 'Large');
+      var truckRate = big ? r.hourlyRateLarge : r.hourlyRate;
+      var rounded = bill30(j.hours);
+      var billed = Math.max(rounded, r.minHours);
+      base = billed * truckRate;
+      explain = billed + ' h × $' + truckRate + (big ? ' (Large truck)' : ' (Standard truck)');
+      if (j.disposalOn) extras = extras.concat(disposalLines(r, j));
+      if (j.packagingOn) extras.push(packagingLine(j));
+      var hNotes = [];
+      if (rounded > (j.hours || 0)) hNotes.push('rounded up to the next 30 min');
+      if (billed > rounded) hNotes.push('lifted to the ' + r.minHours + ' h minimum');
+      detail = hNotes.length ? hNotes.join(' · ') : 'above the ' + r.minHours + ' h minimum';
+    } else if (j.location === 'Regional') {
+      base = wg ? r.wgRegionalMin : r.regionalMin;
+      explain = wg ? 'White Glove regional minimum' : 'Regional minimum charge';
+      detail = 'flat, regardless of volume';
+    } else {
+      var rate = wg ? r.wgMetroPerCube : r.metroPerCube;
+      base = (j.cubes || 0) * rate;
+      explain = (j.cubes || 0) + ' m³ × $' + rate + (wg ? ' (White Glove)' : '');
+      detail = 'Melbourne metro';
+    }
+
+    // White Glove already carries rubbish removal in its rate. Past 10 m³ the
+    // volume stops being incidental, so it becomes a chargeable extra.
+    if (wg && j.disposalOn && (j.cubes || 0) > WG_DISPOSAL_THRESHOLD) {
+      extras = extras.concat(disposalLines(r, j));
+    }
+
+    var extrasAmount = extras.reduce(function (t, e) { return t + e.amount; }, 0);
+    var chargeable = round2(base + extrasAmount);
+
+
+    // The levy rides on the truck: it lands on whatever part of the job moved
+    // one, and on nothing else.
+    var baseLevied = !(j.type === 'Labour' || j.type === 'Storage');
+    var levyBase = round2(extras.reduce(function (t, e) {
+      return t + (e.levied ? e.amount : 0);
+    }, baseLevied ? base : 0));
+    // Switched off in the rate book while petrol is normal, on to recover a
+    // price rise. Off means no levy anywhere, on any job.
+    var levyPct = (live || !levyActive(r, j)) ? 0 : r.fuelLevy;
+    var levy = round2(levyBase * (levyPct / 100));
+    var levyNote;
+    if (levy === 0 && !live && !levyActive(r, j) && baseLevied) {
+      levyNote = j.levyMode === 'Off'
+        ? 'removed from this quote by hand'
+        : 'not applied — the rate book had it off when this was quoted';
+    } else if (levy === 0) {
+      levyNote =
+        j.type === 'Labour' ? 'not charged on labour — crew time, no vehicle'
+        : j.type === 'Storage' ? 'not charged on warehousing — the stock sits still'
+        : levyPct + '% of base, ex GST';
+    } else {
+      // Say what it is charged on, and whether it was added by hand.
+      var portion = (levyBase !== chargeable)
+        ? (j.type === 'Storage' ? 'the delivery legs only — not on the storage'
+                                : 'the hourly charge only — not on the disposal')
+        : 'base';
+      levyNote = levyPct + '% of ' + portion + ', ex GST' +
+        (j.levyMode === 'On' && !r.fuelLevyOn ? ' — added to this quote by hand' : '');
+    }
+    var exGst = round2(chargeable + levy);
+    var gst = round2(exGst * (r.gstPercent / 100));
+    return {
+      base: round2(base), baseLabel: baseLabel, extras: extras, chargeable: chargeable, levyBase: levyBase,
+      levy: levy, levyPct: levyPct, levyNote: levyNote, exGst: exGst,
+      gst: gst, total: round2(exGst + gst), explain: explain, detail: detail
+    };
+  }
+
+  /* ---------- outbound jobs ---------- */
+
+  /** Price one outbound job off the container, on its own terms. */
+  function priceOutbound(o) {
+    if (o.type === 'Storage') {
+      // Held on the same terms as any other storage: the usual free grace,
+      // then whole months, volume rounded up.
+      return price(rates, {
+        type: 'Storage', whService: 'Storage', tier: o.tier || 'Standard',
+        cubes: o.cubes, days: o.days, storageTerm: o.storageTerm || 'Long term',
+        levyMode: job.levyMode, legs: false, disposalOn: false, extraLabourOn: false
+      }, false);
+    }
+    var zone = zoneForPostcode(o.postcode) || 'Regional';
+    return price(rates, {
+      type: o.type, location: zone, cubes: o.cubes, hours: o.hours,
+      truck: o.truck, tier: 'Standard', whService: 'Storage', legs: false, levyMode: job.levyMode,
+      disposalOn: !!o.disposalOn, disposalLoad: o.disposalLoad || 'Standard van load',
+      disposalAmount: o.disposalAmount || 0
+    }, false);
+  }
+
+  function obTypeButtons(o, i) {
+    return ['Standard', 'White Glove', 'Hourly rate', 'Storage'].map(function (t) {
+      return '<button type="button" data-ot="' + t + '" data-i="' + i + '" aria-pressed="' +
+        (o.type === t ? 'true' : 'false') + '">' + (t === 'Hourly rate' ? 'Hourly' : t) + '</button>';
+    }).join('');
+  }
+
+  function renderOutbound() {
+    var showing = (job.type === 'Storage' && job.whService === 'Container unload');
+    el('outboundBlock').hidden = !showing;
+    if (!showing) return;
+
+    el('outboundList').innerHTML = job.outbound.map(function (o, i) {
+      var q = priceOutbound(o);
+      var fields;
+      if (o.type === 'Storage') {
+        fields =
+          '<div class="ob-f"><span>Tier</span><select class="sel" data-od="tier" data-i="' + i + '">' +
+            ['Standard', 'High end', 'Insurance added'].map(function (T) {
+              return '<option value="' + T + '"' + ((o.tier || 'Standard') === T ? ' selected' : '') + '>' + T + '</option>';
+            }).join('') +
+          '</select></div>' +
+          '<div class="ob-f"><span>Term</span><select class="sel" data-od="term" data-i="' + i + '">' +
+            ['Long term', 'Short term'].map(function (T) {
+              return '<option value="' + T + '"' + ((o.storageTerm || 'Long term') === T ? ' selected' : '') + '>' + T + '</option>';
+            }).join('') +
+          '</select></div>' +
+          '<div class="ob-f"><span>Volume</span><div class="field"><input type="number" min="0" step="0.5" ' +
+            'data-of="cubes" data-i="' + i + '" value="' + o.cubes + '"><span class="suf">m³</span></div></div>' +
+          '<div class="ob-f"><span>Held</span><div class="field"><input type="number" min="0" step="1" ' +
+            'data-of="days" data-i="' + i + '" value="' + (o.days || 0) + '"><span class="suf">d</span></div></div>';
+      } else if (o.type === 'Hourly rate') {
+        fields =
+          '<div class="ob-f"><span>Truck</span><div class="seg">' +
+            ['Standard', 'Large'].map(function (t) {
+              return '<button type="button" data-otruck="' + t + '" data-i="' + i + '" aria-pressed="' +
+                (o.truck === t ? 'true' : 'false') + '">' + t + '</button>';
+            }).join('') +
+          '</div></div>' +
+          '<div class="ob-f"><span>Hours</span><div class="field"><input type="number" min="0" step="0.5" ' +
+            'data-of="hours" data-i="' + i + '" value="' + o.hours + '"><span class="suf">h</span></div></div>' +
+          '<div class="ob-f"><label class="tick"><input type="checkbox" data-od="on" data-i="' + i + '"' +
+            (o.disposalOn ? ' checked' : '') + '> Rubbish disposal</label></div>' +
+          (o.disposalOn
+            ? '<div class="ob-f"><select class="sel" data-od="load" data-i="' + i + '">' +
+                ['Standard van load', 'Trailer load', 'Larger load'].map(function (L) {
+                  return '<option value="' + L + '"' + (o.disposalLoad === L ? ' selected' : '') + '>' + L + '</option>';
+                }).join('') +
+              '</select></div>' +
+              (o.disposalLoad === 'Larger load'
+                ? '<div class="ob-f"><span>Charge</span><div class="field"><span class="pre">$</span>' +
+                  '<input type="number" min="0" step="10" data-of="disposalAmount" data-i="' + i + '" value="' +
+                  (o.disposalAmount || 0) + '"></div></div>'
+                : '')
+            : '');
+      } else {
+        var zone = zoneForPostcode(o.postcode);
+        fields =
+          '<div class="ob-f"><span>Postcode</span><div class="field"><input type="text" inputmode="numeric" ' +
+            'maxlength="4" data-of="postcode" data-i="' + i + '" value="' + o.postcode + '" style="text-align:left"></div>' +
+            '<span class="ob-zone">' + (zone || '—') + '</span></div>' +
+          '<div class="ob-f"><span>Volume</span><div class="field"><input type="number" min="0" step="0.5" ' +
+            'data-of="cubes" data-i="' + i + '" value="' + o.cubes + '"><span class="suf">m³</span></div></div>';
+      }
+      return '<div class="ob">' +
+        '<div class="ob-top"><div class="seg">' + obTypeButtons(o, i) + '</div>' +
+        '<button class="btn" type="button" data-orm="' + i + '">Remove</button></div>' +
+        '<div class="ob-fields">' + fields + '</div>' +
+        '<div class="ob-foot"><span>' + q.explain + ' — ex GST</span><b>' + money(q.chargeable) + '</b></div>' +
+        '</div>';
+    }).join('');
+  }
+
+  /* ---------- render ---------- */
+  var el = function (id) { return document.getElementById(id); };
+
+  function renderInputs() {
+    KEYS.forEach(function (k) {
+      var i = el(k);
+      if (i && i.type !== 'checkbox') i.value = rates[k];
+    });
+    el('fuelLevyOn').checked = (rates.fuelLevyOn === 1);
+    el('disposalLoad').value = job.disposalLoad;
+    el('disposalTick').checked = job.disposalOn;
+    el('packagingTick').checked = job.packagingOn;
+    el('whLabourType').value = job.whLabourType;
+    el('storageTerm').value = job.storageTerm;
+    el('extraLabourTick').checked = job.extraLabourOn;
+  }
+
+  function renderVisibility() {
+    var t = job.type;
+    var delivery = (t === 'Standard' || t === 'White Glove');
+    var storing = (t === 'Storage' && job.whService === 'Storage');
+    el('wrapPostcode').hidden = !delivery;
+    // Volume is only ever a charging input for per-m³ delivery and for storage.
+    el('wrapCubes').hidden = !(delivery || storing);
+    var whLabour = (t === 'Storage' && job.whService === 'Labour work');
+    var extraLabour = (t === 'Storage' && job.whService !== 'Labour work' && job.extraLabourOn);
+    var crewHours = (t === 'Labour' || whLabour || extraLabour);
+    el('wrapHours').hidden = !(t === 'Hourly rate' || crewHours);
+    el('wrapWhLabourType').hidden = !(whLabour || extraLabour);
+    el('wrapTruck').hidden = !(t === 'Hourly rate' || (t === 'Storage' && job.legs));
+    el('wrapWhService').hidden = (t !== 'Storage');
+    // Only worth showing where something on the job can actually be levied.
+    el('wrapLevyMode').hidden = !(delivery || t === 'Hourly rate' ||
+      (t === 'Storage' && (job.legs || job.whService === 'Container unload')));
+    var unloading = (t === 'Storage' && job.whService === 'Container unload');
+    var wgBig = (t === 'White Glove' && (job.cubes || 0) > WG_DISPOSAL_THRESHOLD);
+    var wgIncluded = (t === 'White Glove' && !wgBig);
+    var canDispose = (t === 'Hourly rate' || unloading || storing || wgBig);
+    var disposing = (canDispose && job.disposalOn);
+    var canPackage = (t === 'Hourly rate' || t === 'Labour');
+    el('wrapDisposalTick').hidden = !(canDispose || wgIncluded || canPackage);
+    el('disposalTickLabel').hidden = !canDispose;
+    el('packagingTickLabel').hidden = !canPackage;
+    el('wrapPackagingAmount').hidden = !(canPackage && job.packagingOn);
+    el('disposalIncluded').hidden = !wgIncluded;
+    el('wrapDisposal').hidden = !disposing;
+    el('wrapDisposalAmount').hidden = !(disposing && job.disposalLoad === 'Larger load');
+    el('wrapTier').hidden = !storing;
+    el('wrapStorageTerm').hidden = !storing;
+    el('wrapLegs').hidden = (t !== 'Storage');
+    el('wrapContainer').hidden = !unloading;
+    el('wrapExtraLabourTick').hidden = !(unloading || storing);
+    el('wrapLegHours').hidden = !(t === 'Storage' && job.legs);
+    el('wrapLabourers').hidden = !crewHours;
+    el('wrapDays').hidden = !storing;
+
+    var hints = {
+      'Standard': 'The postcode sets the zone: metro bills volume × the per-m³ rate, regional switches to the flat minimum and ignores volume entirely.',
+      'White Glove': 'Its own per-m³ rate and its own regional minimum, both separate from Standard. The postcode sets the zone. Rubbish removal is in the rate up to 10 m³; past that it can be ticked on as a charge.',
+      'Hourly rate': 'Time bills in 30-minute increments, always rounded up, then floored at the minimum. Tick rubbish disposal or packaging materials and they join the same invoice — the levy stays on the hourly time alone. Packaging is typed in at the end, since it depends on what was actually used.',
+      'Labour': 'Crew × hours × the per-labourer rate, in 30-minute increments, and no fuel levy. Both floors bite independently — a one-man hour still bills two labourers for two hours. Materials used on the day tick on and are typed in at the end.',
+      'Storage': 'Three services. Storage: the tier sets the rate and a short-term hold adds an uplift on top; grace days come off the stay, the remainder rounds up to whole months, volume rounds up to the next whole m³, with labour work and rubbish disposal ticking on the same way they do for a container. Container unload: one flat fee per container covering 2 hours on site, with extra time ticked on as additional labour — pick what that labour was for, so a requested quality check never reads as unload overrun on the invoice. Labour work: outbound warehouse charges, quality control checks or extra container time, each at its own rate with no crew or hours minimum. Storage and container unload can each add pick-up and delivery, the only part the fuel levy touches.'
+    };
+    el('builderHint').textContent = hints[t];
+
+    var v = el('zoneVerdict');
+    if (!delivery) {
+      v.hidden = true;
+    } else {
+      var pc = (job.postcode || '').trim();
+      var derived = zoneForPostcode(pc);
+      v.hidden = false;
+      if (!derived) {
+        v.className = 'verdict warn';
+        v.innerHTML = pc
+          ? '<b>' + pc + '</b> is not a Victorian postcode. Still priced <b>' + job.location +
+            '</b> from the last one that was.'
+          : 'Enter a delivery postcode — it decides the zone.';
+      } else if (derived === 'Metro') {
+        v.className = 'verdict ok';
+        v.innerHTML = '<b>' + pc + '</b> is on Rebel’s metro list → priced <b>Metro</b>, per m³.';
+      } else {
+        v.className = 'verdict';
+        v.innerHTML = '<b>' + pc + '</b> is not on Rebel’s metro list → priced <b>Regional</b>, at the flat minimum.';
+      }
+    }
+    el('modeChip').textContent =
+      t === 'Hourly rate' ? t + ' · ' + job.truck + ' truck' + (function () {
+        var add = [];
+        if (job.disposalOn) add.push('disposal');
+        if (job.packagingOn) add.push('packaging');
+        return add.length ? ' + ' + add.join(' + ') : '';
+      }())
+      : (t === 'White Glove' && job.disposalOn && (job.cubes || 0) > WG_DISPOSAL_THRESHOLD)
+        ? t + ' · ' + job.location + ' + disposal'
+      : t === 'Storage' ? (job.whService === 'Container unload'
+          ? 'Container unload · ' + job.container + (function () {
+              var a = [];
+              if (job.extraLabourOn) {
+                a.push(job.whLabourType === 'Quality control check' ? 'QC'
+                  : job.whLabourType === 'Outbound warehouse charges' ? 'outbound labour'
+                  : 'extra unload time');
+              }
+              if (job.disposalOn) a.push('disposal');
+              return a.length ? ' + ' + a.join(' + ') : '';
+            }())
+          : job.whService === 'Labour work' ? 'Warehouse labour · ' + job.whLabourType
+          : 'Storage · ' + job.tier + ' · ' + (job.storageTerm || 'Long term').toLowerCase() + (function () {
+              var a = [];
+              if (job.extraLabourOn) a.push('labour');
+              if (job.disposalOn) a.push('disposal');
+              return a.length ? ' + ' + a.join(' + ') : '';
+            }()))
+      : t === 'Labour' ? t + (job.packagingOn ? ' + packaging' : '')
+      : t + ' · ' + (job.location === 'Metro' ? 'Metro' : 'Regional VIC');
+  }
+
+  function line(k, sub, v, cls) {
+    return '<div class="line ' + (cls || '') + '"><div class="k">' + k +
+      (sub ? '<small>' + sub + '</small>' : '') + '</div><div class="v">' + v + '</div></div>';
+  }
+
+  function renderQuote() {
+    if (job.type === 'Storage' && job.whService === 'Container unload') return renderContainerQuote();
+    var q = price(rates, job, false);
+    var today = price(rates, job, true);
+
+    var html = line(q.baseLabel, q.explain + ' — ' + q.detail, money(q.base));
+    q.extras.forEach(function (e) { html += line(e.label, e.note, money(e.amount)); });
+    html += line('Fuel levy', q.levyNote, money(q.levy), q.levy === 0 ? 'muted' : '');
+    html += line('Subtotal ex GST', '', money(q.exGst), 'sub');
+    html += line('GST', rates.gstPercent + '%', money(q.gst));
+    el('lines').innerHTML = html;
+
+    el('grandTotal').textContent = money(q.total);
+
+    var eff = '';
+    if (job.type === 'Hourly rate') {
+      var bh = Math.max(bill30(job.hours), rates.minHours);
+      eff = bh > 0 ? money(q.total / bh) + ' per billed hour, inc GST' : '';
+    } else if (job.type === 'Labour') {
+      var ec = Math.max(job.labourers || 0, rates.minLabourers);
+      var eh = Math.max(bill30(job.hours), rates.labourMinHours);
+      eff = (ec * eh) > 0 ? money(q.total / (ec * eh)) + ' per labourer-hour, inc GST' : '';
+    } else if (job.type === 'Storage') {
+      if (job.whService === 'Labour work') {
+        var we = warehouseLabour(rates, job);
+        eff = (we.crew * we.hours) > 0
+          ? money(q.base * (1 + rates.gstPercent / 100) / (we.crew * we.hours)) + ' per labourer-hour, inc GST'
+          : 'Nothing booked yet';
+      } else if (job.whService === 'Container unload') {
+        eff = 'Flat per container — volume does not move it';
+      } else {
+        // Storage only — folding the delivery legs in would not be a storage rate.
+        var m3e = Math.ceil(job.cubes || 0);
+        eff = m3e > 0 ? money((q.base * (1 + rates.gstPercent / 100)) / m3e) + ' per m³ of storage for the stay, inc GST' : '';
+      }
+    } else if (job.location === 'Metro' && job.cubes > 0) {
+      eff = money(q.total / job.cubes) + ' per m³, inc GST';
+    } else if (job.location === 'Regional') {
+      eff = job.cubes > 0 ? money(q.total / job.cubes) + ' per m³ at ' + job.cubes + ' m³' : 'Flat — volume does not move it';
+    }
+    el('effective').textContent = eff;
+
+    var diff = round2(q.total - today.total);
+    var deltaHtml;
+    if (job.type === 'Labour') {
+      deltaHtml = 'The engine has <b>no Labour job type</b> today — this one is new. Standing up the service would quote <b>' + money(q.total) + '</b>.';
+    } else if (job.type === 'Storage') {
+      deltaHtml = 'The engine quotes storage at <b>$0.00</b> today and waits for you to type a fee. This model reaches <b>' + money(q.total) + '</b> on its own.';
+    } else if (diff === 0) {
+      deltaHtml = 'Identical to what the engine quotes today — <b>' + money(today.total) + '</b>.';
+    } else {
+      deltaHtml = 'Engine today: <b>' + money(today.total) + '</b>. This model adds <b class="up">' + money(diff) + '</b> inc GST.';
+    }
+    el('delta').innerHTML = deltaHtml;
+  }
+
+  /**
+   * Two invoices, however many jobs come out of the container: the unload on
+   * its own, then every delivery off it on one combined invoice regardless of
+   * whether each job is standard, white glove or hourly.
+   */
+  function renderContainerQuote() {
+    var unload = price(rates, job, false);
+    var grand = unload.total;
+
+    var html = '<div class="inv"><div class="inv-h"><span>Invoice 1 — container unload</span><em>' +
+      money(unload.total) + '</em></div>' +
+      line(unload.baseLabel, unload.explain + ' — ' + unload.detail, money(unload.base)) +
+      unload.extras.map(function (e) { return line(e.label, e.note, money(e.amount)); }).join('') +
+      line('GST', rates.gstPercent + '%', money(unload.gst)) +
+      '</div>';
+
+    var n = job.outbound.length;
+    if (n) {
+      var baseSum = 0, levy = 0, leviedSum = 0;
+      var rows = job.outbound.map(function (o) {
+        var q = priceOutbound(o);
+        baseSum += q.chargeable;
+        levy += q.levy;
+        leviedSum += q.levyBase;
+        return line(o.type === 'Hourly rate' ? 'Hourly' : o.type,
+                    q.explain + ' — ' + q.detail, money(q.base)) +
+          q.extras.map(function (e) { return line(e.label, e.note, money(e.amount)); }).join('');
+      }).join('');
+      baseSum = round2(baseSum);
+      levy = round2(levy);
+      leviedSum = round2(leviedSum);
+      var ex = round2(baseSum + levy);
+      var gst = round2(ex * (rates.gstPercent / 100));
+      var total = round2(ex + gst);
+      grand = round2(grand + total);
+
+      html += '<div class="inv"><div class="inv-h"><span>Invoice 2 — deliveries out of the container</span><em>' +
+        money(total) + '</em></div>' + rows +
+        line('Subtotal', n + (n === 1 ? ' job' : ' jobs') + ', ex GST', money(baseSum), 'sub') +
+        line('Fuel levy', leviedSum === baseSum
+              ? rates.fuelLevy + '% of the delivery total, ex GST'
+              : rates.fuelLevy + '% on the delivery time only — not on the disposal', money(levy)) +
+        line('GST', rates.gstPercent + '%', money(gst)) +
+        '</div>';
+    }
+
+    el('lines').innerHTML = html;
+    el('grandTotal').textContent = money(grand);
+    el('effective').textContent = n
+      ? no + ' invoices — the unload, then ' + n + (n === 1 ? ' job' : ' jobs') + ' out of it'
+      : 'Container unload alone — flat, whatever the volume';
+    el('delta').innerHTML = n
+      ? 'The unload bills <b>' + money(unload.total) + '</b> on its own. Everything delivered out of the ' +
+        'container goes on one delivery invoice; anything held goes on a storage invoice of its own, on the ' +
+        'usual ' + rates.graceDays + '-day grace.'
+      : 'Nothing booked out — the unload is the whole invoice at <b>' + money(unload.total) +
+        '</b>. Storage only appears if the customer asks for it.';
+  }
+
+  var SCENARIOS = [
+    { label: 'Showroom run, Toorak', note: '2 m³ · Standard · Metro', job: { type: 'Standard', location: 'Metro', cubes: 2 } },
+    { label: 'Designer install, Brighton', note: '6 m³ · White Glove · Metro', job: { type: 'White Glove', location: 'Metro', cubes: 6 } },
+    { label: 'Delivery to Geelong', note: '4 m³ · Standard · Regional VIC', job: { type: 'Standard', location: 'Regional', cubes: 4 } },
+    { label: 'Half-day, showroom reset', note: '5 h · Hourly · Standard truck', job: { type: 'Hourly rate', hours: 5, truck: 'Standard' } },
+    { label: 'Full day, large truck', note: '8 h · Hourly · Large truck', job: { type: 'Hourly rate', hours: 8, truck: 'Large' } },
+    { label: 'Showroom delivery, rubbish out', note: '5 h · Hourly + van load disposal', job: { type: 'Hourly rate', hours: 5, disposalOn: true, disposalLoad: 'Standard van load' } },
+    { label: 'Wrap and move, materials supplied', note: '6 h · Hourly + $180 packaging', job: { type: 'Hourly rate', hours: 6, packagingOn: true, packagingAmount: 180 } },
+    { label: 'Gallery hang, two-man crew', note: 'Labour · 2 pax × 6 h', job: { type: 'Labour', labourers: 2, hours: 6 } },
+    { label: 'Showroom reset, wrapping supplied', note: 'Labour · 3 pax × 5 h + $220 packaging', job: { type: 'Labour', labourers: 3, hours: 5, packagingOn: true, packagingAmount: 220 } },
+    { label: 'Holding stock before handover', note: '12 m³ · 45 d · Standard', job: { type: 'Storage', cubes: 12, days: 45, tier: 'Standard' } },
+    { label: 'The same stock, high end', note: '12 m³ · 45 d · High end', job: { type: 'Storage', cubes: 12, days: 45, tier: 'High end' } },
+    { label: '40 ft container unloaded', note: 'Container unload · no storage', job: { type: 'Storage', whService: 'Container unload', container: '40 ft' } },
+    { label: 'Quality control check', note: 'Warehouse labour · 2 pax × 1.5 h', job: { type: 'Storage', whService: 'Labour work', whLabourType: 'Quality control check', labourers: 2, hours: 1.5 } },
+    { label: 'The same stock, in and out', note: '12 m³ · 45 d · Standard + 4 h legs', job: { type: 'Storage', cubes: 12, days: 45, tier: 'Standard', legs: true, legHours: 4 } },
+    { label: 'The same stock, short term', note: '12 m³ · 45 d · Standard · short term', job: { type: 'Storage', cubes: 12, days: 45, tier: 'Standard', storageTerm: 'Short term' } },
+    { label: 'The same stock, insured', note: '12 m³ · 45 d · Insurance added', job: { type: 'Storage', cubes: 12, days: 45, tier: 'Insurance added' } }
+  ];
+
+  function renderScenarios() {
+    var rows = SCENARIOS.map(function (s) {
+      var j = Object.assign({ type: 'Standard', location: 'Metro', cubes: 0, hours: 0, days: 0, labourers: 0, truck: 'Standard', tier: 'Standard', legs: false, legHours: 0, whService: 'Storage', container: '20 ft', disposalLoad: 'Standard van load', disposalAmount: 0, disposalOn: false,
+        packagingOn: false, packagingAmount: 0,
+        whLabourType: 'Outbound warehouse charges', extraLabourOn: false, storageTerm: 'Long term',
+        levyMode: 'Rate book' }, s.job);
+      var q = price(rates, j, false);
+      var t = price(rates, j, true);
+      var d = round2(q.total - t.total);
+      var deltaCell = j.type === 'Storage' ? 'quoted by hand'
+        : j.type === 'Labour' ? 'new job type'
+        : (d === 0 ? '—' : '+' + money(d));
+      return '<tr><td>' + s.label + '<span class="note">' + s.note + '</span></td>' +
+        '<td>' + money(q.chargeable) + '</td>' +
+        '<td>' + (!levyActive(rates, j) ? 'off'
+          : q.levy === 0 && j.type !== 'Standard' && j.type !== 'White Glove' ? 'exempt'
+          : money(q.levy)) + '</td>' +
+        '<td>' + money(q.exGst) + '</td>' +
+        '<td>' + money(q.gst) + '</td>' +
+        '<td class="strong">' + money(q.total) + '</td>' +
+        '<td>' + deltaCell + '</td></tr>';
+    }).join('');
+    el('scenarioBody').innerHTML = rows;
+  }
+
+  function dirty() {
+    return KEYS.some(function (k) { return rates[k] !== LIVE[k]; });
+  }
+
+  function renderAll() {
+    renderVisibility();
+    renderOutbound();
+    renderQuote();
+    renderScenarios();
+    var lc = el('levyChip');
+    lc.textContent = rates.fuelLevyOn ? 'Levy on · ' + rates.fuelLevy + '%' : 'Levy off';
+    lc.className = rates.fuelLevyOn ? 'chip' : 'chip warn';
+    el('dirtyChip').hidden = !dirty();
+    try { localStorage.setItem('rebel-rate-sandbox', JSON.stringify(rates)); } catch (e) { /* storage blocked */ }
+  }
+
+  /* ---------- wiring ---------- */
+  KEYS.forEach(function (k) {
+    var input = el(k);
+    if (!input) return;
+    input.addEventListener('input', function () {
+      var v = parseFloat(input.value);
+      rates[k] = isNaN(v) ? 0 : v;
+      renderAll();
+      queueSave();
+    });
+  });
+
+  [['cubes', 'cubes'], ['hours', 'hours'], ['days', 'days'], ['labourers', 'labourers'], ['legHours', 'legHours']].forEach(function (pair) {
+    var input = el(pair[0]);
+    input.addEventListener('input', function () {
+      var v = parseFloat(input.value);
+      job[pair[1]] = isNaN(v) ? 0 : v;
+      renderAll();
+    });
+  });
+
+  el('typeSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-type]');
+    if (!b) return;
+    job.type = b.dataset.type;
+    Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) {
+      x.setAttribute('aria-pressed', String(x === b));
+    });
+    renderAll();
+  });
+
+  el('postcode').addEventListener('input', function () {
+    job.postcode = this.value.replace(/[^0-9]/g, '').slice(0, 4);
+    if (this.value !== job.postcode) this.value = job.postcode;
+    // A fresh postcode reclaims the zone from any earlier manual override.
+    job.zoneManual = false;
+    var derived = zoneForPostcode(job.postcode);
+    // A half-typed postcode leaves the last resolved zone standing rather
+    // than flickering the price through three wrong answers.
+    if (derived) job.location = derived;
+    renderAll();
+  });
+
+  el('disposalTick').addEventListener('change', function () {
+    job.disposalOn = this.checked;
+    renderAll();
+  });
+  el('levySeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-levy]');
+    if (!b) return;
+    job.levyMode = b.dataset.levy;
+    Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) {
+      x.setAttribute('aria-pressed', String(x === b));
+    });
+    renderAll();
+  });
+
+  el('fuelLevyOn').addEventListener('change', function () {
+    rates.fuelLevyOn = this.checked ? 1 : 0;
+    renderAll();
+    queueSave();
+  });
+
+  el('storageTerm').addEventListener('change', function () {
+    job.storageTerm = this.value;
+    renderAll();
+  });
+
+  el('whLabourType').addEventListener('change', function () {
+    job.whLabourType = this.value;
+    renderAll();
+  });
+  el('extraLabourTick').addEventListener('change', function () {
+    job.extraLabourOn = this.checked;
+    renderAll();
+  });
+
+  el('packagingTick').addEventListener('change', function () {
+    job.packagingOn = this.checked;
+    renderAll();
+  });
+  el('packagingAmount').addEventListener('input', function () {
+    var v = parseFloat(this.value);
+    job.packagingAmount = isNaN(v) ? 0 : v;
+    renderAll();
+  });
+
+  el('disposalLoad').addEventListener('change', function () {
+    job.disposalLoad = this.value;
+    renderAll();
+  });
+  el('disposalAmount').addEventListener('input', function () {
+    var v = parseFloat(this.value);
+    job.disposalAmount = isNaN(v) ? 0 : v;
+    renderAll();
+  });
+
+  el('truckSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-truck]');
+    if (!b) return;
+    job.truck = b.dataset.truck;
+    Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) {
+      x.setAttribute('aria-pressed', String(x === b));
+    });
+    renderAll();
+  });
+
+  el('whSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-wh]');
+    if (!b) return;
+    job.whService = b.dataset.wh;
+    Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) {
+      x.setAttribute('aria-pressed', String(x === b));
+    });
+    renderAll();
+  });
+
+  el('containerSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-container]');
+    if (!b) return;
+    job.container = b.dataset.container;
+    Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) {
+      x.setAttribute('aria-pressed', String(x === b));
+    });
+    renderAll();
+  });
+
+  el('legsSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-legs]');
+    if (!b) return;
+    job.legs = (b.dataset.legs === 'on');
+    Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) {
+      x.setAttribute('aria-pressed', String(x === b));
+    });
+    renderAll();
+  });
+
+  el('tierSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-tier]');
+    if (!b) return;
+    job.tier = b.dataset.tier;
+    Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) {
+      x.setAttribute('aria-pressed', String(x === b));
+    });
+    renderAll();
+  });
+
+  el('addOutbound').addEventListener('click', function () {
+    job.outbound.push({ type: 'Standard', postcode: '3121', cubes: 2, hours: 3, truck: 'Standard',
+      tier: 'Standard', days: 30,
+      disposalOn: false, disposalLoad: 'Standard van load', disposalAmount: 0 });
+    renderAll();
+  });
+
+  el('outboundList').addEventListener('click', function (e) {
+    var t = e.target.closest('button');
+    if (!t) return;
+    if (t.dataset.orm !== undefined) { job.outbound.splice(Number(t.dataset.orm), 1); renderAll(); return; }
+    if (t.dataset.ot) { job.outbound[Number(t.dataset.i)].type = t.dataset.ot; renderAll(); return; }
+    if (t.dataset.otruck) { job.outbound[Number(t.dataset.i)].truck = t.dataset.otruck; renderAll(); }
+  });
+
+  el('outboundList').addEventListener('change', function (e) {
+    var d = e.target.dataset.od;
+    if (!d) return;
+    var o = job.outbound[Number(e.target.dataset.i)];
+    if (d === 'on') o.disposalOn = e.target.checked;
+    if (d === 'load') o.disposalLoad = e.target.value;
+    if (d === 'tier') o.tier = e.target.value;
+    if (d === 'term') o.storageTerm = e.target.value;
+    renderAll();
+  });
+
+  el('outboundList').addEventListener('input', function (e) {
+    var f = e.target.dataset.of;
+    if (!f) return;
+    var o = job.outbound[Number(e.target.dataset.i)];
+    if (f === 'postcode') {
+      o.postcode = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+      if (e.target.value !== o.postcode) e.target.value = o.postcode;
+    } else {
+      var v = parseFloat(e.target.value);
+      o[f] = isNaN(v) ? 0 : v;
+    }
+    // Patch this card in place rather than re-rendering — the caret stays put.
+    renderQuote();
+    var row = e.target.closest('.ob-f');
+    var zoneChip = row && row.querySelector('.ob-zone');
+    if (zoneChip) zoneChip.textContent = zoneForPostcode(o.postcode) || '—';
+    var q = priceOutbound(o);
+    e.target.closest('.ob').querySelector('.ob-foot').innerHTML =
+      '<span>' + q.explain + ' — ex GST</span><b>' + money(q.chargeable) + '</b>';
+  });
+
+  el('resetBtn').addEventListener('click', function () {
+    rates = Object.assign({}, LIVE);
+    renderInputs();
+    renderAll();
+    queueSave();
+  });
+
+  renderInputs();
+  renderAll();
+  connectStore();
+</script>
