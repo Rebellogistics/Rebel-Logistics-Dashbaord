@@ -666,11 +666,11 @@ export function NewQuoteDialog({
               storageDays: isStorage ? parseFloat(o.storageDays) || 0 : undefined,
               pricingType: isHourly ? ('hourly' as const) : ('fixed' as const),
               isDraft: asDraft,
-              // These are booked off a container, not taken as enquiries, so
-              // no customer SMS fires until Yamin turns it on per job.
+              // The usual new-quote defaults, per job type — same as any
+              // quote raised by hand (Yamin, 2026-09-18).
               sendDayPrior: false,
               sendEnRoute: false,
-              sendComplete: false,
+              sendComplete: completeDefaultFor(o.type),
             } as any);
             booked += 1;
           } catch (rowErr) {
