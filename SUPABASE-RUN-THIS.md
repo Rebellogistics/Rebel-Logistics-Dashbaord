@@ -27,12 +27,13 @@ If you see an error and the block didn't fully apply, copy the error and send it
 ## Block 1 — Pricing engine + quote-form rebuild
 
 **What this does:**
-- Adds the **rate book** (`pricing_rates`): one row holding the metro per-cube rate ($90), the regional flat minimum ($480), the hourly rate ($180), the minimum hours (3), and the GST percent (10). Editable from Settings → Pricing.
+- Adds the **rate book** (`pricing_rates`): one row holding the Standard metro per-cube rate ($120), the White Glove metro per-cube rate ($180), the regional flat minimum ($480 for both Standard and White Glove), the hourly rate ($180), the minimum hours (3), and the GST percent (10). Editable from Settings → Pricing.
+  These are the seed values for a **new** environment and match the live rate book as at 17 Sep 2026. They are column defaults only — re-running this block never overwrites the rates in an environment that already has them.
 - Adds **per-customer rate overrides** to the customers table — for repeat clients on a special deal.
 - Adds the morphing-quote-form columns to jobs: `location` (Metro / Regional), `cubic_metres`, `quote_number`, `valid_until`, `is_draft`, `gst_amount`.
 - Auto-numbers every quote as `RL-2026-0001`, `RL-2026-0002`, etc. — sequence resets every calendar year.
 - Backfills your existing jobs with quote numbers.
-- Locks down `pricing_rates` so only owner/admin can edit it (anyone with a login can read it).
+- Locks down `pricing_rates` so only owner/admin can edit it. Reads are `TO authenticated` — anyone with a login can read it, **anonymous visitors cannot**. That is deliberate: the rate book is internal, and the public site does not quote prices. Do not add an `anon` read policy here.
 - Extends the repeat-customer lookup so the new-quote dialog can pre-apply the override rate.
 
 ```sql
@@ -43,8 +44,10 @@ If you see an error and the block didn't fully apply, copy the error and send it
 -- 1. pricing_rates singleton
 CREATE TABLE IF NOT EXISTS pricing_rates (
     id                       TEXT PRIMARY KEY DEFAULT 'default',
-    metro_per_cube_aud       DECIMAL(10,2) NOT NULL DEFAULT 90.00,
+    metro_per_cube_aud       DECIMAL(10,2) NOT NULL DEFAULT 120.00,
     regional_minimum_aud     DECIMAL(10,2) NOT NULL DEFAULT 480.00,
+    wg_metro_per_cube_aud    DECIMAL(10,2) NOT NULL DEFAULT 180.00,
+    wg_regional_minimum_aud  DECIMAL(10,2) NOT NULL DEFAULT 480.00,
     hourly_rate_aud          DECIMAL(10,2) NOT NULL DEFAULT 180.00,
     minimum_hours            INTEGER       NOT NULL DEFAULT 3,
     gst_percent              DECIMAL(5,2)  NOT NULL DEFAULT 10.00,
@@ -55,6 +58,27 @@ CREATE TABLE IF NOT EXISTS pricing_rates (
 
 INSERT INTO pricing_rates (id) VALUES ('default')
 ON CONFLICT (id) DO NOTHING;
+
+-- 1b. White Glove rates (Phase 15). CREATE TABLE IF NOT EXISTS above is a
+-- no-op on an environment that already has pricing_rates, so these columns
+-- have to be added explicitly or Settings → Pricing fails to save: the app
+-- writes wg_metro_per_cube_aud on every update. Existing rows inherit the
+-- Standard rate rather than the $180 default, so nobody's pricing moves
+-- just because this ran.
+ALTER TABLE pricing_rates
+    ADD COLUMN IF NOT EXISTS wg_metro_per_cube_aud   DECIMAL(10,2),
+    ADD COLUMN IF NOT EXISTS wg_regional_minimum_aud DECIMAL(10,2);
+
+UPDATE pricing_rates
+SET wg_metro_per_cube_aud   = COALESCE(wg_metro_per_cube_aud,   metro_per_cube_aud),
+    wg_regional_minimum_aud = COALESCE(wg_regional_minimum_aud, regional_minimum_aud)
+WHERE wg_metro_per_cube_aud IS NULL OR wg_regional_minimum_aud IS NULL;
+
+ALTER TABLE pricing_rates
+    ALTER COLUMN wg_metro_per_cube_aud   SET DEFAULT 180.00,
+    ALTER COLUMN wg_metro_per_cube_aud   SET NOT NULL,
+    ALTER COLUMN wg_regional_minimum_aud SET DEFAULT 480.00,
+    ALTER COLUMN wg_regional_minimum_aud SET NOT NULL;
 
 -- 2. customers — per-customer rate overrides
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS override_metro_rate   DECIMAL(10,2);
@@ -416,10 +440,13 @@ ORDER BY tablename;
 
 ## How to verify everything ran
 
-Paste this into the SQL editor and you should see eight `OK` rows:
+Paste this into the SQL editor. The first row is a row count for `pricing_rates` (expect `1`); the remaining twelve should all read `OK`:
 
 ```sql
 SELECT 'pricing_rates' AS check, count(*)::TEXT AS rows FROM pricing_rates
+UNION ALL SELECT 'pricing_rates.wg_metro_per_cube_aud column', CASE WHEN EXISTS(
+  SELECT 1 FROM information_schema.columns
+  WHERE table_name='pricing_rates' AND column_name='wg_metro_per_cube_aud') THEN 'OK' ELSE 'MISSING' END
 UNION ALL SELECT 'jobs.location column', CASE WHEN EXISTS(
   SELECT 1 FROM information_schema.columns
   WHERE table_name='jobs' AND column_name='location') THEN 'OK' ELSE 'MISSING' END

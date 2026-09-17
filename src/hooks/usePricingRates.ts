@@ -1,11 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { DEFAULT_RATES } from '@/lib/pricing';
 import { PricingRates } from '@/lib/types';
 
 /**
- * Read the singleton row from `pricing_rates`. Falls back to DEFAULT_RATES
- * if the table is empty (first install) or unreachable.
+ * Read the singleton row from `pricing_rates`.
+ *
+ * This deliberately does NOT fall back to DEFAULT_RATES. Those defaults are
+ * the first-install seed values, not the live rate book, and serving them on
+ * a failed read quotes the wrong price with no visible sign anything broke.
+ * A caller that gets no rates must show no price — never a guessed one.
+ *
+ * Note the RLS case: `pricing_rates` is readable `TO authenticated` only, and
+ * a denied read comes back as `data: null, error: null` — indistinguishable
+ * from an empty table. Since the singleton row is inserted by the same SQL
+ * block that creates the table, "no row" means "not permitted to read it",
+ * so both are treated as a failure.
  */
 export function usePricingRates() {
   return useQuery<PricingRates>({
@@ -18,10 +27,15 @@ export function usePricingRates() {
         .maybeSingle();
 
       if (error) {
-        console.warn('pricing_rates read failed, using defaults', error);
-        return DEFAULT_RATES;
+        throw new Error(`Could not read pricing_rates: ${error.message}`);
       }
-      if (!data) return DEFAULT_RATES;
+      if (!data) {
+        throw new Error(
+          'pricing_rates returned no row. The singleton row ships with the table, ' +
+            'so this means the read was not permitted — pricing_rates is readable ' +
+            'by authenticated users only.',
+        );
+      }
 
       return {
         metroPerCubeAud: Number(data.metro_per_cube_aud),
@@ -42,6 +56,8 @@ export function usePricingRates() {
         updatedAt: data.updated_at,
       };
     },
+    // A permission failure will not fix itself on retry; surface it instead.
+    retry: false,
     staleTime: 60_000,
   });
 }

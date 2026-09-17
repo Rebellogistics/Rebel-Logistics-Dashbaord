@@ -5,7 +5,7 @@ cycles append at the bottom of the **Phase index**. Per-phase detail
 lives in `docs/archive/phases/<phase>.md`. In-flight phases stay
 inline at the bottom of this file until they ship.
 
-_Last refreshed: 2026-09-16 (V6 cycle shipped: pre-render, www canonical, review link, Hourly rate rename; items 3 / 7 / 9 closed). Prior: 2026-09-14 (Twilio sender ID approved)._
+_Last refreshed: 2026-09-17 (V6 P6: pricing rate-book integrity — silent fallback removed, SQL guide corrected). Prior: 2026-09-16 (V6 cycle shipped: pre-render, www canonical, review link, Hourly rate rename; items 3 / 7 / 9 closed)._
 _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRANSCRIPT_20260517.md`](docs/archive/transcripts/TRANSCRIPT_20260517.md)._
 
 ---
@@ -145,10 +145,81 @@ Triggered by Yamin asking how the site compared to hcotransport.com.au and inbox
 | 3 | Review link + completion SMS + Job complete default | ✅ shipped 2026-09-16 | `ab6eae6`, `269bce8` | [`phases/v6-phase-3.md`](docs/archive/phases/v6-phase-3.md) |
 | 4 | Rename House Move → Hourly rate | ✅ shipped 2026-09-16 | `d976780`, `aee3501` | [`phases/v6-phase-4.md`](docs/archive/phases/v6-phase-4.md) |
 | 5 | Public form services → internal job types (+ Storage type) | ✅ shipped 2026-09-16 | — | [`phases/v6-phase-5.md`](docs/archive/phases/v6-phase-5.md) |
+| 6 | Pricing rate-book integrity | 🟣 done on branch 2026-09-17, not yet pushed | — | inline below |
 
 **Search Console:** property `sc-domain:rebellogistics.com.au` verified; sitemap submitted (Success, 129 pages discovered); indexing requested on `/`, `/logistics`, `/warehousing`, `/labour`, `/areas`. Check **Indexing → Pages** around 2026-09-23 to see how many have moved across.
 
 **Competitive read (2026-09-16):** Inbox runs 29 pages + 16 keyword-targeted blog posts, segments by audience (`/designers`, `/retailers`, `/showroom`, `/residential`), publishes pricing guidelines and markets a client portal. Hunter & Co. is 2 pages, Sydney/Brisbane, competing on prestige not search. Rebel's structured data and 121 suburb pages already beat both — the gap is audience pages, reviews and published content.
+
+#### V6 P6 — Pricing rate-book integrity (in-flight, detail inline until pushed)
+
+**Standing decision: pricing stays internal.** `pricing_rates` is readable
+`TO authenticated` only — anonymous visitors cannot read it, and that is
+deliberate. The public site does not quote prices: `/quote` renders
+`LeadForm`, which captures a lead and prices nothing. **Do not add an `anon`
+read policy to `pricing_rates`**, and do not reintroduce customer-facing
+indicative pricing without Yamin deciding to. If public pricing is ever
+wanted, the agreed shape is a server-side `/api/*` quote endpoint using the
+service role, so rate figures never reach the browser — not opening the table
+up.
+
+**What triggered it.** A report claimed the public quote form was showing
+stale $90/m³ prices against a live rate book of $120 Standard / $180 White
+Glove. Investigated 2026-09-17: the public site was **never affected**.
+`PublicQuoteForm.tsx` has zero importers — it is unrouted, and the live
+`/quote` page renders `LeadForm`. No customer was ever quoted a wrong price,
+and nothing in `jobs` needs correcting. `PublicQuoteForm` was left untouched
+by decision: its header records that it is kept deliberately as the only
+implementation of instant customer-facing pricing, pending a port into
+`LeadForm`.
+
+**The real defects, both fixed:**
+
+1. **Silent fallback in `usePricingRates`.** On any failed read it returned
+   `DEFAULT_RATES` (the $90 first-install seed values) behind a `console.warn`.
+   It now throws instead. The subtlety worth remembering: an RLS-denied read
+   comes back as `data: null, error: null` — *identical* to an empty table —
+   so "no row" is now treated as "not permitted" rather than "fresh install",
+   since the singleton row ships with the table. `retry: false`, because a
+   permission failure will not fix itself.
+
+   The exposure was internal, not public. The four job dialogs already guard
+   on `rates` being undefined, so they now show no price instead of a wrong
+   one. `PricingPanel` was the hazard: its draft is seeded from
+   `DEFAULT_RATES`, so a failed read rendered a pricing editor pre-filled with
+   $90/$90 looking like the live rate book — and one Save would have
+   overwritten the real $120/$180. It now refuses to render the editor
+   without live rates, showing the error and a retry.
+
+2. **`SUPABASE-RUN-THIS.md` Block 1 never created the White Glove columns.**
+   `wg_metro_per_cube_aud` / `wg_regional_minimum_aud` exist in production only
+   via migration `20260502000004`; the guide had no mention of `wg_` at all.
+   Any environment built from Blocks 1–9 would get a `pricing_rates` table
+   without them, and **Settings → Pricing would fail on every save**, because
+   `useUpdatePricingRates` writes `wg_metro_per_cube_aud` unconditionally.
+   Adding the columns to the `CREATE TABLE` alone was not enough — it is
+   `IF NOT EXISTS`, a no-op on an existing database — so Block 1 gained an
+   explicit `1b` step mirroring the Phase 15 migration: `ADD COLUMN IF NOT
+   EXISTS`, backfill from the Standard rate via `COALESCE`, then set defaults
+   and `NOT NULL`. Re-running never reprices anyone: existing rows inherit
+   their Standard rate rather than the $180 default, and the seed
+   `INSERT … ON CONFLICT DO NOTHING` cannot clobber live rates.
+
+   Also corrected there: the stale $90 figures now match the live row
+   (verified by query, not by the report — Standard metro $120, White Glove
+   metro $180, regional $480 both, hourly $180, 3 hours, 10% GST); the RLS
+   decision above is recorded at the policy; and the verification section
+   claimed "eight `OK` rows" when there were already 11 (now 12, including a
+   check that the WG column landed).
+
+**No database changes were made.** The live table already has the columns —
+the work is code plus documentation only, so there is no new migration row
+below. `src/lib/pricing.ts` `DEFAULT_RATES` was deliberately left alone rather
+than being edited to paper over the fallback.
+
+**What's left:** push the branch (3 files: `usePricingRates.ts`,
+`PricingPanel.tsx`, `SUPABASE-RUN-THIS.md`). Optional follow-up — port
+pricing into `LeadForm` and delete `PublicQuoteForm`, or formally retire it.
 
 ### V3 cycle (archived)
 

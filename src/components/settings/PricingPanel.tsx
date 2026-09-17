@@ -13,7 +13,7 @@ import { format } from 'date-fns';
 
 export function PricingPanel() {
   const canEdit = useCan('edit_pricing');
-  const { data: rates, isLoading } = usePricingRates();
+  const { data: rates, isLoading, isError, error, refetch } = usePricingRates();
   const update = useUpdatePricingRates();
   const [draft, setDraft] = useState<PricingRates>(DEFAULT_RATES);
 
@@ -48,6 +48,28 @@ export function PricingPanel() {
 
   if (isLoading) {
     return <p className="text-xs text-muted-foreground py-8 text-center">Loading rates…</p>;
+  }
+
+  // Never render the editor without the live rates. `draft` is seeded from
+  // DEFAULT_RATES, so showing the form here would offer the first-install
+  // seed values as if they were the current rate book — and saving would
+  // overwrite the real rates with them.
+  if (isError || !rates) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4 space-y-2">
+        <p className="text-sm font-semibold text-red-800">Couldn't load the current rates</p>
+        <p className="text-xs text-red-800">
+          The pricing editor stays hidden until the live rates load, so saving can't overwrite
+          them with placeholder values.
+        </p>
+        {error instanceof Error && (
+          <p className="text-[11px] text-red-700/80 font-mono break-words">{error.message}</p>
+        )}
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          Try again
+        </Button>
+      </div>
+    );
   }
 
   return (
