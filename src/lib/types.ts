@@ -1,4 +1,17 @@
-export type JobType = 'Standard' | 'White Glove' | 'Hourly rate' | 'Storage';
+export type JobType = 'Standard' | 'White Glove' | 'Hourly rate' | 'Storage' | 'Labour';
+
+/** Which of the three warehousing services a Storage job is. */
+export type WarehouseService = 'storage' | 'container_unload' | 'labour_work';
+export type StorageTier = 'Standard' | 'High end' | 'Insurance added';
+export type StorageTerm = 'Long term' | 'Short term';
+export type TruckSize = 'standard' | 'large';
+export type DisposalLoad = 'van' | 'trailer' | 'larger';
+/**
+ * How a quote treats the fuel levy. 'rate_book' follows the switch as it
+ * stood when the quote was raised; 'on' and 'off' are the manual override
+ * for a job quoted in one month and carried out in another.
+ */
+export type FuelLevyMode = 'rate_book' | 'on' | 'off';
 export type JobStatus =
   | 'Quote'
   | 'Accepted'
@@ -23,8 +36,54 @@ export interface PricingRates {
   /** Hourly rate jobs. Same for both Standard and White Glove handling
    *  styles, since Hourly rate is its own job type. */
   hourlyRateAud: number;
+  /** Hourly rate jobs on the large truck. */
+  hourlyRateLargeAud: number;
   minimumHours: number;
   gstPercent: number;
+
+  /** Labour jobs — crew time on site, no truck. */
+  labourPerHourAud: number;
+  labourMinLabourers: number;
+  labourMinHours: number;
+
+  /** Warehousing — storage, per m³ per month. Long term pays the tier rate;
+   *  a short-term hold adds `shortTermUpliftPct` on top. */
+  storageStandardAud: number;
+  storageHighEndAud: number;
+  storageInsuredAud: number;
+  shortTermUpliftPct: number;
+  storageGraceDays: number;
+
+  /** Warehousing — container unload. Flat per container, never multiplied by
+   *  volume or term; covers `containerIncludedHours` on site. */
+  container20ftAud: number;
+  container40ftAud: number;
+  containerIncludedHours: number;
+
+  /** Warehousing — labour work. No crew or hours floor by default. */
+  whLabourOutboundAud: number;
+  whLabourQcAud: number;
+  whLabourUnloadAud: number;
+  whLabourMinCrew: number;
+  whLabourMinHours: number;
+
+  /** Rubbish disposal — an extra, never a job of its own. */
+  disposalVanAud: number;
+  disposalTrailerAud: number;
+  disposalTransportAud: number;
+  disposalTransportLargeAud: number;
+
+  /** White Glove carries rubbish removal in its rate up to this volume. */
+  wgDisposalThresholdM3: number;
+
+  /** Fuel levy. Transport only — never labour, storage, disposal or
+   *  packaging. Off while fuel is normal, on to recover a price rise. */
+  fuelLevyPct: number;
+  fuelLevyOn: boolean;
+
+  /** Time bills in this increment, always rounded up, before any minimum. */
+  billingIncrementHours: number;
+
   updatedAt?: string;
 }
 
@@ -127,6 +186,32 @@ export interface Job {
   signature?: string;
   fee: number;
   fuelLevy: number;
+  /** V7: the levy percentage this job was quoted at, frozen at quote time.
+   *  Undefined on pre-V7 jobs, which predate the levy entirely. */
+  fuelLevyPctApplied?: number;
+  /** V7: how this quote treats the levy. Defaults to following the rate book
+   *  as it stood when the quote was raised. */
+  fuelLevyMode?: FuelLevyMode;
+
+  /** V7: which truck an hourly job used. */
+  truckSize?: TruckSize;
+  /** V7: crew size on a Labour job or warehouse labour work. */
+  labourers?: number;
+
+  /** V7: which of the three warehousing services a Storage job is. */
+  warehouseService?: WarehouseService;
+  storageTier?: StorageTier;
+  storageTerm?: StorageTerm;
+  storageDays?: number;
+  containerSize?: '20 ft' | '40 ft';
+  whLabourType?: 'outbound' | 'qc' | 'unload';
+
+  /** V7: extras. Amounts are stored resolved rather than recomputed, so a
+   *  historical job keeps what it was actually charged when a rate moves. */
+  disposalLoad?: DisposalLoad;
+  disposalAmount?: number;
+  disposalTransportAmount?: number;
+  packagingAmount?: number;
   itemWeightKg?: number;
   itemDimensions?: string;
   distanceKm?: number;

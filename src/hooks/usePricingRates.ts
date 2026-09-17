@@ -1,6 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { PricingRates } from '@/lib/types';
+import { DEFAULT_RATES } from '@/lib/pricing';
+
+/**
+ * Read a column that may not exist yet in this environment's schema.
+ *
+ * The V7 rate-book columns arrive in a migration; until it is applied the
+ * row simply has no such key. That is a schema-version gap, not a failed
+ * read, so falling back to the seed default is correct here — unlike the
+ * whole-row failure above, which must throw.
+ */
+function num(row: Record<string, unknown>, key: string, fallback: number): number {
+  const v = row[key];
+  return v === null || v === undefined ? fallback : Number(v);
+}
+
+function bool(row: Record<string, unknown>, key: string, fallback: boolean): boolean {
+  const v = row[key];
+  return v === null || v === undefined ? fallback : Boolean(v);
+}
 
 /**
  * Read the singleton row from `pricing_rates`.
@@ -54,6 +73,44 @@ export function usePricingRates() {
         minimumHours: Number(data.minimum_hours),
         gstPercent: Number(data.gst_percent),
         updatedAt: data.updated_at,
+
+        // V7 columns. Read defensively against DEFAULT_RATES, the same way
+        // the wg_* columns above are: this file compiles and runs before
+        // 20260917000001_v7_phase1_rate_book_v2.sql has been applied, and an
+        // environment still on the old schema keeps working.
+        hourlyRateLargeAud: num(data, 'hourly_rate_large_aud', DEFAULT_RATES.hourlyRateLargeAud),
+
+        labourPerHourAud: num(data, 'labour_per_hour_aud', DEFAULT_RATES.labourPerHourAud),
+        labourMinLabourers: num(data, 'labour_min_labourers', DEFAULT_RATES.labourMinLabourers),
+        labourMinHours: num(data, 'labour_min_hours', DEFAULT_RATES.labourMinHours),
+
+        storageStandardAud: num(data, 'storage_standard_aud', DEFAULT_RATES.storageStandardAud),
+        storageHighEndAud: num(data, 'storage_high_end_aud', DEFAULT_RATES.storageHighEndAud),
+        storageInsuredAud: num(data, 'storage_insured_aud', DEFAULT_RATES.storageInsuredAud),
+        shortTermUpliftPct: num(data, 'short_term_uplift_pct', DEFAULT_RATES.shortTermUpliftPct),
+        storageGraceDays: num(data, 'storage_grace_days', DEFAULT_RATES.storageGraceDays),
+
+        container20ftAud: num(data, 'container_20ft_aud', DEFAULT_RATES.container20ftAud),
+        container40ftAud: num(data, 'container_40ft_aud', DEFAULT_RATES.container40ftAud),
+        containerIncludedHours: num(data, 'container_included_hours', DEFAULT_RATES.containerIncludedHours),
+
+        whLabourOutboundAud: num(data, 'wh_labour_outbound_aud', DEFAULT_RATES.whLabourOutboundAud),
+        whLabourQcAud: num(data, 'wh_labour_qc_aud', DEFAULT_RATES.whLabourQcAud),
+        whLabourUnloadAud: num(data, 'wh_labour_unload_aud', DEFAULT_RATES.whLabourUnloadAud),
+        whLabourMinCrew: num(data, 'wh_labour_min_crew', DEFAULT_RATES.whLabourMinCrew),
+        whLabourMinHours: num(data, 'wh_labour_min_hours', DEFAULT_RATES.whLabourMinHours),
+
+        disposalVanAud: num(data, 'disposal_van_aud', DEFAULT_RATES.disposalVanAud),
+        disposalTrailerAud: num(data, 'disposal_trailer_aud', DEFAULT_RATES.disposalTrailerAud),
+        disposalTransportAud: num(data, 'disposal_transport_aud', DEFAULT_RATES.disposalTransportAud),
+        disposalTransportLargeAud: num(data, 'disposal_transport_large_aud', DEFAULT_RATES.disposalTransportLargeAud),
+
+        wgDisposalThresholdM3: num(data, 'wg_disposal_threshold_m3', DEFAULT_RATES.wgDisposalThresholdM3),
+
+        fuelLevyPct: num(data, 'fuel_levy_pct', DEFAULT_RATES.fuelLevyPct),
+        fuelLevyOn: bool(data, 'fuel_levy_on', DEFAULT_RATES.fuelLevyOn),
+
+        billingIncrementHours: num(data, 'billing_increment_hours', DEFAULT_RATES.billingIncrementHours),
       };
     },
     // A permission failure will not fix itself on retry; surface it instead.
