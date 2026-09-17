@@ -203,6 +203,9 @@ export interface Job {
   storageTier?: StorageTier;
   storageTerm?: StorageTerm;
   storageDays?: number;
+  /** V7: collection/return hours on a warehousing job. Billed at the truck
+   *  rate with no minimum, and the only part of such a job the levy touches. */
+  legsHours?: number;
   containerSize?: '20 ft' | '40 ft';
   whLabourType?: 'outbound' | 'qc' | 'unload';
 

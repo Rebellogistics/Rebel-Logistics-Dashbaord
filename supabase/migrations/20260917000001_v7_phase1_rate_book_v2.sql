@@ -102,6 +102,12 @@ ALTER TABLE public.jobs
 
   -- Warehousing: which of the three services, and the storage specifics.
   ADD COLUMN IF NOT EXISTS warehouse_service     TEXT,
+
+  -- Collection and return on a warehousing job, billed at the truck's hourly
+  -- rate with NO minimum -- the minimum is for a booked job, not a leg of
+  -- one. The truck is jobs.truck_size. This is the only part of a
+  -- warehousing job the fuel levy touches.
+  ADD COLUMN IF NOT EXISTS legs_hours            NUMERIC(5,2),
   ADD COLUMN IF NOT EXISTS storage_tier          TEXT,
   ADD COLUMN IF NOT EXISTS storage_term          TEXT,
   ADD COLUMN IF NOT EXISTS storage_days          INTEGER,
