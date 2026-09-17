@@ -136,7 +136,7 @@ export function MetroPostcodesSection() {
                 }
               }}
               placeholder="Add a postcode, or paste several"
-              className="w-56"
+              className="w-72"
               inputMode="numeric"
             />
             <Button onClick={handleAdd} disabled={update.isPending} size="sm">

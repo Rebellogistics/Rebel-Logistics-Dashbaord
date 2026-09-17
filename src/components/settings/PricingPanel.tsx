@@ -130,7 +130,7 @@ export function PricingPanel() {
 
           <Section
             title="White Glove"
-            subtitle="Separate rates for careful-handling / inside-placement jobs. Defaults to Standard rates until you bump them."
+            subtitle="Its own rates, separate from Standard. Rubbish removal is carried in the White Glove rate up to the threshold in Additional services."
           >
             <FieldRow>
               <RateField
