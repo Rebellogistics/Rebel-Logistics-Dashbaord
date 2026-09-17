@@ -21,7 +21,10 @@ import { useCustomers } from '@/hooks/useSupabaseData';
 import type { Customer } from '@/lib/types';
 import { isNearDuplicate } from '@/lib/utils';
 import { Job, JobLocation, JobType, StorageRecord } from '@/lib/types';
-import { calculateQuote, formatAud } from '@/lib/pricing';
+import { formatAud } from '@/lib/pricing';
+import { priceJob } from '@/lib/jobPricing';
+import { extractPostcode, locationForPostcode } from '@/lib/metroPostcodes';
+import { useMetroPostcodes } from '@/hooks/useMetroPostcodes';
 import { sanitiseDecimal } from '@/lib/utils';
 import { format, addDays } from 'date-fns';
 import { toast } from 'sonner';
@@ -141,6 +144,7 @@ export function NewQuoteDialog({
   prefillStorage,
 }: NewQuoteDialogProps) {
   const [form, setForm] = useState(initial);
+  const { data: metroList } = useMetroPostcodes();
   const [nameTouched, setNameTouched] = useState(false);
   // Once Job complete is ticked or unticked by hand, stop re-deriving it from
   // the job type — an explicit choice outranks the default.
@@ -325,22 +329,32 @@ export function NewQuoteDialog({
     return null;
   }, [linkedCustomer, form.customerCompanyName, form.customerName, existingCustomers]);
 
+  // V7: the delivery postcode decides the zone, and nothing else does. The
+  // old Metro/Regional toggle is gone — the list in Settings → Pricing is
+  // the only place a suburb moves between bands.
+  const deliveryPostcode = extractPostcode(form.deliveryAddress);
+  const zone: JobLocation | null =
+    deliveryPostcode === null ? null : locationForPostcode(deliveryPostcode, metroList);
+
   const breakdown = useMemo(() => {
     if (!rates) return null;
-    return calculateQuote({
+    return priceJob({
       type: form.type,
-      location: form.location,
+      rates,
+      postcode: deliveryPostcode,
+      metroPostcodes: metroList,
       cubicMetres: parseFloat(form.cubicMetres) || 0,
       estimatedHours: parseFloat(form.estimatedHours) || 0,
-      rates,
       overrideMetroRate: repeatInfo.overrideMetroRate,
       overrideHourlyRate: repeatInfo.overrideHourlyRate,
     });
-  }, [form, rates, repeatInfo]);
+  }, [form, rates, repeatInfo, deliveryPostcode, metroList]);
 
   const isHouseMove = form.type === 'Hourly rate';
-  const isMetro = !isHouseMove && form.location === 'Metro';
-  const isRegional = !isHouseMove && form.location === 'Regional';
+  // A job with no readable postcode yet prices per m³, so it needs the
+  // volume field — see the note priceJob puts on the line.
+  const isMetro = !isHouseMove && zone !== 'Regional';
+  const isRegional = !isHouseMove && zone === 'Regional';
   const usingOverride =
     (isHouseMove && repeatInfo.overrideHourlyRate != null) ||
     (isMetro && repeatInfo.overrideMetroRate != null);
@@ -354,7 +368,7 @@ export function NewQuoteDialog({
 
   const pricingValid = (() => {
     if (!breakdown) return false;
-    if (isHouseMove) return breakdown.subtotal > 0;
+    if (isHouseMove) return breakdown.chargeable > 0;
     if (isRegional) return true;
     // Metro
     return (parseFloat(form.cubicMetres) || 0) > 0;
@@ -383,10 +397,14 @@ export function NewQuoteDialog({
       type: form.type,
       status: 'Quote' as const,
       date: format(new Date(), 'yyyy-MM-dd'),
-      fee: breakdown.subtotal,
-      fuelLevy: 0,
+      fee: breakdown.chargeable,
+      fuelLevy: breakdown.levy,
+      // Frozen at quote time. The rate book's switch can move afterwards;
+      // this job keeps what it was quoted at.
+      fuelLevyPctApplied: breakdown.levyPct,
+      fuelLevyMode: 'rate_book' as const,
       gstAmount: breakdown.gst,
-      location: isHouseMove ? undefined : form.location,
+      location: isHouseMove ? undefined : (zone ?? undefined),
       cubicMetres: isHouseMove
         ? undefined
         : isMetro
@@ -394,8 +412,8 @@ export function NewQuoteDialog({
           : undefined,
       itemWeightKg: form.itemWeightKg ? parseFloat(form.itemWeightKg) : undefined,
       pricingType: isHouseMove ? ('hourly' as const) : ('fixed' as const),
-      hourlyRate: isHouseMove ? breakdown.hourlyRate : undefined,
-      hoursEstimated: isHouseMove ? breakdown.billedHours : undefined,
+      hourlyRate: isHouseMove ? (repeatInfo.overrideHourlyRate ?? rates?.hourlyRateAud) : undefined,
+      hoursEstimated: isHouseMove ? parseFloat(form.estimatedHours) || 0 : undefined,
       validUntil: form.validUntil || undefined,
       isDraft: asDraft,
       notes: form.notes.trim() || undefined,
@@ -609,22 +627,33 @@ export function NewQuoteDialog({
 
           {!isHouseMove && (
             <>
-              <Field label="Location">
-                <ToggleGroup
-                  options={[
-                    { value: 'Metro', label: 'Metro' },
-                    { value: 'Regional', label: 'Regional' },
-                  ]}
-                  value={form.location}
-                  onChange={(v) => update('location', v as JobLocation)}
-                />
+              <Field label="Zone">
+                <div
+                  className={
+                    'rounded-md border px-3 py-2 text-xs ' +
+                    (zone === 'Metro'
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                      : zone === 'Regional'
+                        ? 'border-border bg-muted text-foreground'
+                        : 'border-amber-200 bg-amber-50 text-amber-900')
+                  }
+                >
+                  {zone === null ? (
+                    <>
+                      No postcode in the delivery address yet — priced as{' '}
+                      <span className="font-semibold">Metro</span>, per m³. Add one and the zone
+                      settles itself.
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-mono font-semibold">{deliveryPostcode}</span>{' '}
+                      {zone === 'Metro' ? 'is on' : 'is not on'} the metro list →{' '}
+                      <span className="font-semibold">{zone}</span>
+                      {zone === 'Metro' ? ', per m³.' : ', at the flat minimum.'}
+                    </>
+                  )}
+                </div>
               </Field>
-
-              <ZoneHint
-                address={form.deliveryAddress}
-                selected={form.location}
-                onApply={(loc) => update('location', loc)}
-              />
 
               {isMetro ? (
                 <div className="grid grid-cols-2 gap-3">
@@ -676,7 +705,7 @@ export function NewQuoteDialog({
                 }
               >
                 <Input
-                  value={`${formatAud(breakdown?.hourlyRate ?? rates.hourlyRateAud)} / hr${usingOverride ? ' · custom' : ''}`}
+                  value={`${formatAud(repeatInfo.overrideHourlyRate ?? rates.hourlyRateAud)} / hr${usingOverride ? ' · custom' : ''}`}
                   readOnly
                   className="bg-muted/40"
                 />
@@ -799,10 +828,24 @@ export function NewQuoteDialog({
 
           {breakdown && (
             <div className="rounded-lg bg-muted p-3 text-xs space-y-1">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">{breakdown.explainer}</span>
-                <span className="font-semibold">{formatAud(breakdown.subtotal)}</span>
-              </div>
+              {breakdown.lines.map((line, i) => (
+                <div key={i} className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">
+                    {line.label}
+                    <span className="block text-[10px] opacity-75">{line.note}</span>
+                  </span>
+                  <span className="font-semibold shrink-0">{formatAud(line.amount)}</span>
+                </div>
+              ))}
+              {breakdown.levy > 0 && (
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">
+                    Fuel levy
+                    <span className="block text-[10px] opacity-75">{breakdown.levyNote}</span>
+                  </span>
+                  <span className="font-semibold shrink-0">{formatAud(breakdown.levy)}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">
                   GST ({rates?.gstPercent ?? 10}%)
