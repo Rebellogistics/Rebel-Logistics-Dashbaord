@@ -38,7 +38,7 @@ import { useMetroPostcodes } from '@/hooks/useMetroPostcodes';
 import { sanitiseDecimal } from '@/lib/utils';
 import { format, addDays } from 'date-fns';
 import { toast } from 'sonner';
-import { Sparkles, Info, Mic, MicOff, AlertTriangle } from 'lucide-react';
+import { Sparkles, Info, Mic, MicOff, AlertTriangle, Plus } from 'lucide-react';
 
 interface NewQuoteDialogProps {
   open: boolean;
@@ -66,6 +66,34 @@ function defaultValidUntil() {
  * warehouse, which is not a completed job from their side at all. Both stay
  * off and are ticked by hand if wanted.
  */
+/**
+ * A delivery to be booked out of a container, as typed into the quote form.
+ *
+ * Deliberately the minimum a real job needs: what it is, where it goes, and
+ * the one figure that prices it. Everything else — date, truck, recipient —
+ * is filled in on the job afterwards, the same as any quote taken over the
+ * phone.
+ */
+interface OutboundDraft {
+  type: JobType;
+  deliveryAddress: string;
+  cubicMetres: string;
+  estimatedHours: string;
+  storageTier: StorageTier;
+  storageTerm: StorageTerm;
+  storageDays: string;
+}
+
+const emptyOutbound = (): OutboundDraft => ({
+  type: 'Standard',
+  deliveryAddress: '',
+  cubicMetres: '',
+  estimatedHours: '',
+  storageTier: 'Standard',
+  storageTerm: 'Long term',
+  storageDays: '',
+});
+
 const completeDefaultFor = (type: JobType) => type === 'Standard' || type === 'White Glove';
 
 function formFromJob(job: Job): typeof initial {
@@ -172,6 +200,12 @@ const initial = {
   // one invoice with the container's other deliveries; the unload itself
   // always invoices separately.
   containerJobId: '',
+
+  // Deliveries to book out of this container at the same time. Each becomes
+  // a real job on save, created against the container's id once it exists.
+  // Empty is the normal case — a container is often unloaded and invoiced
+  // well before the client says where anything is going.
+  outbound: [] as OutboundDraft[],
 
   // Extras tick onto the job that created them.
   extraLabourOn: false,
@@ -430,6 +464,30 @@ export function NewQuoteDialog({
     });
   }, [form, rates, repeatInfo, deliveryPostcode, metroList]);
 
+  /** Price one outbound row on its own terms, as its own job would be. */
+  const priceOutbound = (o: OutboundDraft) =>
+    rates
+      ? priceJob({
+          type: o.type,
+          rates,
+          postcode: extractPostcode(o.deliveryAddress),
+          metroPostcodes: metroList,
+          cubicMetres: parseFloat(o.cubicMetres) || 0,
+          estimatedHours: parseFloat(o.estimatedHours) || 0,
+          warehouseService: o.type === 'Storage' ? 'storage' : undefined,
+          storageTier: o.storageTier,
+          storageTerm: o.storageTerm,
+          storageDays: parseFloat(o.storageDays) || 0,
+          fuelLevyMode: form.fuelLevyMode,
+        })
+      : null;
+
+  const setOutbound = (i: number, patch: Partial<OutboundDraft>) =>
+    setForm((prev) => ({
+      ...prev,
+      outbound: prev.outbound.map((o, n) => (n === i ? { ...o, ...patch } : o)),
+    }));
+
   const isHouseMove = form.type === 'Hourly rate';
   const isLabour = form.type === 'Labour';
   const isWarehousing = form.type === 'Storage';
@@ -558,8 +616,87 @@ export function NewQuoteDialog({
       if (!proceed) return;
     }
     try {
-      await createJob.mutateAsync(buildPayload(asDraft) as any);
-      toast.success(asDraft ? 'Draft saved' : 'Quote created');
+      // The container has to exist before anything can point at it, so it is
+      // created first and its id used for the rest.
+      const created = await createJob.mutateAsync(buildPayload(asDraft) as any);
+
+      const rows = whContainer ? form.outbound : [];
+      const containerId = (created as { id?: string } | undefined)?.id;
+      let booked = 0;
+      const failed: string[] = [];
+
+      if (rows.length && containerId) {
+        for (const [i, o] of rows.entries()) {
+          const q = priceOutbound(o);
+          if (!q) continue;
+          const isStorage = o.type === 'Storage';
+          const isHourly = o.type === 'Hourly rate';
+          const zone = isStorage
+            ? null
+            : (() => {
+                const pc = extractPostcode(o.deliveryAddress);
+                return pc === null ? null : locationForPostcode(pc, metroList);
+              })();
+          try {
+            await createJob.mutateAsync({
+              id: `RL-${Date.now().toString(36).toUpperCase()}-${i}`,
+              // The deliveries are for the container's customer; who receives
+              // each one is filled in on the job afterwards.
+              customerId: form.customerId || undefined,
+              customerName: form.customerName.trim(),
+              customerCompanyName: form.customerCompanyName.trim() || undefined,
+              customerPhone: form.customerPhone.trim() || undefined,
+              pickupAddress: form.pickupAddress.trim(),
+              deliveryAddress: o.deliveryAddress.trim(),
+              type: o.type,
+              status: 'Quote' as const,
+              date: format(new Date(), 'yyyy-MM-dd'),
+              containerJobId: containerId,
+              fee: q.chargeable,
+              fuelLevy: q.levy,
+              fuelLevyPctApplied: q.levyPct,
+              fuelLevyMode: form.fuelLevyMode,
+              gstAmount: q.gst,
+              location: zone ?? undefined,
+              cubicMetres: isHourly ? undefined : parseFloat(o.cubicMetres) || undefined,
+              hoursEstimated: isHourly ? parseFloat(o.estimatedHours) || 0 : undefined,
+              warehouseService: isStorage ? ('storage' as const) : undefined,
+              storageTier: isStorage ? o.storageTier : undefined,
+              storageTerm: isStorage ? o.storageTerm : undefined,
+              storageDays: isStorage ? parseFloat(o.storageDays) || 0 : undefined,
+              pricingType: isHourly ? ('hourly' as const) : ('fixed' as const),
+              isDraft: asDraft,
+              // These are booked off a container, not taken as enquiries, so
+              // no customer SMS fires until Yamin turns it on per job.
+              sendDayPrior: false,
+              sendEnRoute: false,
+              sendComplete: false,
+            } as any);
+            booked += 1;
+          } catch (rowErr) {
+            // The container is already saved. Report which rows did not make
+            // it rather than failing the whole thing and losing the unload.
+            failed.push(`${o.type}${o.deliveryAddress ? ` to ${o.deliveryAddress}` : ''}`);
+            console.error(rowErr);
+          }
+        }
+      }
+
+      if (failed.length) {
+        toast.error(
+          `Container saved${booked ? ` with ${booked} job${booked === 1 ? '' : 's'}` : ''}, but ` +
+            `${failed.length} could not be created: ${failed.join(', ')}. Add them from the container.`,
+        );
+      } else {
+        toast.success(
+          asDraft
+            ? 'Draft saved'
+            : booked
+              ? `Quote created, with ${booked} job${booked === 1 ? '' : 's'} out of the container`
+              : 'Quote created',
+        );
+      }
+
       setForm({ ...initial, validUntil: defaultValidUntil() });
       setNameTouched(false);
       onOpenChange(false);
@@ -1081,6 +1218,155 @@ export function NewQuoteDialog({
                 onChange={(v) => update('fuelLevyMode', v as FuelLevyMode)}
               />
             </Field>
+          )}
+
+          {whContainer && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs text-muted-foreground font-medium">
+                  Out of this container — delivered, or held
+                </Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setForm((prev) => ({ ...prev, outbound: [...prev.outbound, emptyOutbound()] }))
+                  }
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Add a job
+                </Button>
+              </div>
+
+              {form.outbound.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground rounded-lg border border-border bg-muted/30 p-3">
+                  Nothing booked out yet — the unload stands alone and invoices on its own. Add jobs
+                  here if the deliveries are already confirmed, or link them later from the
+                  container once the client says where things are going.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {form.outbound.map((o, i) => {
+                    const q = priceOutbound(o);
+                    return (
+                      <div key={i} className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <ToggleGroup
+                            options={[
+                              { value: 'Standard', label: 'Standard' },
+                              { value: 'White Glove', label: 'White Glove' },
+                              { value: 'Hourly rate', label: 'Hourly' },
+                              { value: 'Storage', label: 'Storage' },
+                            ]}
+                            value={o.type}
+                            onChange={(v) => setOutbound(i, { type: v as JobType })}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              setForm((prev) => ({
+                                ...prev,
+                                outbound: prev.outbound.filter((_, n) => n !== i),
+                              }))
+                            }
+                          >
+                            Remove
+                          </Button>
+                        </div>
+
+                        {o.type !== 'Storage' && (
+                          <AddressAutocomplete
+                            value={o.deliveryAddress}
+                            onChange={(v) => setOutbound(i, { deliveryAddress: v })}
+                            placeholder="Where this one is going"
+                          />
+                        )}
+
+                        <div className="flex gap-2 flex-wrap">
+                          {o.type === 'Hourly rate' ? (
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              value={o.estimatedHours}
+                              onChange={(e) =>
+                                setOutbound(i, { estimatedHours: sanitiseDecimal(e.target.value) })
+                              }
+                              placeholder="Hours"
+                              className="w-28 h-9"
+                            />
+                          ) : (
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              value={o.cubicMetres}
+                              onChange={(e) =>
+                                setOutbound(i, { cubicMetres: sanitiseDecimal(e.target.value) })
+                              }
+                              placeholder="m³"
+                              className="w-24 h-9"
+                            />
+                          )}
+                          {o.type === 'Storage' && (
+                            <>
+                              <select
+                                value={o.storageTier}
+                                onChange={(e) =>
+                                  setOutbound(i, { storageTier: e.target.value as StorageTier })
+                                }
+                                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                              >
+                                <option>Standard</option>
+                                <option>High end</option>
+                                <option>Insurance added</option>
+                              </select>
+                              <select
+                                value={o.storageTerm}
+                                onChange={(e) =>
+                                  setOutbound(i, { storageTerm: e.target.value as StorageTerm })
+                                }
+                                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                              >
+                                <option>Long term</option>
+                                <option>Short term</option>
+                              </select>
+                              <Input
+                                type="text"
+                                inputMode="numeric"
+                                value={o.storageDays}
+                                onChange={(e) =>
+                                  setOutbound(i, { storageDays: sanitiseDecimal(e.target.value) })
+                                }
+                                placeholder="Days"
+                                className="w-24 h-9"
+                              />
+                            </>
+                          )}
+                        </div>
+
+                        {q && (
+                          <div className="flex items-baseline justify-between gap-2 border-t border-border pt-2">
+                            <span className="text-[10px] text-muted-foreground">
+                              {q.lines.map((l) => l.note).join(' · ')} — ex GST
+                            </span>
+                            <span className="text-xs font-semibold tabular-nums">
+                              {formatAud(q.chargeable)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <p className="text-[10px] text-muted-foreground">
+                    Each becomes its own job, created against this container. Deliveries invoice
+                    together; anything held invoices as storage. Dates, trucks and recipients are
+                    filled in on each job afterwards.
+                  </p>
+                </div>
+              )}
+            </div>
           )}
 
           {(canDispose || canPackage || whStoring || whContainer || form.type === 'White Glove') && (
