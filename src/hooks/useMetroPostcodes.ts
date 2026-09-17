@@ -11,8 +11,9 @@ import { MELBOURNE_METRO_POSTCODES } from '@/lib/metroPostcodes';
  * this table, not a code change.
  *
  * `src/lib/metroPostcodes.ts` remains the seed and the compiled-in fallback.
- * It is what the public LeadForm uses, since the table is readable by
- * authenticated users only.
+ * The table is readable by anon as well as authenticated, so the public
+ * LeadForm classifies a lead against the same live list the dashboard uses —
+ * remove a postcode here and both surfaces agree immediately.
  */
 export function useMetroPostcodes() {
   return useQuery<ReadonlySet<number>>({
@@ -32,11 +33,7 @@ export function useMetroPostcodes() {
         throw new Error(`Could not read metro_postcodes: ${error.message}`);
       }
       if (!data) {
-        throw new Error(
-          'metro_postcodes returned no rows. The table is readable by ' +
-            'authenticated users only, so this most likely means the read was ' +
-            'not permitted.',
-        );
+        throw new Error('metro_postcodes returned no rows.');
       }
 
       return new Set(data.map((r) => Number(r.postcode)));

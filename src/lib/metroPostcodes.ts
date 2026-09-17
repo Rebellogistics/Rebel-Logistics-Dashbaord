@@ -12,9 +12,11 @@ import type { JobLocation } from './types';
  * moved into `public.metro_postcodes` (migration 20260917000002) so suburbs can
  * be moved between metro and regional without a code change: read it with
  * `useMetroPostcodes()`. This constant remains as the seed for that table and
- * as the compiled-in fallback for the PUBLIC LeadForm, which cannot read the
- * table — it is authenticated-read only. Keep that in mind before editing: a
- * change here moves the public form and new environments, NOT the dashboard.
+ * as the fallback if that read fails. The public LeadForm reads the table too
+ * (it is anon-readable, since the list carries no rates), so the dashboard and
+ * the website now classify identically. Keep that in mind before editing: a
+ * change here moves new environments and the fallback path only, NOT either
+ * live surface — edit the list in Settings → Pricing instead.
  *
  * The list deliberately runs further out than "metro" intuitively suggests:
  * Kangaroo Ground (3097), Cottles Bridge (3099), Berwick (3806), Langwarrin

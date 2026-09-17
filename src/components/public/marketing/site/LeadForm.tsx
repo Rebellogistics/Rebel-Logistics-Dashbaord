@@ -2,7 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import { upsertCustomerByPhone } from '@/lib/customerUpsert';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
-import { locationForAddress } from '@/lib/metroPostcodes';
+import { extractPostcode, locationForPostcode, locationForAddress } from '@/lib/metroPostcodes';
+import { useMetroPostcodes } from '@/hooks/useMetroPostcodes';
 import { format } from 'date-fns';
 import { ArrowDown, ArrowRight, Check, ChevronDown, ShieldCheck } from 'lucide-react';
 import { BUSINESS } from './data';
@@ -37,11 +38,29 @@ const initial = {
   email: '',
   pickup: '',
   delivery: '',
+  deliveryPostcode: '',
   service: SERVICE_OPTIONS[0].label,
   details: '',
 };
 
 type State = 'idle' | 'submitting' | 'success' | 'error';
+
+/**
+ * The delivery zone, from the postcode the visitor typed.
+ *
+ * On Rebel's metro list is Metro; anything else is Regional. The postcode
+ * field wins, falling back to whatever the address autocomplete left in the
+ * delivery or pickup text. Null only when there is no readable postcode at
+ * all — better unset than guessed, since the zone decides the pricing band.
+ */
+function zoneFor(
+  form: { deliveryPostcode: string; delivery: string; pickup: string },
+  metro: ReadonlySet<number> | undefined,
+) {
+  const typed = extractPostcode(form.deliveryPostcode);
+  if (typed !== null) return locationForPostcode(typed, metro);
+  return locationForAddress(form.delivery.trim() || form.pickup.trim(), metro);
+}
 
 export function LeadForm({
   compact = false,
@@ -52,6 +71,10 @@ export function LeadForm({
   defaultService?: string;
 }) {
   const [form, setForm] = useState({ ...initial, service: defaultService ?? initial.service });
+  // The live metro list, read straight from the table. Falls back to the
+  // compiled-in constant if the read fails, so a visitor is never blocked
+  // from enquiring by a zone lookup.
+  const { data: metroList } = useMetroPostcodes();
   const [state, setState] = useState<State>('idle');
   const [error, setError] = useState('');
   const [flash, setFlash] = useState(false);
@@ -98,9 +121,8 @@ export function LeadForm({
     // warehouse, so neither carries a zone. Null when the visitor typed an
     // address with no readable postcode — better unset than wrong, since the
     // zone decides the pricing band.
-    const deliveryForZone = form.delivery.trim() || form.pickup.trim();
     const zoneless = jobType === 'Hourly rate' || jobType === 'Storage';
-    const location = zoneless ? null : locationForAddress(deliveryForZone);
+    const location = zoneless ? null : zoneFor(form, metroList);
     const notes = [
       `Enquiry: ${form.service}`,
       form.details.trim() && `Details: ${form.details.trim()}`,
@@ -261,6 +283,17 @@ export function LeadForm({
               value={form.delivery}
               onChange={(v) => set('delivery', v)}
               placeholder="Where it's going"
+              className={inputCls}
+            />
+          </Field>
+
+          <Field label="Delivery postcode">
+            <input
+              value={form.deliveryPostcode}
+              onChange={(e) => set('deliveryPostcode', e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
+              placeholder="3121"
+              inputMode="numeric"
+              maxLength={4}
               className={inputCls}
             />
           </Field>
