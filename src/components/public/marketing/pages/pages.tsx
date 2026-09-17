@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowUpRight, Check, MapPin, Phone, Mail, Clock, Instagram, Building2, ShieldCheck } from 'lucide-react';
 import { SiteHeader, SiteFooter } from '../site/Chrome';
 import { BUSINESS, CLIENTS, GALLERY, IMG, PHOTO, SERVICES, type Service } from '../site/data';
+import { AUDIENCES } from '../site/audiences';
 import { Button, Container, Marquee, PhotoRail, QuoteCTA, Reveal, cx, prefersReducedMotion } from '../site/ui';
 import { ReelRail } from '../site/Reels';
 import { LeadForm } from '../site/LeadForm';
@@ -254,6 +255,26 @@ export function ServicePage({ slug }: { slug: string }) {
               </Reveal>
             ))}
           </div>
+        </Container>
+      </section>
+
+      {/* Sideways door: the same service, written for who the reader is. */}
+      <section className="border-t border-[var(--line)] bg-[var(--paper)] py-16">
+        <Container wide>
+          <Reveal>
+            <h3 className="rl-kicker text-[var(--ink-faint)]">Who we work with</h3>
+            <div className="mt-6 flex flex-wrap gap-x-8 gap-y-3">
+              {AUDIENCES.map((a) => (
+                <Link
+                  key={a.slug}
+                  to={`/for/${a.slug}`}
+                  className="text-[16.5px] text-[var(--ink)] underline decoration-[var(--line-2)] underline-offset-4 transition-colors hover:decoration-[var(--accent)]"
+                >
+                  {a.label}
+                </Link>
+              ))}
+            </div>
+          </Reveal>
         </Container>
       </section>
 

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X, Phone, Mail, MapPin, ArrowUpRight, Instagram, Clock, ChevronDown, Lock } from 'lucide-react';
 import { BUSINESS, SERVICES } from './data';
+import { AUDIENCES } from './audiences';
 import { AREAS_DATA } from './areas';
 import { Button, Container, cx } from './ui';
 
@@ -246,7 +247,7 @@ export function SiteFooter() {
       </div>
 
       {/* Columns */}
-      <Container wide className="grid grid-cols-2 gap-x-8 gap-y-12 py-16 md:grid-cols-4 lg:grid-cols-5">
+      <Container wide className="grid grid-cols-2 gap-x-8 gap-y-12 py-16 md:grid-cols-4 lg:grid-cols-6">
         <div className="col-span-2 lg:col-span-2">
           <img src="/site/brand/rebel-logo-gold.png" alt="Rebel Logistics" className="h-10 w-auto" />
           <p className="mt-5 max-w-xs text-[14px] font-light leading-relaxed text-white/55">
@@ -268,6 +269,12 @@ export function SiteFooter() {
             <FooterLink key={s.slug} to={`/${s.slug}`}>{s.title}</FooterLink>
           ))}
           <FooterLink to="/quote">Get a quote</FooterLink>
+        </FooterCol>
+
+        <FooterCol title="Who we work with">
+          {AUDIENCES.map((a) => (
+            <FooterLink key={a.slug} to={`/for/${a.slug}`}>{a.label}</FooterLink>
+          ))}
         </FooterCol>
 
         <FooterCol title="Company">
