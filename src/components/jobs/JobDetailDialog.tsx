@@ -190,6 +190,7 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
   const [signatureError, setSignatureError] = useState(false);
   const [sendSmsOpen, setSendSmsOpen] = useState(false);
   const [rebookOpen, setRebookOpen] = useState(false);
+  const [bookOutOpen, setBookOutOpen] = useState(false);
   const [assignTruckOpen, setAssignTruckOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -1126,7 +1127,11 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
           {/* Read mode: the invoice split, without having to open the editor. */}
           {isContainerUnload && job && (
             <section className="px-4 pb-4">
-              <ContainerJobsPanel container={job} linked={linkedToThisContainer} />
+              <ContainerJobsPanel
+                      container={job}
+                      linked={linkedToThisContainer}
+                      onAddJob={() => setBookOutOpen(true)}
+                    />
             </section>
           )}
 
@@ -1242,7 +1247,11 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                 {isContainerUnload && job && (
                   <div className="space-y-1">
                     <EditLabel>Container</EditLabel>
-                    <ContainerJobsPanel container={job} linked={linkedToThisContainer} />
+                    <ContainerJobsPanel
+                container={job}
+                linked={linkedToThisContainer}
+                onAddJob={() => setBookOutOpen(true)}
+              />
                   </div>
                 )}
 
@@ -1932,6 +1941,12 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
         onClose={() => setSendSmsOpen(false)}
         job={job}
       />
+      <NewQuoteDialog
+        open={bookOutOpen}
+        onOpenChange={setBookOutOpen}
+        prefillContainerId={bookOutOpen && job ? job.id : null}
+      />
+
       <NewQuoteDialog
         open={rebookOpen}
         onOpenChange={(open) => {

@@ -48,6 +48,8 @@ interface NewQuoteDialogProps {
    *  for a storage record (customer + items pre-filled, pickup defaults
    *  to the warehouse address line in notes). */
   prefillStorage?: StorageRecord | null;
+  /** Opened from a container unload to book what is coming out of it. */
+  prefillContainerId?: string | null;
 }
 
 function defaultValidUntil() {
@@ -185,9 +187,18 @@ export function NewQuoteDialog({
   onOpenChange,
   prefillJob,
   prefillStorage,
+  prefillContainerId,
 }: NewQuoteDialogProps) {
   const [form, setForm] = useState(initial);
   const { data: metroList } = useMetroPostcodes();
+
+  // Opened from a container: start already linked to it, so booking what came
+  // out of an unload does not mean finding it again in a dropdown.
+  useEffect(() => {
+    if (open && prefillContainerId) {
+      setForm((prev) => ({ ...prev, containerJobId: prefillContainerId }));
+    }
+  }, [open, prefillContainerId]);
   const { data: allJobs = [] } = useJobs();
 
   // Containers something can be booked out of. Not limited to recent ones: a
@@ -739,17 +750,26 @@ export function NewQuoteDialog({
             />
           </Field>
 
-          {!isWarehousing && availableContainers.length > 0 && (
+          {!isWarehousing && (
             <Field
               label="Out of a container"
-              hint="Groups this job onto one invoice with the container's other deliveries. The unload itself always invoices on its own."
+              hint={
+                availableContainers.length
+                  ? "Groups this job onto one invoice with the container's other deliveries. The unload itself always invoices on its own."
+                  : 'Nothing to link to yet — this fills up once a container unload has been booked. Quote one under Storage → Container unload.'
+              }
             >
               <select
                 value={form.containerJobId}
                 onChange={(e) => update('containerJobId', e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                disabled={!availableContainers.length}
+                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm disabled:opacity-60"
               >
-                <option value="">Not out of a container</option>
+                <option value="">
+                  {availableContainers.length
+                    ? 'Not out of a container'
+                    : 'No container unloads recorded yet'}
+                </option>
                 {availableContainers.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.containerSize ?? 'Container'} · {c.customerName}

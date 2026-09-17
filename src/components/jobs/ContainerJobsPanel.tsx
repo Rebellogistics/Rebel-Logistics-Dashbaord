@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Link2, Package } from 'lucide-react';
+import { Link2, Package, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatAud, jobTotalIncGst } from '@/lib/pricing';
 import type { Job } from '@/lib/types';
@@ -25,11 +25,14 @@ export function ContainerJobsPanel({
   container,
   linked,
   onOpenJob,
+  onAddJob,
 }: {
   container: Job;
   /** Every job whose containerJobId is this container. */
   linked: Job[];
   onOpenJob?: (job: Job) => void;
+  /** Book a delivery out of this container, already linked to it. */
+  onAddJob?: () => void;
 }) {
   const { deliveries, held, unloadTotal, deliveriesTotal, heldTotal } = useMemo(() => {
     const deliveries = linked.filter((j) => j.type !== 'Storage');
@@ -68,17 +71,30 @@ export function ContainerJobsPanel({
           <Package className="w-3.5 h-3.5 text-muted-foreground" />
           <span className="text-xs font-semibold">Out of this container</span>
         </div>
-        <Badge variant="secondary" className="text-[10px]">
-          {linked.length === 0
-            ? 'nothing booked out yet'
-            : `${linked.length} job${linked.length === 1 ? '' : 's'}`}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="text-[10px]">
+            {linked.length === 0
+              ? 'nothing booked out yet'
+              : `${linked.length} job${linked.length === 1 ? '' : 's'}`}
+          </Badge>
+          {onAddJob && (
+            <button
+              type="button"
+              onClick={onAddJob}
+              className="inline-flex items-center gap-1 rounded-md border border-input bg-card px-2 py-1 text-[11px] font-medium hover:bg-muted"
+            >
+              <Plus className="w-3 h-3" />
+              Book a job out of this
+            </button>
+          )}
+        </div>
       </div>
 
       {linked.length === 0 && (
         <p className="text-[11px] text-muted-foreground">
-          The unload stands alone and invoices on its own. Link a delivery to this container from
-          that job, whenever the client confirms where things are going.
+          The unload stands alone and invoices on its own. Book the deliveries here when they are
+          ready, or link one later from that job — a container is often unloaded and invoiced well
+          before the client says where things are going.
         </p>
       )}
 
