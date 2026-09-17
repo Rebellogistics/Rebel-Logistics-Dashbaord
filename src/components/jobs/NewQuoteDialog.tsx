@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
-import { ZoneHint } from '@/components/ui/zone-hint';
 import { useCreateJob } from '@/hooks/useSupabaseData';
 import { usePricingRates } from '@/hooks/usePricingRates';
 import { useRepeatCustomerLookup, type RepeatCustomerInfo } from '@/hooks/useRepeatCustomer';

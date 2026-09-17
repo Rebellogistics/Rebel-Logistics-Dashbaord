@@ -10,7 +10,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
-import { ZoneHint } from '@/components/ui/zone-hint';
 import type { Job, JobLocation, JobType } from '@/lib/types';
 import {
   MapPin,
@@ -58,7 +57,10 @@ import { useCustomers, useUpdateJob } from '@/hooks/useSupabaseData';
 import { useJobHistory, useAppendJobHistory } from '@/hooks/useJobHistory';
 import { usePricingRates } from '@/hooks/usePricingRates';
 import { useRepeatCustomerLookup } from '@/hooks/useRepeatCustomer';
-import { calculateQuote, formatAud } from '@/lib/pricing';
+import { formatAud } from '@/lib/pricing';
+import { priceJob } from '@/lib/jobPricing';
+import { extractPostcode, locationForPostcode } from '@/lib/metroPostcodes';
+import { useMetroPostcodes } from '@/hooks/useMetroPostcodes';
 import { customerDisplay } from '@/lib/jobDisplay';
 import { exportJobProofZip, jobZipName, triggerDownload } from '@/lib/export';
 import { toast } from 'sonner';
@@ -119,6 +121,7 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
   const [assignTruckOpen, setAssignTruckOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [editing, setEditing] = useState(false);
+  const { data: metroList } = useMetroPostcodes();
   // Expanded edit draft (Phase 10): every field on the form except customerName,
   // status, and audit-trail data is editable until the job is Completed/Invoiced.
   // priceIsManual mirrors the DB column — flips to true the moment the user
@@ -315,29 +318,74 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
   //   2. Read-mode footer — to show Subtotal / GST / Total breakdown using
   //      the saved fee, falling back to a recompute for legacy quotes that
   //      were created before Phase 1 stored gst_amount.
+  // V7: the zone follows the delivery postcode here too. A job saved before
+  // the postcode list became binding keeps its stored location until someone
+  // edits a pricing input — see the guard on the auto-track effect below.
+  const draftPostcode = extractPostcode(draft.deliveryAddress);
+
   const draftBreakdown = useMemo(() => {
     if (!rates) return null;
-    return calculateQuote({
+    return priceJob({
       type: draft.type,
-      location: draft.location,
+      rates,
+      postcode: draftPostcode,
+      metroPostcodes: metroList,
       cubicMetres: parseFloat(draft.cubicMetres) || 0,
       estimatedHours: parseFloat(draft.estimatedHours) || 0,
-      rates,
+      truckSize: (job?.truckSize as 'standard' | 'large' | undefined) ?? 'standard',
+      labourers: job?.labourers ?? 0,
+      warehouseService: job?.warehouseService,
+      storageTier: job?.storageTier,
+      storageTerm: job?.storageTerm,
+      storageDays: job?.storageDays ?? 0,
+      containerSize: job?.containerSize,
+      whLabourType: job?.whLabourType,
+      legsHours: job?.legsHours ?? 0,
+      fuelLevyMode: job?.fuelLevyMode ?? 'rate_book',
       overrideMetroRate: repeatInfo.overrideMetroRate,
       overrideHourlyRate: repeatInfo.overrideHourlyRate,
     });
-  }, [draft, rates, repeatInfo]);
+  }, [draft, rates, repeatInfo, draftPostcode, metroList, job]);
+
+  /**
+   * Has anyone actually touched something that changes the price?
+   *
+   * Opening a job for edit must not reprice it. These jobs were quoted under
+   * whatever rate book and rules applied at the time, and V7 moved both --
+   * the zone now comes from the postcode rather than a stored toggle, so a
+   * job whose saved location disagrees with its address would silently jump
+   * bands just from being opened. The recompute only takes over once a
+   * pricing input has genuinely been edited.
+   */
+  const pricingInputsTouched = useMemo(() => {
+    if (!job) return false;
+    const was = {
+      type: job.type ?? 'Standard',
+      cubicMetres: job.cubicMetres != null ? String(job.cubicMetres) : '',
+      estimatedHours: job.hoursEstimated != null ? String(job.hoursEstimated) : '',
+      deliveryAddress: job.deliveryAddress ?? '',
+    };
+    return (
+      draft.type !== was.type ||
+      draft.cubicMetres !== was.cubicMetres ||
+      draft.estimatedHours !== was.estimatedHours ||
+      draft.deliveryAddress !== was.deliveryAddress
+    );
+  }, [job, draft.type, draft.cubicMetres, draft.estimatedHours, draft.deliveryAddress]);
 
   // Auto-track the recomputed price when the user edits inputs and hasn't
   // manually overridden the fee. The check on `editing` keeps this from
   // running in read mode.
   useEffect(() => {
     if (!editing || !draftBreakdown || draft.priceIsManual) return;
-    const next = draftBreakdown.subtotal.toFixed(2);
+    // Only once a pricing input has actually been edited. Without this,
+    // merely opening an old job would restate its price.
+    if (!pricingInputsTouched) return;
+    const next = draftBreakdown.chargeable.toFixed(2);
     if (next !== draft.fee) {
       setDraft((prev) => ({ ...prev, fee: next }));
     }
-  }, [editing, draftBreakdown, draft.priceIsManual, draft.fee]);
+  }, [editing, draftBreakdown, draft.priceIsManual, draft.fee, pricingInputsTouched]);
 
   if (!job) return null;
 
@@ -347,8 +395,16 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
   const savedTotal = job.fee + (job.fuelLevy ?? 0) + (job.gstAmount ?? 0);
 
   const isHouseMove = draft.type === 'Hourly rate';
-  const isMetro = !isHouseMove && draft.location === 'Metro';
-  const isRegional = !isHouseMove && draft.location === 'Regional';
+  const isDeliveryType = draft.type === 'Standard' || draft.type === 'White Glove';
+  // Until a pricing input is touched, the job keeps the zone it was quoted
+  // under; after that the postcode decides, as it does on a new quote.
+  const draftZone: JobLocation | null = pricingInputsTouched
+    ? draftPostcode === null
+      ? null
+      : locationForPostcode(draftPostcode, metroList)
+    : ((job?.location as JobLocation | undefined) ?? null);
+  const isMetro = isDeliveryType && draftZone !== 'Regional';
+  const isRegional = isDeliveryType && draftZone === 'Regional';
 
   const startEdit = () => {
     setDraft(buildDraftFromJob(job));
@@ -364,7 +420,7 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
     if (!draftBreakdown) return;
     setDraft((prev) => ({
       ...prev,
-      fee: draftBreakdown.subtotal.toFixed(2),
+      fee: draftBreakdown.chargeable.toFixed(2),
       priceIsManual: false,
     }));
   };
@@ -496,7 +552,9 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
     pushChange('type', draft.type as JobType, 'type');
 
     // Location is null on Hourly rate jobs.
-    const nextLocation: JobLocation | null = isHouseMove ? null : draft.location;
+    // The zone is derived, not picked. Until a pricing input is touched this
+    // is the job's saved location, so opening and closing cannot move it.
+    const nextLocation: JobLocation | null = isDeliveryType ? draftZone : null;
     pushChange('location', nextLocation as Job['location'], 'location');
 
     // Cubic metres only applies to Metro Standard / White Glove.
@@ -536,7 +594,10 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
     // Hourly rate snapshot tracks the live rate when not manual; otherwise
     // we leave job.hourlyRate alone.
     if (isHouseMove && draftBreakdown && !draft.priceIsManual) {
-      const nextHourlyRate = draftBreakdown.hourlyRate;
+      const nextHourlyRate =
+        repeatInfo.overrideHourlyRate ??
+        (job.truckSize === 'large' ? rates?.hourlyRateLargeAud : rates?.hourlyRateAud) ??
+        0;
       if ((job.hourlyRate ?? 0) !== nextHourlyRate) {
         changes.hourlyRate = nextHourlyRate;
       }
@@ -896,34 +957,40 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                   </select>
                 </div>
 
-                {!isHouseMove && (
+                {isDeliveryType && (
                   <div className="space-y-1">
                     <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                      Location
+                      Zone
                     </label>
-                    <div className="flex gap-2">
-                      {(['Metro', 'Regional'] as JobLocation[]).map((loc) => (
-                        <button
-                          key={loc}
-                          type="button"
-                          onClick={() => setDraft((d) => ({ ...d, location: loc }))}
-                          className={cn(
-                            'flex-1 h-9 rounded-lg border text-xs font-semibold transition-colors',
-                            draft.location === loc
-                              ? 'bg-rebel-accent border-rebel-accent text-white'
-                              : 'bg-card border-input text-muted-foreground hover:bg-muted',
-                          )}
-                        >
-                          {loc}
-                        </button>
-                      ))}
+                    <div
+                      className={cn(
+                        'rounded-lg border px-3 py-2 text-xs',
+                        draftZone === 'Metro'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                          : draftZone === 'Regional'
+                            ? 'border-input bg-muted text-foreground'
+                            : 'border-amber-200 bg-amber-50 text-amber-900',
+                      )}
+                    >
+                      {!pricingInputsTouched ? (
+                        <>
+                          <span className="font-semibold">{draftZone ?? 'Not set'}</span> — as this
+                          job was quoted. Edit the address, type or volume and the postcode takes
+                          over.
+                        </>
+                      ) : draftZone === null ? (
+                        <>
+                          No postcode in the delivery address — priced as{' '}
+                          <span className="font-semibold">Metro</span>, per m³.
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-mono font-semibold">{draftPostcode}</span>{' '}
+                          {draftZone === 'Metro' ? 'is on' : 'is not on'} the metro list →{' '}
+                          <span className="font-semibold">{draftZone}</span>
+                        </>
+                      )}
                     </div>
-                    <ZoneHint
-                      address={draft.deliveryAddress}
-                      selected={draft.location}
-                      onApply={(loc) => setDraft((d) => ({ ...d, location: loc }))}
-                      className="mt-2"
-                    />
                   </div>
                 )}
 
@@ -1004,7 +1071,7 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                 {draftBreakdown && draft.priceIsManual && (
                   <div className="flex flex-col gap-1 text-right">
                     <span className="text-[10px] text-muted-foreground">
-                      Rate book: {formatAud(draftBreakdown.subtotal)}
+                      Rate book: {formatAud(draftBreakdown.chargeable)}
                     </span>
                     <Button
                       type="button"
@@ -1019,7 +1086,7 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                 )}
                 {draftBreakdown && !draft.priceIsManual && (
                   <span className="text-[10px] text-muted-foreground sm:pb-2">
-                    {draftBreakdown.explainer}
+                    {draftBreakdown.lines.map((l) => l.note).join(' · ')}
                   </span>
                 )}
               </div>
@@ -1038,7 +1105,7 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">
                     {editing && draftBreakdown
-                      ? draftBreakdown.explainer
+                      ? draftBreakdown.lines.map((l) => l.label).join(' + ')
                       : 'Subtotal'}
                   </span>
                   <span className="font-semibold">
