@@ -10,7 +10,17 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
-import type { Job, JobLocation, JobType } from '@/lib/types';
+import type {
+  Job,
+  JobLocation,
+  JobType,
+  DisposalLoad,
+  FuelLevyMode,
+  StorageTerm,
+  StorageTier,
+  TruckSize,
+  WarehouseService,
+} from '@/lib/types';
 import {
   MapPin,
   Truck,
@@ -58,7 +68,7 @@ import { useJobHistory, useAppendJobHistory } from '@/hooks/useJobHistory';
 import { usePricingRates } from '@/hooks/usePricingRates';
 import { useRepeatCustomerLookup } from '@/hooks/useRepeatCustomer';
 import { formatAud } from '@/lib/pricing';
-import { priceJob } from '@/lib/jobPricing';
+import { priceJob, disposalAllowed, packagingAllowed } from '@/lib/jobPricing';
 import { extractPostcode, locationForPostcode } from '@/lib/metroPostcodes';
 import { useMetroPostcodes } from '@/hooks/useMetroPostcodes';
 import { customerDisplay } from '@/lib/jobDisplay';
@@ -103,6 +113,24 @@ function buildDraftFromJob(job: Job) {
     estimatedHours: job.hoursEstimated != null ? String(job.hoursEstimated) : '',
     fee: job.fee != null ? job.fee.toFixed(2) : '',
     priceIsManual: job.priceIsManual ?? false,
+
+    // V7 pricing inputs, so they can be edited rather than only created.
+    truckSize: (job.truckSize ?? 'standard') as TruckSize,
+    labourers: job.labourers != null ? String(job.labourers) : '',
+    warehouseService: (job.warehouseService ?? 'storage') as WarehouseService,
+    storageTier: (job.storageTier ?? 'Standard') as StorageTier,
+    storageTerm: (job.storageTerm ?? 'Long term') as StorageTerm,
+    storageDays: job.storageDays != null ? String(job.storageDays) : '',
+    containerSize: (job.containerSize ?? '20 ft') as '20 ft' | '40 ft',
+    whLabourType: (job.whLabourType ?? 'outbound') as 'outbound' | 'qc' | 'unload',
+    legsHours: job.legsHours != null ? String(job.legsHours) : '',
+    extraLabourOn: job.whLabourType != null && job.warehouseService !== 'labour_work',
+    disposalOn: job.disposalLoad != null,
+    disposalLoad: (job.disposalLoad ?? 'van') as DisposalLoad,
+    disposalAmount: job.disposalAmount != null ? String(job.disposalAmount) : '',
+    packagingOn: job.packagingAmount != null,
+    packagingAmount: job.packagingAmount != null ? String(job.packagingAmount) : '',
+    fuelLevyMode: (job.fuelLevyMode ?? 'rate_book') as FuelLevyMode,
     notes: job.notes ?? '',
     // V5 Phase 1: tri-toggle defaults. Undefined on legacy rows that
     // pre-date the migration is treated as ON to preserve existing
@@ -111,6 +139,47 @@ function buildDraftFromJob(job: Job) {
     sendEnRoute: job.sendEnRoute ?? true,
     sendComplete: job.sendComplete ?? true,
   };
+}
+
+
+/** A row of choices, styled like the dialog's existing pill buttons. */
+function Pills<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex gap-2 flex-wrap">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          className={cn(
+            'h-9 px-3 rounded-lg border text-xs font-semibold transition-colors',
+            value === o.value
+              ? 'bg-rebel-accent border-rebel-accent text-white'
+              : 'bg-card border-input text-muted-foreground hover:bg-muted',
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Small uppercase label, as used throughout the edit form. */
+function EditLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+      {children}
+    </label>
+  );
 }
 
 export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailDialogProps) {
@@ -142,6 +211,22 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
     estimatedHours: '',
     fee: '',
     priceIsManual: false,
+    truckSize: 'standard' as TruckSize,
+    labourers: '',
+    warehouseService: 'storage' as WarehouseService,
+    storageTier: 'Standard' as StorageTier,
+    storageTerm: 'Long term' as StorageTerm,
+    storageDays: '',
+    containerSize: '20 ft' as '20 ft' | '40 ft',
+    whLabourType: 'outbound' as 'outbound' | 'qc' | 'unload',
+    legsHours: '',
+    extraLabourOn: false,
+    disposalOn: false,
+    disposalLoad: 'van' as DisposalLoad,
+    disposalAmount: '',
+    packagingOn: false,
+    packagingAmount: '',
+    fuelLevyMode: 'rate_book' as FuelLevyMode,
     notes: '',
     sendDayPrior: true,
     sendEnRoute: true,
@@ -332,16 +417,20 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
       metroPostcodes: metroList,
       cubicMetres: parseFloat(draft.cubicMetres) || 0,
       estimatedHours: parseFloat(draft.estimatedHours) || 0,
-      truckSize: (job?.truckSize as 'standard' | 'large' | undefined) ?? 'standard',
-      labourers: job?.labourers ?? 0,
-      warehouseService: job?.warehouseService,
-      storageTier: job?.storageTier,
-      storageTerm: job?.storageTerm,
-      storageDays: job?.storageDays ?? 0,
-      containerSize: job?.containerSize,
-      whLabourType: job?.whLabourType,
-      legsHours: job?.legsHours ?? 0,
-      fuelLevyMode: job?.fuelLevyMode ?? 'rate_book',
+      truckSize: draft.truckSize,
+      labourers: parseFloat(draft.labourers) || 0,
+      warehouseService: draft.warehouseService,
+      storageTier: draft.storageTier,
+      storageTerm: draft.storageTerm,
+      storageDays: parseFloat(draft.storageDays) || 0,
+      containerSize: draft.containerSize,
+      whLabourType: draft.whLabourType,
+      legsHours: parseFloat(draft.legsHours) || 0,
+      extraLabourOn: draft.extraLabourOn,
+      disposalLoad: draft.disposalOn ? draft.disposalLoad : undefined,
+      disposalAmount: parseFloat(draft.disposalAmount) || 0,
+      packagingAmount: draft.packagingOn ? parseFloat(draft.packagingAmount) || 0 : undefined,
+      fuelLevyMode: draft.fuelLevyMode,
       overrideMetroRate: repeatInfo.overrideMetroRate,
       overrideHourlyRate: repeatInfo.overrideHourlyRate,
     });
@@ -369,9 +458,21 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
       draft.type !== was.type ||
       draft.cubicMetres !== was.cubicMetres ||
       draft.estimatedHours !== was.estimatedHours ||
-      draft.deliveryAddress !== was.deliveryAddress
+      draft.deliveryAddress !== was.deliveryAddress ||
+      draft.truckSize !== (job.truckSize ?? 'standard') ||
+      draft.labourers !== (job.labourers != null ? String(job.labourers) : '') ||
+      draft.warehouseService !== (job.warehouseService ?? 'storage') ||
+      draft.storageTier !== (job.storageTier ?? 'Standard') ||
+      draft.storageTerm !== (job.storageTerm ?? 'Long term') ||
+      draft.storageDays !== (job.storageDays != null ? String(job.storageDays) : '') ||
+      draft.containerSize !== (job.containerSize ?? '20 ft') ||
+      draft.legsHours !== (job.legsHours != null ? String(job.legsHours) : '') ||
+      draft.extraLabourOn !== (job.whLabourType != null && job.warehouseService !== 'labour_work') ||
+      draft.disposalOn !== (job.disposalLoad != null) ||
+      draft.packagingOn !== (job.packagingAmount != null) ||
+      draft.fuelLevyMode !== (job.fuelLevyMode ?? 'rate_book')
     );
-  }, [job, draft.type, draft.cubicMetres, draft.estimatedHours, draft.deliveryAddress]);
+  }, [job, draft]);
 
   // Auto-track the recomputed price when the user edits inputs and hasn't
   // manually overridden the fee. The check on `editing` keeps this from
@@ -405,6 +506,25 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
     : ((job?.location as JobLocation | undefined) ?? null);
   const isMetro = isDeliveryType && draftZone !== 'Regional';
   const isRegional = isDeliveryType && draftZone === 'Regional';
+
+  const isWarehousing = draft.type === 'Storage';
+  const whStoring = isWarehousing && draft.warehouseService === 'storage';
+  const whContainer = isWarehousing && draft.warehouseService === 'container_unload';
+  const whLabourService = isWarehousing && draft.warehouseService === 'labour_work';
+  const needsCrewEdit =
+    draft.type === 'Labour' || whLabourService || ((whStoring || whContainer) && draft.extraLabourOn);
+  const canDisposeEdit =
+    !!rates &&
+    disposalAllowed({
+      type: draft.type,
+      rates,
+      cubicMetres: parseFloat(draft.cubicMetres) || 0,
+      warehouseService: draft.warehouseService,
+    });
+  const canPackageEdit = packagingAllowed(draft.type);
+  // The levy only matters where something on the job can carry it.
+  const levyCouldApply =
+    isDeliveryType || isHouseMove || (parseFloat(draft.legsHours) || 0) > 0;
 
   const startEdit = () => {
     setDraft(buildDraftFromJob(job));
@@ -556,6 +676,57 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
     // is the job's saved location, so opening and closing cannot move it.
     const nextLocation: JobLocation | null = isDeliveryType ? draftZone : null;
     pushChange('location', nextLocation as Job['location'], 'location');
+
+    // V7 pricing inputs. Each is cleared when its job shape no longer uses
+    // it, so a job switched from a container unload to storage does not keep
+    // a stale container size on the row.
+    pushChange('truckSize', isHouseMove ? draft.truckSize : null, 'truck');
+    pushChange(
+      'labourers',
+      needsCrewEdit && draft.labourers ? parseFloat(draft.labourers) : null,
+      'crew',
+    );
+    pushChange('warehouseService', isWarehousing ? draft.warehouseService : null, 'service');
+    pushChange('storageTier', whStoring ? draft.storageTier : null, 'storage tier');
+    pushChange('storageTerm', whStoring ? draft.storageTerm : null, 'storage term');
+    pushChange(
+      'storageDays',
+      whStoring && draft.storageDays ? parseFloat(draft.storageDays) : null,
+      'days held',
+    );
+    pushChange('containerSize', whContainer ? draft.containerSize : null, 'container size');
+    pushChange(
+      'whLabourType',
+      whLabourService || ((whStoring || whContainer) && draft.extraLabourOn)
+        ? draft.whLabourType
+        : null,
+      'warehouse work',
+    );
+    pushChange(
+      'legsHours',
+      (whStoring || whContainer) && draft.legsHours ? parseFloat(draft.legsHours) : null,
+      'pick-up & delivery hours',
+    );
+
+    // Extras save as the amounts actually priced, not as a rate to look up
+    // again, so a later rate change cannot restate this job.
+    const disposalLine = draftBreakdown?.lines.find((l) => l.label === 'Rubbish disposal');
+    const transportLine = draftBreakdown?.lines.find((l) => l.label === 'Transport fee');
+    pushChange('disposalLoad', draft.disposalOn && canDisposeEdit ? draft.disposalLoad : null, 'rubbish disposal');
+    pushChange('disposalAmount', draft.disposalOn && canDisposeEdit ? disposalLine?.amount ?? 0 : null, 'disposal charge');
+    pushChange('disposalTransportAmount', draft.disposalOn && canDisposeEdit ? transportLine?.amount ?? 0 : null, 'disposal transport');
+    pushChange(
+      'packagingAmount',
+      draft.packagingOn && canPackageEdit ? parseFloat(draft.packagingAmount) || 0 : null,
+      'packaging materials',
+    );
+
+    // The levy as this job now stands, frozen with it.
+    pushChange('fuelLevyMode', draft.fuelLevyMode, 'fuel levy');
+    if (draftBreakdown) {
+      pushChange('fuelLevy', draftBreakdown.levy, 'fuel levy amount');
+      pushChange('fuelLevyPctApplied', draftBreakdown.levyPct, 'fuel levy percent');
+    }
 
     // Cubic metres only applies to Metro Standard / White Glove.
     const nextCubicMetres: number | null = isMetro && draft.cubicMetres
@@ -1010,6 +1181,252 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                       placeholder="e.g. 2"
                       className="h-9"
                     />
+                  </div>
+                )}
+
+                {isHouseMove && (
+                  <div className="space-y-1">
+                    <EditLabel>Truck</EditLabel>
+                    <Pills
+                      options={[
+                        { value: 'standard' as TruckSize, label: 'Standard' },
+                        { value: 'large' as TruckSize, label: 'Large' },
+                      ]}
+                      value={draft.truckSize}
+                      onChange={(v) => setDraft((d) => ({ ...d, truckSize: v }))}
+                    />
+                  </div>
+                )}
+
+                {isWarehousing && (
+                  <div className="space-y-1">
+                    <EditLabel>Service</EditLabel>
+                    <Pills
+                      options={[
+                        { value: 'storage' as WarehouseService, label: 'Storage' },
+                        { value: 'container_unload' as WarehouseService, label: 'Container unload' },
+                        { value: 'labour_work' as WarehouseService, label: 'Labour work' },
+                      ]}
+                      value={draft.warehouseService}
+                      onChange={(v) => setDraft((d) => ({ ...d, warehouseService: v }))}
+                    />
+                  </div>
+                )}
+
+                {whStoring && (
+                  <>
+                    <div className="space-y-1">
+                      <EditLabel>Tier</EditLabel>
+                      <Pills
+                        options={[
+                          { value: 'Standard' as StorageTier, label: 'Standard' },
+                          { value: 'High end' as StorageTier, label: 'High end' },
+                          { value: 'Insurance added' as StorageTier, label: 'Insured' },
+                        ]}
+                        value={draft.storageTier}
+                        onChange={(v) => setDraft((d) => ({ ...d, storageTier: v }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <EditLabel>Term</EditLabel>
+                      <Pills
+                        options={[
+                          { value: 'Long term' as StorageTerm, label: 'Long term' },
+                          { value: 'Short term' as StorageTerm, label: 'Short term' },
+                        ]}
+                        value={draft.storageTerm}
+                        onChange={(v) => setDraft((d) => ({ ...d, storageTerm: v }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <EditLabel>Days held</EditLabel>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        value={draft.storageDays}
+                        onChange={(e) =>
+                          setDraft((d) => ({ ...d, storageDays: sanitiseDecimal(e.target.value) }))
+                        }
+                        className="h-9"
+                        placeholder="e.g. 45"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {whContainer && (
+                  <div className="space-y-1">
+                    <EditLabel>Container size</EditLabel>
+                    <Pills
+                      options={[
+                        { value: '20 ft' as const, label: '20 ft' },
+                        { value: '40 ft' as const, label: '40 ft' },
+                      ]}
+                      value={draft.containerSize}
+                      onChange={(v) => setDraft((d) => ({ ...d, containerSize: v }))}
+                    />
+                  </div>
+                )}
+
+                {(whLabourService || draft.extraLabourOn) && (whLabourService || whStoring || whContainer) && (
+                  <div className="space-y-1">
+                    <EditLabel>Work</EditLabel>
+                    <Pills
+                      options={[
+                        { value: 'outbound' as const, label: 'Outbound' },
+                        { value: 'qc' as const, label: 'Quality check' },
+                        { value: 'unload' as const, label: 'Extra unload' },
+                      ]}
+                      value={draft.whLabourType}
+                      onChange={(v) => setDraft((d) => ({ ...d, whLabourType: v }))}
+                    />
+                  </div>
+                )}
+
+                {needsCrewEdit && (
+                  <div className="space-y-1">
+                    <EditLabel>Crew on site</EditLabel>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      value={draft.labourers}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, labourers: sanitiseDecimal(e.target.value) }))
+                      }
+                      className="h-9"
+                      placeholder="pax"
+                    />
+                  </div>
+                )}
+
+                {(whStoring || whContainer) && (
+                  <div className="space-y-1">
+                    <EditLabel>Pick-up &amp; delivery (hours)</EditLabel>
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      value={draft.legsHours}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, legsHours: sanitiseDecimal(e.target.value) }))
+                      }
+                      className="h-9"
+                      placeholder="Blank if we are not collecting"
+                    />
+                  </div>
+                )}
+
+                {(canDisposeEdit || canPackageEdit || whStoring || whContainer) && (
+                  <div className="space-y-1">
+                    <EditLabel>Extras</EditLabel>
+                    <div className="space-y-2 rounded-lg border border-input bg-muted/30 p-3">
+                      {(whStoring || whContainer) && (
+                        <label className="flex items-center gap-2 text-xs cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="h-3.5 w-3.5 accent-rebel-accent"
+                            checked={draft.extraLabourOn}
+                            onChange={(e) =>
+                              setDraft((d) => ({ ...d, extraLabourOn: e.target.checked }))
+                            }
+                          />
+                          Additional labour
+                        </label>
+                      )}
+                      {canDisposeEdit && (
+                        <>
+                          <label className="flex items-center gap-2 text-xs cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="h-3.5 w-3.5 accent-rebel-accent"
+                              checked={draft.disposalOn}
+                              onChange={(e) =>
+                                setDraft((d) => ({ ...d, disposalOn: e.target.checked }))
+                              }
+                            />
+                            Rubbish disposal
+                          </label>
+                          {draft.disposalOn && (
+                            <div className="pl-5 space-y-2">
+                              <Pills
+                                options={[
+                                  { value: 'van' as DisposalLoad, label: 'Van load' },
+                                  { value: 'trailer' as DisposalLoad, label: 'Trailer load' },
+                                  { value: 'larger' as DisposalLoad, label: 'Larger' },
+                                ]}
+                                value={draft.disposalLoad}
+                                onChange={(v) => setDraft((d) => ({ ...d, disposalLoad: v }))}
+                              />
+                              {draft.disposalLoad === 'larger' && (
+                                <Input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={draft.disposalAmount}
+                                  onChange={(e) =>
+                                    setDraft((d) => ({
+                                      ...d,
+                                      disposalAmount: sanitiseDecimal(e.target.value),
+                                    }))
+                                  }
+                                  className="h-9"
+                                  placeholder="Measured at the end of the job"
+                                />
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {canPackageEdit && (
+                        <>
+                          <label className="flex items-center gap-2 text-xs cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="h-3.5 w-3.5 accent-rebel-accent"
+                              checked={draft.packagingOn}
+                              onChange={(e) =>
+                                setDraft((d) => ({ ...d, packagingOn: e.target.checked }))
+                              }
+                            />
+                            Packaging materials
+                          </label>
+                          {draft.packagingOn && (
+                            <div className="pl-5">
+                              <Input
+                                type="text"
+                                inputMode="decimal"
+                                value={draft.packagingAmount}
+                                onChange={(e) =>
+                                  setDraft((d) => ({
+                                    ...d,
+                                    packagingAmount: sanitiseDecimal(e.target.value),
+                                  }))
+                                }
+                                className="h-9"
+                                placeholder="What was supplied"
+                              />
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {levyCouldApply && rates && (
+                  <div className="space-y-1">
+                    <EditLabel>Fuel levy on this quote</EditLabel>
+                    <Pills
+                      options={[
+                        { value: 'rate_book' as FuelLevyMode, label: 'As quoted' },
+                        { value: 'on' as FuelLevyMode, label: 'Add' },
+                        { value: 'off' as FuelLevyMode, label: 'Remove' },
+                      ]}
+                      value={draft.fuelLevyMode}
+                      onChange={(v) => setDraft((d) => ({ ...d, fuelLevyMode: v }))}
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Frozen onto the job when saved. Changing the rate book later will not restate
+                      it.
+                    </p>
                   </div>
                 )}
 

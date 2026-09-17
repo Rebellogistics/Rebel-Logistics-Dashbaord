@@ -39,8 +39,6 @@ const FILES: Record<Where, string> = {
   jobDialog: 'src/components/jobs/JobDetailDialog.tsx',
 };
 
-const P5B = 'P5b — the job dialog cannot edit V7 fields yet';
-
 const CONTROLS: Control[] = [
   {
     name: 'Job type — Labour',
@@ -52,8 +50,8 @@ const CONTROLS: Control[] = [
       engine: /hourlyRateLargeAud/,
       rateBook: /hourlyRateLargeAud/,
       quoteDialog: /truckSize/,
+      jobDialog: /truckSize/,
     },
-    known: { jobDialog: P5B },
   },
   {
     name: 'Billing increment before minimums',
@@ -64,8 +62,8 @@ const CONTROLS: Control[] = [
     needs: {
       engine: /container_unload[\s\S]*labour_work/,
       quoteDialog: /container_unload[\s\S]*labour_work/,
+      jobDialog: /container_unload/,
     },
-    known: { jobDialog: P5B },
   },
   {
     name: 'Storage — tier and term',
@@ -73,8 +71,8 @@ const CONTROLS: Control[] = [
       engine: /storageRate\(/,
       rateBook: /shortTermUpliftPct/,
       quoteDialog: /storageTerm/,
+      jobDialog: /storageTerm/,
     },
-    known: { jobDialog: P5B },
   },
   {
     name: 'Storage — grace days and month rounding',
@@ -86,8 +84,8 @@ const CONTROLS: Control[] = [
       engine: /containerIncludedHours/,
       rateBook: /containerIncludedHours/,
       quoteDialog: /containerSize/,
+      jobDialog: /containerSize/,
     },
-    known: { jobDialog: P5B },
   },
   {
     name: 'Warehouse labour — three kinds, own rates',
@@ -95,18 +93,16 @@ const CONTROLS: Control[] = [
       engine: /whLabourRate\(/,
       rateBook: /whLabourQcAud/,
       quoteDialog: /whLabourType/,
+      jobDialog: /whLabourType/,
     },
-    known: { jobDialog: P5B },
   },
   {
     name: 'Additional labour on storage / container unload',
-    needs: { engine: /extraLabourOn/, quoteDialog: /extraLabourOn/ },
-    known: { jobDialog: P5B },
+    needs: { engine: /extraLabourOn/, quoteDialog: /extraLabourOn/, jobDialog: /extraLabourOn/ },
   },
   {
     name: 'Pick-up & delivery legs, no minimum',
-    needs: { engine: /legsHours/, quoteDialog: /legsHours/ },
-    known: { jobDialog: P5B },
+    needs: { engine: /legsHours/, quoteDialog: /legsHours/, jobDialog: /legsHours/ },
   },
   {
     name: 'Rubbish disposal — an extra, never a job type',
@@ -114,13 +110,12 @@ const CONTROLS: Control[] = [
       engine: /disposalLines\(/,
       rateBook: /disposalTrailerAud/,
       quoteDialog: /disposalLoad/,
+      jobDialog: /disposalLoad/,
     },
-    known: { jobDialog: P5B },
   },
   {
     name: 'Packaging materials — typed in at the end',
-    needs: { engine: /packagingLineFor\(/, quoteDialog: /packagingAmount/ },
-    known: { jobDialog: P5B },
+    needs: { engine: /packagingLineFor\(/, quoteDialog: /packagingAmount/, jobDialog: /packagingAmount/ },
   },
   {
     name: 'White Glove — rubbish included under the threshold',
@@ -136,8 +131,7 @@ const CONTROLS: Control[] = [
   },
   {
     name: 'Fuel levy — per-quote override',
-    needs: { engine: /levyApplies\(/, quoteDialog: /fuelLevyMode/ },
-    known: { jobDialog: P5B },
+    needs: { engine: /levyApplies\(/, quoteDialog: /fuelLevyMode/, jobDialog: /fuelLevyMode/ },
   },
   {
     name: 'Zone bound to the delivery postcode',
