@@ -62,9 +62,9 @@ _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRA
 
 15. **Cousin lead (referral).** Yamin gave his marketing-business cousin Sumanyu's portfolio + contact. Cousin lost customers for not bundling websites. **Not addressed on 2026-05-17 call** — carrying forward.
 
-16. **Two Google leftovers to retry from 2026-09-18** (Google throttled the UI after two removal requests on 2026-09-16):
-    - Request removal of `https://rebellogistics.com.au/?author=1` — the stale WordPress "admin" author archive. `?p=1` and `?cat=1` are already submitted and processing. Search Console → Removals → New Request.
-    - Clear the **"Located in: Kennards Self Storage Flemington"** association on the Business Profile. Check Business information → Location for a "Located in" field; if there isn't one it is a Google inference from the address, and the fix is "Suggest an edit" on the public listing or a GBP support request.
+16. ✅ **RESOLVED 2026-09-18 — Google leftovers closed.**
+    - **Stale WordPress URLs: gone.** `?p=1` and `?cat=1` now show *Temporarily removed* in Search Console. `?author=1` could not be submitted — Google rejects removal requests for URLs it no longer indexes, and a `site:` search confirms all three are out of the index entirely, with no "Welcome to WordPress" text anywhere. Done by outcome rather than by action.
+    - **Kennards "Located in": not fixable from the profile.** The Location tab holds only Business location, the map and Service area — there is no "Located in" field, and the overflow menu offers only Help and support / Send feedback. It is a Google inference from the address coordinates. The only route left is a Google Business Profile support request. **Not raised** — contacting support on Yamin's behalf needs his say-so.
 
 ### Deferred (not blocking)
 
