@@ -21,15 +21,14 @@ export function PricingPanel() {
     if (rates) setDraft(rates);
   }, [rates]);
 
-  const isDirty = rates && (
-    draft.metroPerCubeAud !== rates.metroPerCubeAud ||
-    draft.regionalMinimumAud !== rates.regionalMinimumAud ||
-    draft.wgMetroPerCubeAud !== rates.wgMetroPerCubeAud ||
-    draft.wgRegionalMinimumAud !== rates.wgRegionalMinimumAud ||
-    draft.hourlyRateAud !== rates.hourlyRateAud ||
-    draft.minimumHours !== rates.minimumHours ||
-    draft.gstPercent !== rates.gstPercent
-  );
+  // Compare every figure rather than a hand-kept list: the rate book grew
+  // from 5 figures to 30 in V7, and a forgotten line here silently disables
+  // Save for that field.
+  const isDirty =
+    !!rates &&
+    (Object.keys(rates) as Array<keyof PricingRates>).some(
+      (k) => k !== 'updatedAt' && draft[k] !== rates[k],
+    );
 
   const handleSave = async () => {
     try {
@@ -44,6 +43,10 @@ export function PricingPanel() {
   const setNum = (key: keyof PricingRates) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = parseFloat(e.target.value);
     setDraft((d) => ({ ...d, [key]: isNaN(v) ? 0 : v } as PricingRates));
+  };
+
+  const setBool = (key: keyof PricingRates) => (checked: boolean) => {
+    setDraft((d) => ({ ...d, [key]: checked } as PricingRates));
   };
 
   if (isLoading) {
@@ -151,13 +154,19 @@ export function PricingPanel() {
 
           <Section
             title="Hourly rate"
-            subtitle="Customer is billed per hour with a minimum charge."
+            subtitle="Billed per hour by truck, rounded up to the billing increment, then floored at the minimum."
           >
             <FieldRow>
               <RateField
-                label="Hourly rate (AUD ex-GST)"
+                label="Standard truck — per hour (AUD ex-GST)"
                 value={draft.hourlyRateAud}
                 onChange={setNum('hourlyRateAud')}
+                disabled={!canEdit}
+              />
+              <RateField
+                label="Large truck — per hour (AUD ex-GST)"
+                value={draft.hourlyRateLargeAud}
+                onChange={setNum('hourlyRateLargeAud')}
                 disabled={!canEdit}
               />
               <RateField
@@ -165,8 +174,238 @@ export function PricingPanel() {
                 value={draft.minimumHours}
                 onChange={setNum('minimumHours')}
                 disabled={!canEdit}
-                step="1"
+                step="0.5"
                 hint="Quotes for fewer hours are bumped up to this."
+              />
+              <RateField
+                label="Billing increment (hours)"
+                value={draft.billingIncrementHours}
+                onChange={setNum('billingIncrementHours')}
+                disabled={!canEdit}
+                step="0.25"
+                hint="Time rounds up to this before any minimum. 0.5 = half-hour blocks."
+              />
+            </FieldRow>
+          </Section>
+
+          <Divider />
+
+          <Section
+            title="Labour"
+            subtitle="Crew time on site with no truck. Both floors bite independently — a one-man hour still bills the minimum crew for the minimum hours."
+          >
+            <FieldRow>
+              <RateField
+                label="Per labourer, per hour (AUD ex-GST)"
+                value={draft.labourPerHourAud}
+                onChange={setNum('labourPerHourAud')}
+                disabled={!canEdit}
+              />
+              <RateField
+                label="Minimum crew"
+                value={draft.labourMinLabourers}
+                onChange={setNum('labourMinLabourers')}
+                disabled={!canEdit}
+                step="1"
+              />
+              <RateField
+                label="Minimum hours"
+                value={draft.labourMinHours}
+                onChange={setNum('labourMinHours')}
+                disabled={!canEdit}
+                step="0.5"
+              />
+            </FieldRow>
+          </Section>
+
+          <Divider />
+
+          <Section
+            title="Warehousing — storage"
+            subtitle="Per m³ per month. Long term pays the tier rate; a short-term hold adds the uplift on top. Grace days come off the stay, the remainder rounds up to whole months, and volume rounds up to the next whole m³."
+          >
+            <FieldRow>
+              <RateField
+                label="Standard — per m³ / month"
+                value={draft.storageStandardAud}
+                onChange={setNum('storageStandardAud')}
+                disabled={!canEdit}
+              />
+              <RateField
+                label="High end — per m³ / month"
+                value={draft.storageHighEndAud}
+                onChange={setNum('storageHighEndAud')}
+                disabled={!canEdit}
+              />
+              <RateField
+                label="Insurance added — per m³ / month"
+                value={draft.storageInsuredAud}
+                onChange={setNum('storageInsuredAud')}
+                disabled={!canEdit}
+              />
+              <RateField
+                label="Short-term uplift (%)"
+                value={draft.shortTermUpliftPct}
+                onChange={setNum('shortTermUpliftPct')}
+                disabled={!canEdit}
+                step="1"
+                hint="Added on top of whichever tier rate applies."
+              />
+              <RateField
+                label="Free grace days"
+                value={draft.storageGraceDays}
+                onChange={setNum('storageGraceDays')}
+                disabled={!canEdit}
+                step="1"
+                hint="Stock held this long or less is not charged storage."
+              />
+            </FieldRow>
+          </Section>
+
+          <Divider />
+
+          <Section
+            title="Warehousing — container unload"
+            subtitle="A service of its own, flat per container. Never multiplied by volume or term, and invoiced separately from anything stored."
+          >
+            <FieldRow>
+              <RateField
+                label="20 ft container (AUD ex-GST)"
+                value={draft.container20ftAud}
+                onChange={setNum('container20ftAud')}
+                disabled={!canEdit}
+              />
+              <RateField
+                label="40 ft container (AUD ex-GST)"
+                value={draft.container40ftAud}
+                onChange={setNum('container40ftAud')}
+                disabled={!canEdit}
+              />
+              <RateField
+                label="Unload time included (hours)"
+                value={draft.containerIncludedHours}
+                onChange={setNum('containerIncludedHours')}
+                disabled={!canEdit}
+                step="0.5"
+                hint="Beyond this is charged as warehouse labour."
+              />
+            </FieldRow>
+          </Section>
+
+          <Divider />
+
+          <Section
+            title="Additional services"
+            subtitle="What the pull-downs and tick-boxes on a job charge. Warehouse labour has no crew or hours floor by default — a single labourer for half an hour bills half an hour."
+          >
+            <FieldRow>
+              <RateField
+                label="Outbound warehouse — per labourer / hour"
+                value={draft.whLabourOutboundAud}
+                onChange={setNum('whLabourOutboundAud')}
+                disabled={!canEdit}
+              />
+              <RateField
+                label="Quality control check — per labourer / hour"
+                value={draft.whLabourQcAud}
+                onChange={setNum('whLabourQcAud')}
+                disabled={!canEdit}
+              />
+              <RateField
+                label="Additional unload labour — per labourer / hour"
+                value={draft.whLabourUnloadAud}
+                onChange={setNum('whLabourUnloadAud')}
+                disabled={!canEdit}
+              />
+              <RateField
+                label="Warehouse labour — minimum crew"
+                value={draft.whLabourMinCrew}
+                onChange={setNum('whLabourMinCrew')}
+                disabled={!canEdit}
+                step="1"
+                hint="0 = no floor."
+              />
+              <RateField
+                label="Warehouse labour — minimum hours"
+                value={draft.whLabourMinHours}
+                onChange={setNum('whLabourMinHours')}
+                disabled={!canEdit}
+                step="0.5"
+                hint="0 = no floor."
+              />
+            </FieldRow>
+
+            <FieldRow>
+              <RateField
+                label="Rubbish — standard van load"
+                value={draft.disposalVanAud}
+                onChange={setNum('disposalVanAud')}
+                disabled={!canEdit}
+              />
+              <RateField
+                label="Rubbish — trailer load"
+                value={draft.disposalTrailerAud}
+                onChange={setNum('disposalTrailerAud')}
+                disabled={!canEdit}
+              />
+              <RateField
+                label="Transport fee — van or trailer"
+                value={draft.disposalTransportAud}
+                onChange={setNum('disposalTransportAud')}
+                disabled={!canEdit}
+                hint="Charged on top of the load, on every disposal."
+              />
+              <RateField
+                label="Transport fee — larger load"
+                value={draft.disposalTransportLargeAud}
+                onChange={setNum('disposalTransportLargeAud')}
+                disabled={!canEdit}
+                hint="A larger load's disposal charge is measured at the end of the job."
+              />
+              <RateField
+                label="White Glove — rubbish included up to (m³)"
+                value={draft.wgDisposalThresholdM3}
+                onChange={setNum('wgDisposalThresholdM3')}
+                disabled={!canEdit}
+                step="0.5"
+                hint="Removal is in the White Glove rate below this; past it, it can be charged."
+              />
+            </FieldRow>
+          </Section>
+
+          <Divider />
+
+          <Section
+            title="Fuel levy"
+            subtitle="Transport only — never labour, storage, disposal or packaging. A quote captures whether it applied at the moment it was raised, so a levied quote stays levied after you switch this off."
+          >
+            <div className="flex items-start gap-3 rounded-lg border p-3">
+              <input
+                id="fuelLevyOn"
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 accent-rebel-accent"
+                checked={draft.fuelLevyOn}
+                onChange={(e) => setBool('fuelLevyOn')(e.target.checked)}
+                disabled={!canEdit}
+              />
+              <div>
+                <Label htmlFor="fuelLevyOn" className="text-xs font-medium cursor-pointer">
+                  Apply the fuel levy to new quotes
+                </Label>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Off while fuel is normal, on to recover a price rise. Turning it off does not
+                  strip the levy from quotes already raised.
+                </p>
+              </div>
+            </div>
+            <FieldRow>
+              <RateField
+                label="Fuel levy (%)"
+                value={draft.fuelLevyPct}
+                onChange={setNum('fuelLevyPct')}
+                disabled={!canEdit}
+                step="0.5"
+                hint="Set it ready and leave the switch off until fuel actually moves."
               />
             </FieldRow>
           </Section>
@@ -210,11 +449,12 @@ export function PricingPanel() {
           <DollarSign className="w-5 h-5 text-rebel-accent shrink-0 mt-0.5" />
           <div className="text-xs text-muted-foreground space-y-1">
             <p className="font-semibold text-foreground">How quotes are calculated</p>
-            <p>· <span className="font-semibold">Standard + Metro</span> — cubic metres × Standard metro rate.</p>
-            <p>· <span className="font-semibold">Standard + Regional</span> — Standard regional minimum.</p>
-            <p>· <span className="font-semibold">White Glove + Metro</span> — cubic metres × White Glove metro rate.</p>
-            <p>· <span className="font-semibold">White Glove + Regional</span> — White Glove regional minimum.</p>
-            <p>· <span className="font-semibold">Hourly rate</span> — max(estimated hours, minimum) × hourly rate.</p>
+            <p>· <span className="font-semibold">Standard / White Glove</span> — the delivery postcode decides the zone. Metro bills cubic metres × the per-m³ rate; regional is the flat minimum and ignores volume.</p>
+            <p>· <span className="font-semibold">Hourly rate</span> — time rounds up to the billing increment, then floors at the minimum, at the rate for the truck used.</p>
+            <p>· <span className="font-semibold">Labour</span> — crew × hours × the labourer rate, with both floors applied independently.</p>
+            <p>· <span className="font-semibold">Warehousing</span> — storage by tier and term, container unload flat per container, or warehouse labour by the hour. Each is its own service and its own invoice.</p>
+            <p>· <span className="font-semibold">Extras</span> — rubbish disposal and packaging materials tick onto the job that created them. Standard deliveries have neither; White Glove carries rubbish removal in its rate up to the threshold above.</p>
+            <p>· <span className="font-semibold">Fuel levy</span> — charged on the transport portion only, and never on labour, storage, disposal or packaging.</p>
             <p>· GST is added on top of the subtotal at the percentage above.</p>
             <p>· A specific customer can override the metro per-cube and the hourly rate from their customer page — applies to whatever type they book.</p>
           </div>

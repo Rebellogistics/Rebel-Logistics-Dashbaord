@@ -133,6 +133,42 @@ export function useUpdatePricingRates() {
           hourly_rate_aud: rates.hourlyRateAud,
           minimum_hours: rates.minimumHours,
           gst_percent: rates.gstPercent,
+
+          // V7 rate book.
+          hourly_rate_large_aud: rates.hourlyRateLargeAud,
+
+          labour_per_hour_aud: rates.labourPerHourAud,
+          labour_min_labourers: rates.labourMinLabourers,
+          labour_min_hours: rates.labourMinHours,
+
+          storage_standard_aud: rates.storageStandardAud,
+          storage_high_end_aud: rates.storageHighEndAud,
+          storage_insured_aud: rates.storageInsuredAud,
+          short_term_uplift_pct: rates.shortTermUpliftPct,
+          storage_grace_days: rates.storageGraceDays,
+
+          container_20ft_aud: rates.container20ftAud,
+          container_40ft_aud: rates.container40ftAud,
+          container_included_hours: rates.containerIncludedHours,
+
+          wh_labour_outbound_aud: rates.whLabourOutboundAud,
+          wh_labour_qc_aud: rates.whLabourQcAud,
+          wh_labour_unload_aud: rates.whLabourUnloadAud,
+          wh_labour_min_crew: rates.whLabourMinCrew,
+          wh_labour_min_hours: rates.whLabourMinHours,
+
+          disposal_van_aud: rates.disposalVanAud,
+          disposal_trailer_aud: rates.disposalTrailerAud,
+          disposal_transport_aud: rates.disposalTransportAud,
+          disposal_transport_large_aud: rates.disposalTransportLargeAud,
+
+          wg_disposal_threshold_m3: rates.wgDisposalThresholdM3,
+
+          fuel_levy_pct: rates.fuelLevyPct,
+          fuel_levy_on: rates.fuelLevyOn,
+
+          billing_increment_hours: rates.billingIncrementHours,
+
           updated_at: new Date().toISOString(),
         })
         .eq('id', 'default');
