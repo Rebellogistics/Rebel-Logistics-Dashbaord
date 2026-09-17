@@ -5,7 +5,7 @@ cycles append at the bottom of the **Phase index**. Per-phase detail
 lives in `docs/archive/phases/<phase>.md`. In-flight phases stay
 inline at the bottom of this file until they ship.
 
-_Last refreshed: 2026-09-17 (V6 P6: pricing rate-book integrity — silent fallback removed, SQL guide corrected). Prior: 2026-09-16 (V6 cycle shipped: pre-render, www canonical, review link, Hourly rate rename; items 3 / 7 / 9 closed)._
+_Last refreshed: 2026-09-18 (V7 cycle merged: the rate book the calculator models — new job types, warehousing services, extras, captured fuel levy, postcode-bound zones). Prior: 2026-09-17 (V6 P6: pricing rate-book integrity)._
 _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRANSCRIPT_20260517.md`](docs/archive/transcripts/TRANSCRIPT_20260517.md)._
 
 ---
@@ -151,11 +151,65 @@ Triggered by Yamin asking how the site compared to hcotransport.com.au and inbox
 | 3 | Review link + completion SMS + Job complete default | ✅ shipped 2026-09-16 | `ab6eae6`, `269bce8` | [`phases/v6-phase-3.md`](docs/archive/phases/v6-phase-3.md) |
 | 4 | Rename House Move → Hourly rate | ✅ shipped 2026-09-16 | `d976780`, `aee3501` | [`phases/v6-phase-4.md`](docs/archive/phases/v6-phase-4.md) |
 | 5 | Public form services → internal job types (+ Storage type) | ✅ shipped 2026-09-16 | — | [`phases/v6-phase-5.md`](docs/archive/phases/v6-phase-5.md) |
-| 6 | Pricing rate-book integrity | 🟣 done on branch 2026-09-17, not yet pushed | — | inline below |
+| 6 | Pricing rate-book integrity | ✅ shipped 2026-09-18 | `7e0fbd8` | inline below |
 
 **Search Console:** property `sc-domain:rebellogistics.com.au` verified; sitemap submitted (Success, 129 pages discovered); indexing requested on `/`, `/logistics`, `/warehousing`, `/labour`, `/areas`. Check **Indexing → Pages** around 2026-09-23 to see how many have moved across.
 
 **Competitive read (2026-09-16):** Inbox runs 29 pages + 16 keyword-targeted blog posts, segments by audience (`/designers`, `/retailers`, `/showroom`, `/residential`), publishes pricing guidelines and markets a client portal. Hunter & Co. is 2 pages, Sydney/Brisbane, competing on prestige not search. Rebel's structured data and 121 suburb pages already beat both — the gap is audience pages, reviews and published content.
+
+### V7 — the corrected rate book (merged 2026-09-18)
+
+Yamin's read: the live rate structure was wrong, which is why he built a
+calculator first. The **Rebel Rate Sandbox**
+(https://claude.ai/code/artifact/ca1fe366-85dd-41af-84b3-139040caa57a, private)
+is where the model was settled; this cycle is that model in the dashboard.
+`docs/rate-sandbox.html` is a snapshot of it — the artifact is the live copy.
+
+| Phase | Name | Status | Commit | Detail |
+|---|---|---|---|---|
+| 1 | Rate book schema + types (25 rate columns, 16 job columns, `Labour` type) | ✅ applied 2026-09-17 | `cc31bb3`, `1ac6351` | inline |
+| 2a | Metro postcode list becomes editable data | ✅ applied 2026-09-17 | `84744b7` | inline |
+| 2b | Public quote form classifies its own postcode | ✅ applied 2026-09-17 | `9cab886` | inline |
+| 2c | Pricing engine `priceJob()` | ✅ 2026-09-17 | `2355abe` | `src/lib/jobPricing.ts` |
+| 3 | Settings → Pricing rebuilt for all 30 figures | ✅ 2026-09-17 | `33847af`, `4b9584c` | inline |
+| 4 | Quote dialog: types, services, extras, levy override | ✅ 2026-09-17 | `12850b5`, `6e364d5`, `d2db418` | inline |
+| 5 | Job dialog: prices and edits the model, without repricing history | ✅ 2026-09-17 | `270854a`, `2e8d60b` | inline |
+| 6 | Container multi-invoice | ✅ applied 2026-09-18 | `32ce96b`, `d715b08` | inline |
+
+**The model.** Standard $120/m³ metro · $480 regional. White Glove $180/m³ ·
+$480 regional. Hourly $180 standard truck / $200 large, 3 h minimum. Labour
+$60/labourer/hour, 2 pax and 3 h minimums. Warehousing splits into three
+services: storage ($25 / $40 / $50 per m³/month by tier, +20% short term, 5-day
+grace), container unload ($550 / $800 flat, covering 2 h), and labour work (no
+crew or hours floor). Rubbish disposal and packaging are **extras on the job
+that created them, never job types**. Fuel levy 10%, **currently off**,
+transport only.
+
+**Two rules that are easy to undo by accident:**
+- **The postcode is binding.** It sets a job's zone with no override, so
+  `public.metro_postcodes` (Settings → Pricing) is the only lever for service
+  area. It is anon-readable so the public form classifies identically;
+  `pricing_rates` stays authenticated-only.
+- **A quote captures its levy.** `jobs.fuel_levy_pct_applied` is frozen at
+  quote time and never re-read, so switching the rate book's levy later cannot
+  restate what a customer was already quoted. Opening an old job does not
+  reprice it — the recompute waits until a pricing input is actually edited.
+
+**Guards.** `npx tsx scripts/check-pricing.ts` — 23 cases against the
+calculator's own figures. `npx tsx scripts/check-parity.ts` — 17 controls, each
+asserting it exists in the engine, the rate book and both dialogs. The parity
+check exists because two controls shipped missing and only Yamin's screenshots
+caught them; it has since caught a third before he did.
+
+**What's left**
+- **Pinned:** the New Quote dialog has grown tall enough that the breakdown
+  sits below the fold — on a Storage quote the total needs scrolling to.
+  Revisit the layout now the model has stopped moving.
+- **Untested against real data:** there are no container unloads in the
+  database, so the link, the panel, the invoice split and the book-out button
+  are verified only at code level.
+- **Open pricing decision:** metro stays $120. The calculator proposes $100
+  under the corrected structure; Yamin has not applied it.
 
 #### V6 P6 — Pricing rate-book integrity (in-flight, detail inline until pushed)
 
