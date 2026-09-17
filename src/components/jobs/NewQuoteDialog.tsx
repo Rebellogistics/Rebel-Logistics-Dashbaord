@@ -21,6 +21,7 @@ import type { Customer } from '@/lib/types';
 import { isNearDuplicate } from '@/lib/utils';
 import {
   Job,
+  FuelLevyMode,
   JobLocation,
   JobType,
   StorageRecord,
@@ -160,7 +161,13 @@ const initial = {
   whLabourType: 'outbound' as 'outbound' | 'qc' | 'unload',
   legsHours: '',
 
+  // How this quote treats the fuel levy. 'rate_book' follows the switch as
+  // it stands now; the other two are the manual override for a job quoted in
+  // one month and carried out in another.
+  fuelLevyMode: 'rate_book' as FuelLevyMode,
+
   // Extras tick onto the job that created them.
+  extraLabourOn: false,
   disposalOn: false,
   disposalLoad: 'van' as DisposalLoad,
   disposalAmount: '',
@@ -385,6 +392,8 @@ export function NewQuoteDialog({
       containerSize: form.containerSize,
       whLabourType: form.whLabourType,
       legsHours: parseFloat(form.legsHours) || 0,
+      extraLabourOn: form.extraLabourOn,
+      fuelLevyMode: form.fuelLevyMode,
       disposalLoad: form.disposalOn ? form.disposalLoad : undefined,
       disposalAmount: parseFloat(form.disposalAmount) || 0,
       packagingAmount: form.packagingOn ? parseFloat(form.packagingAmount) || 0 : undefined,
@@ -400,7 +409,8 @@ export function NewQuoteDialog({
   const whContainer = isWarehousing && form.warehouseService === 'container_unload';
   const whLabour = isWarehousing && form.warehouseService === 'labour_work';
   // Crew size is asked for wherever labour is actually priced.
-  const needsCrew = isLabour || whLabour;
+  const extraLabour = (whStoring || whContainer) && form.extraLabourOn;
+  const needsCrew = isLabour || whLabour || extraLabour;
   const isDelivery = form.type === 'Standard' || form.type === 'White Glove';
   const canDispose = !!rates && disposalAllowed({
     type: form.type,
@@ -461,7 +471,7 @@ export function NewQuoteDialog({
       // Frozen at quote time. The rate book's switch can move afterwards;
       // this job keeps what it was quoted at.
       fuelLevyPctApplied: breakdown.levyPct,
-      fuelLevyMode: 'rate_book' as const,
+      fuelLevyMode: form.fuelLevyMode,
       gstAmount: breakdown.gst,
       location: isHouseMove ? undefined : (zone ?? undefined),
       cubicMetres: isHouseMove
@@ -479,7 +489,7 @@ export function NewQuoteDialog({
       storageTerm: whStoring ? form.storageTerm : undefined,
       storageDays: whStoring ? parseFloat(form.storageDays) || 0 : undefined,
       containerSize: whContainer ? form.containerSize : undefined,
-      whLabourType: whLabour ? form.whLabourType : undefined,
+      whLabourType: whLabour || extraLabour ? form.whLabourType : undefined,
       legsHours: (whStoring || whContainer) && form.legsHours
         ? parseFloat(form.legsHours) || 0
         : undefined,
@@ -923,8 +933,11 @@ export function NewQuoteDialog({
             </Field>
           )}
 
-          {whLabour && (
-            <Field label="Work" hint="Each carries its own rate, and names itself on the invoice line.">
+          {(whLabour || extraLabour) && (
+            <Field
+              label="Work"
+              hint="Each carries its own rate, and names itself on the invoice line — so a requested quality check never reads as unload overrun."
+            >
               <ToggleGroup
                 options={[
                   { value: 'outbound', label: 'Outbound' },
@@ -989,10 +1002,47 @@ export function NewQuoteDialog({
             </Field>
           )}
 
-          {(canDispose || canPackage || form.type === 'White Glove') && (
+          {(isDelivery || isHouseMove || (parseFloat(form.legsHours) || 0) > 0) && rates && (
+            <Field
+              label="Fuel levy on this quote"
+              hint={
+                rates.fuelLevyOn
+                  ? `The rate book has it on at ${rates.fuelLevyPct}%. Whatever is set here is frozen onto the quote — switching the rate book later will not restate it.`
+                  : `The rate book has it off. Add it by hand for a job being carried out now that was quoted in a levy-off month.`
+              }
+            >
+              <ToggleGroup
+                options={[
+                  { value: 'rate_book', label: 'As quoted' },
+                  { value: 'on', label: 'Add' },
+                  { value: 'off', label: 'Remove' },
+                ]}
+                value={form.fuelLevyMode}
+                onChange={(v) => update('fuelLevyMode', v as FuelLevyMode)}
+              />
+            </Field>
+          )}
+
+          {(canDispose || canPackage || whStoring || whContainer || form.type === 'White Glove') && (
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground font-medium">Extras</Label>
               <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+                {(whStoring || whContainer) && (
+                  <label className="flex items-center gap-2 text-xs cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="h-3.5 w-3.5 accent-rebel-accent"
+                      checked={form.extraLabourOn}
+                      onChange={(e) => update('extraLabourOn', e.target.checked)}
+                    />
+                    Additional labour
+                    {whContainer && rates && (
+                      <span className="text-muted-foreground">
+                        — for time beyond the {rates.containerIncludedHours} h included
+                      </span>
+                    )}
+                  </label>
+                )}
                 {canDispose && (
                   <>
                     <label className="flex items-center gap-2 text-xs cursor-pointer">

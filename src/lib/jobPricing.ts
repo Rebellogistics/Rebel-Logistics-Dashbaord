@@ -75,6 +75,13 @@ export interface JobPricingInput {
   containerSize?: '20 ft' | '40 ft';
   whLabourType?: 'outbound' | 'qc' | 'unload';
   legsHours?: number;
+  /**
+   * Crew work billed onto a storage or container-unload job rather than
+   * quoted as its own labour-work job. This is how time beyond the
+   * container's included hours gets onto the same invoice, and how a
+   * client-requested quality check rides along with the unload.
+   */
+  extraLabourOn?: boolean;
 
   /** Extras. */
   disposalLoad?: DisposalLoad;
@@ -242,6 +249,31 @@ export function priceJob(input: JobPricingInput): JobPrice {
           `${r.storageGraceDays} d grace off ${input.storageDays || 0} d` +
           (term === 'Short term' ? `, short-term uplift +${r.shortTermUpliftPct}%` : ''),
         amount: round2(m3 * rate * months),
+        levied: false,
+      });
+    }
+
+    // Crew work on top of storage or an unload. Labour work is already
+    // labour, so it never carries this.
+    if (service !== 'labour_work' && input.extraLabourOn) {
+      const which = input.whLabourType ?? 'unload';
+      const rate = whLabourRate(r, which);
+      const crew = Math.max(input.labourers || 0, r.whLabourMinCrew);
+      const hrs = Math.max(billableHours(input.estimatedHours, inc), r.whLabourMinHours);
+      // Extra time on an unload and a requested quality check are different
+      // services at the same rate — the invoice line has to say which.
+      const onContainer = service === 'container_unload';
+      const overrun = onContainer && which === 'unload';
+      lines.push({
+        label: WH_LABOUR_LABEL[which],
+        amount: round2(crew * hrs * rate),
+        note:
+          `${crew} pax × ${hrs} h × $${rate} — ` +
+          (overrun
+            ? `beyond the ${r.containerIncludedHours} h included`
+            : onContainer
+              ? 'requested on top of the unload'
+              : 'on the stored stock'),
         levied: false,
       });
     }
