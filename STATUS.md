@@ -66,6 +66,8 @@ _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRA
     - **Stale WordPress URLs: gone.** `?p=1` and `?cat=1` now show *Temporarily removed* in Search Console. `?author=1` could not be submitted — Google rejects removal requests for URLs it no longer indexes, and a `site:` search confirms all three are out of the index entirely, with no "Welcome to WordPress" text anywhere. Done by outcome rather than by action.
     - **Kennards "Located in": not fixable from the profile.** The Location tab holds only Business location, the map and Service area — there is no "Located in" field, and the overflow menu offers only Help and support / Send feedback. It is a Google inference from the address coordinates. The only route left is a Google Business Profile support request. **Not raised** — contacting support on Yamin's behalf needs his say-so.
 
+17. **Kennards "Located in" — pinned to October 2026.** The Business Profile shows *Located in: Kennards Self Storage Flemington*. It is a Google inference from the address coordinates, not a profile field: the Location tab has only Business location, map and Service area, and the overflow menu offers only Help and support / Send feedback. The only route is a Google Business Profile support request, which Yamin asked to defer to next month (decided 2026-09-18). Claude to draft it when picked up; Yamin sends it. Cosmetic — no ranking impact, and the label is arguably accurate.
+
 ### Deferred (not blocking)
 
 **V4-era:**
