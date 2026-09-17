@@ -10,8 +10,47 @@ export const DEFAULT_RATES: PricingRates = {
   hourlyRateAud: 180,
   minimumHours: 3,
   gstPercent: 10,
-};
 
+  // V7. These mirror the column defaults in
+  // 20260917000001_v7_phase1_rate_book_v2.sql — keep the two in step.
+  hourlyRateLargeAud: 200,
+
+  labourPerHourAud: 60,
+  labourMinLabourers: 2,
+  labourMinHours: 3,
+
+  storageStandardAud: 25,
+  storageHighEndAud: 40,
+  storageInsuredAud: 50,
+  shortTermUpliftPct: 20,
+  storageGraceDays: 5,
+
+  container20ftAud: 550,
+  container40ftAud: 800,
+  containerIncludedHours: 2,
+
+  whLabourOutboundAud: 60,
+  whLabourQcAud: 60,
+  whLabourUnloadAud: 60,
+  // Warehouse labour deliberately has no floor: a single labourer for half
+  // an hour bills half an hour.
+  whLabourMinCrew: 0,
+  whLabourMinHours: 0,
+
+  disposalVanAud: 190,
+  disposalTrailerAud: 290,
+  disposalTransportAud: 150,
+  disposalTransportLargeAud: 220,
+
+  wgDisposalThresholdM3: 10,
+
+  // Off until fuel actually moves — see jobs.fuel_levy_mode for how a quote
+  // captures this rather than re-reading it.
+  fuelLevyPct: 10,
+  fuelLevyOn: false,
+
+  billingIncrementHours: 0.5,
+};
 export interface QuoteInput {
   type: JobType;
   location?: JobLocation;

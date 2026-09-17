@@ -35,6 +35,7 @@ import { IntegrationsSection } from './IntegrationsSection';
 import { BackupExportSection } from './BackupExportSection';
 import { PricingPanel } from './PricingPanel';
 import { ServiceCatalogSection } from './ServiceCatalogSection';
+import { MetroPostcodesSection } from './MetroPostcodesSection';
 import { DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -119,6 +120,7 @@ export function SettingsView() {
         <div className="space-y-4">
           <PricingPanel />
           <ServiceCatalogSection />
+          <MetroPostcodesSection />
         </div>
       ) : section === 'sms' ? (
         <SmsTemplatesSection />

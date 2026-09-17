@@ -197,6 +197,22 @@ export type Database = {
       }
       jobs: {
         Row: {
+          container_job_id: string | null
+          container_size: string | null
+          disposal_amount: number | null
+          disposal_load: string | null
+          disposal_transport_amount: number | null
+          fuel_levy_pct_applied: number | null
+          labourers: number | null
+          legs_hours: number | null
+          packaging_amount: number | null
+          storage_days: number | null
+          storage_term: string | null
+          storage_tier: string | null
+          truck_size: string | null
+          warehouse_service: string | null
+          wh_labour_type: string | null
+          fuel_levy_mode: string
           assigned_truck: string | null
           completed_at: string | null
           completed_by_driver_id: string | null
@@ -245,6 +261,22 @@ export type Database = {
           valid_until: string | null
         }
         Insert: {
+          container_job_id?: string | null
+          container_size?: string | null
+          disposal_amount?: number | null
+          disposal_load?: string | null
+          disposal_transport_amount?: number | null
+          fuel_levy_pct_applied?: number | null
+          labourers?: number | null
+          legs_hours?: number | null
+          packaging_amount?: number | null
+          storage_days?: number | null
+          storage_term?: string | null
+          storage_tier?: string | null
+          truck_size?: string | null
+          warehouse_service?: string | null
+          wh_labour_type?: string | null
+          fuel_levy_mode?: string
           assigned_truck?: string | null
           completed_at?: string | null
           completed_by_driver_id?: string | null
@@ -293,6 +325,22 @@ export type Database = {
           valid_until?: string | null
         }
         Update: {
+          container_job_id?: string | null
+          container_size?: string | null
+          disposal_amount?: number | null
+          disposal_load?: string | null
+          disposal_transport_amount?: number | null
+          fuel_levy_pct_applied?: number | null
+          labourers?: number | null
+          legs_hours?: number | null
+          packaging_amount?: number | null
+          storage_days?: number | null
+          storage_term?: string | null
+          storage_tier?: string | null
+          truck_size?: string | null
+          warehouse_service?: string | null
+          wh_labour_type?: string | null
+          fuel_levy_mode?: string
           assigned_truck?: string | null
           completed_at?: string | null
           completed_by_driver_id?: string | null
@@ -382,6 +430,31 @@ export type Database = {
       }
       pricing_rates: {
         Row: {
+          billing_increment_hours: number
+          container_20ft_aud: number
+          container_40ft_aud: number
+          container_included_hours: number
+          disposal_trailer_aud: number
+          disposal_transport_aud: number
+          disposal_transport_large_aud: number
+          disposal_van_aud: number
+          fuel_levy_on: boolean
+          fuel_levy_pct: number
+          hourly_rate_large_aud: number
+          labour_min_hours: number
+          labour_min_labourers: number
+          labour_per_hour_aud: number
+          short_term_uplift_pct: number
+          storage_grace_days: number
+          storage_high_end_aud: number
+          storage_insured_aud: number
+          storage_standard_aud: number
+          wg_disposal_threshold_m3: number
+          wh_labour_min_crew: number
+          wh_labour_min_hours: number
+          wh_labour_outbound_aud: number
+          wh_labour_qc_aud: number
+          wh_labour_unload_aud: number
           gst_percent: number
           hourly_rate_aud: number
           id: string
@@ -394,6 +467,31 @@ export type Database = {
           wg_regional_minimum_aud: number
         }
         Insert: {
+          billing_increment_hours?: number
+          container_20ft_aud?: number
+          container_40ft_aud?: number
+          container_included_hours?: number
+          disposal_trailer_aud?: number
+          disposal_transport_aud?: number
+          disposal_transport_large_aud?: number
+          disposal_van_aud?: number
+          fuel_levy_on?: boolean
+          fuel_levy_pct?: number
+          hourly_rate_large_aud?: number
+          labour_min_hours?: number
+          labour_min_labourers?: number
+          labour_per_hour_aud?: number
+          short_term_uplift_pct?: number
+          storage_grace_days?: number
+          storage_high_end_aud?: number
+          storage_insured_aud?: number
+          storage_standard_aud?: number
+          wg_disposal_threshold_m3?: number
+          wh_labour_min_crew?: number
+          wh_labour_min_hours?: number
+          wh_labour_outbound_aud?: number
+          wh_labour_qc_aud?: number
+          wh_labour_unload_aud?: number
           gst_percent?: number
           hourly_rate_aud?: number
           id?: string
@@ -406,6 +504,31 @@ export type Database = {
           wg_regional_minimum_aud?: number
         }
         Update: {
+          billing_increment_hours?: number
+          container_20ft_aud?: number
+          container_40ft_aud?: number
+          container_included_hours?: number
+          disposal_trailer_aud?: number
+          disposal_transport_aud?: number
+          disposal_transport_large_aud?: number
+          disposal_van_aud?: number
+          fuel_levy_on?: boolean
+          fuel_levy_pct?: number
+          hourly_rate_large_aud?: number
+          labour_min_hours?: number
+          labour_min_labourers?: number
+          labour_per_hour_aud?: number
+          short_term_uplift_pct?: number
+          storage_grace_days?: number
+          storage_high_end_aud?: number
+          storage_insured_aud?: number
+          storage_standard_aud?: number
+          wg_disposal_threshold_m3?: number
+          wh_labour_min_crew?: number
+          wh_labour_min_hours?: number
+          wh_labour_outbound_aud?: number
+          wh_labour_qc_aud?: number
+          wh_labour_unload_aud?: number
           gst_percent?: number
           hourly_rate_aud?: number
           id?: string
@@ -449,6 +572,27 @@ export type Database = {
           phone?: string | null
           role?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      metro_postcodes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          note: string | null
+          postcode: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          note?: string | null
+          postcode: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          note?: string | null
+          postcode?: number
         }
         Relationships: []
       }

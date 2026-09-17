@@ -8,6 +8,16 @@ import type { JobLocation } from './types';
  * is Regional, which swaps per-cubic-metre pricing for the flat regional
  * minimum — so getting it wrong misprices the job in one direction or the other.
  *
+ * V7 NOTE — this is no longer the source of truth for the dashboard. The list
+ * moved into `public.metro_postcodes` (migration 20260917000002) so suburbs can
+ * be moved between metro and regional without a code change: read it with
+ * `useMetroPostcodes()`. This constant remains as the seed for that table and
+ * as the fallback if that read fails. The public LeadForm reads the table too
+ * (it is anon-readable, since the list carries no rates), so the dashboard and
+ * the website now classify identically. Keep that in mind before editing: a
+ * change here moves new environments and the fallback path only, NOT either
+ * live surface — edit the list in Settings → Pricing instead.
+ *
  * The list deliberately runs further out than "metro" intuitively suggests:
  * Kangaroo Ground (3097), Cottles Bridge (3099), Berwick (3806), Langwarrin
  * (3910) and the Cranbourne group (3975-3978) are all Metro under it. Judge by
@@ -46,9 +56,18 @@ export function extractPostcode(address: string | null | undefined): number | nu
   return Number(matches[matches.length - 1]);
 }
 
-/** Metro when the postcode is on Rebel's list, Regional otherwise. */
-export function locationForPostcode(postcode: number): JobLocation {
-  return MELBOURNE_METRO_POSTCODES.has(postcode) ? 'Metro' : 'Regional';
+/**
+ * Metro when the postcode is on Rebel's list, Regional otherwise.
+ *
+ * Pass the live list from `useMetroPostcodes()` wherever one is available;
+ * it falls back to the compiled-in constant for callers that cannot read the
+ * table (the public LeadForm) or that run outside React.
+ */
+export function locationForPostcode(
+  postcode: number,
+  metro: ReadonlySet<number> = MELBOURNE_METRO_POSTCODES,
+): JobLocation {
+  return metro.has(postcode) ? 'Metro' : 'Regional';
 }
 
 /**
@@ -57,7 +76,10 @@ export function locationForPostcode(postcode: number): JobLocation {
  * Null means "no opinion" — callers should leave the manual selection alone
  * rather than guessing from a suburb name.
  */
-export function locationForAddress(address: string | null | undefined): JobLocation | null {
+export function locationForAddress(
+  address: string | null | undefined,
+  metro: ReadonlySet<number> = MELBOURNE_METRO_POSTCODES,
+): JobLocation | null {
   const postcode = extractPostcode(address);
-  return postcode === null ? null : locationForPostcode(postcode);
+  return postcode === null ? null : locationForPostcode(postcode, metro);
 }

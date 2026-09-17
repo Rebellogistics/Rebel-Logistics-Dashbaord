@@ -10,8 +10,17 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
-import { ZoneHint } from '@/components/ui/zone-hint';
-import type { Job, JobLocation, JobType } from '@/lib/types';
+import type {
+  Job,
+  JobLocation,
+  JobType,
+  DisposalLoad,
+  FuelLevyMode,
+  StorageTerm,
+  StorageTier,
+  TruckSize,
+  WarehouseService,
+} from '@/lib/types';
 import {
   MapPin,
   Truck,
@@ -58,7 +67,12 @@ import { useCustomers, useUpdateJob } from '@/hooks/useSupabaseData';
 import { useJobHistory, useAppendJobHistory } from '@/hooks/useJobHistory';
 import { usePricingRates } from '@/hooks/usePricingRates';
 import { useRepeatCustomerLookup } from '@/hooks/useRepeatCustomer';
-import { calculateQuote, formatAud } from '@/lib/pricing';
+import { formatAud } from '@/lib/pricing';
+import { priceJob, disposalAllowed, packagingAllowed } from '@/lib/jobPricing';
+import { ContainerJobsPanel } from './ContainerJobsPanel';
+import { useJobs } from '@/hooks/useSupabaseData';
+import { extractPostcode, locationForPostcode } from '@/lib/metroPostcodes';
+import { useMetroPostcodes } from '@/hooks/useMetroPostcodes';
 import { customerDisplay } from '@/lib/jobDisplay';
 import { exportJobProofZip, jobZipName, triggerDownload } from '@/lib/export';
 import { toast } from 'sonner';
@@ -101,6 +115,25 @@ function buildDraftFromJob(job: Job) {
     estimatedHours: job.hoursEstimated != null ? String(job.hoursEstimated) : '',
     fee: job.fee != null ? job.fee.toFixed(2) : '',
     priceIsManual: job.priceIsManual ?? false,
+
+    // V7 pricing inputs, so they can be edited rather than only created.
+    containerJobId: job.containerJobId ?? '',
+    truckSize: (job.truckSize ?? 'standard') as TruckSize,
+    labourers: job.labourers != null ? String(job.labourers) : '',
+    warehouseService: (job.warehouseService ?? 'storage') as WarehouseService,
+    storageTier: (job.storageTier ?? 'Standard') as StorageTier,
+    storageTerm: (job.storageTerm ?? 'Long term') as StorageTerm,
+    storageDays: job.storageDays != null ? String(job.storageDays) : '',
+    containerSize: (job.containerSize ?? '20 ft') as '20 ft' | '40 ft',
+    whLabourType: (job.whLabourType ?? 'outbound') as 'outbound' | 'qc' | 'unload',
+    legsHours: job.legsHours != null ? String(job.legsHours) : '',
+    extraLabourOn: job.whLabourType != null && job.warehouseService !== 'labour_work',
+    disposalOn: job.disposalLoad != null,
+    disposalLoad: (job.disposalLoad ?? 'van') as DisposalLoad,
+    disposalAmount: job.disposalAmount != null ? String(job.disposalAmount) : '',
+    packagingOn: job.packagingAmount != null,
+    packagingAmount: job.packagingAmount != null ? String(job.packagingAmount) : '',
+    fuelLevyMode: (job.fuelLevyMode ?? 'rate_book') as FuelLevyMode,
     notes: job.notes ?? '',
     // V5 Phase 1: tri-toggle defaults. Undefined on legacy rows that
     // pre-date the migration is treated as ON to preserve existing
@@ -111,14 +144,81 @@ function buildDraftFromJob(job: Job) {
   };
 }
 
+
+/** A row of choices, styled like the dialog's existing pill buttons. */
+function Pills<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex gap-2 flex-wrap">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          className={cn(
+            'h-9 px-3 rounded-lg border text-xs font-semibold transition-colors',
+            value === o.value
+              ? 'bg-rebel-accent border-rebel-accent text-white'
+              : 'bg-card border-input text-muted-foreground hover:bg-muted',
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Small uppercase label, as used throughout the edit form. */
+function EditLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+      {children}
+    </label>
+  );
+}
+
 export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailDialogProps) {
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
   const [signatureError, setSignatureError] = useState(false);
   const [sendSmsOpen, setSendSmsOpen] = useState(false);
   const [rebookOpen, setRebookOpen] = useState(false);
+  const [bookOutOpen, setBookOutOpen] = useState(false);
   const [assignTruckOpen, setAssignTruckOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [editing, setEditing] = useState(false);
+  const { data: metroList } = useMetroPostcodes();
+  const { data: allJobs = [] } = useJobs();
+
+  // A container unload, and whatever has been booked out of it. The link is
+  // set on the delivery, so this reads the other way round.
+  const isContainerUnload =
+    job?.type === 'Storage' && job?.warehouseService === 'container_unload';
+  const linkedToThisContainer = useMemo(
+    () => (job ? allJobs.filter((j) => j.containerJobId === job.id) : []),
+    [allJobs, job],
+  );
+  // Containers a delivery could be attached to. Yamin's first scenario: the
+  // container was unloaded and invoiced weeks ago and the client has only
+  // now said where things are going, so this is not limited to recent ones.
+  const availableContainers = useMemo(
+    () =>
+      allJobs.filter(
+        (j) =>
+          j.type === 'Storage' &&
+          j.warehouseService === 'container_unload' &&
+          j.id !== job?.id &&
+          !j.deletedAt,
+      ),
+    [allJobs, job],
+  );
   // Expanded edit draft (Phase 10): every field on the form except customerName,
   // status, and audit-trail data is editable until the job is Completed/Invoiced.
   // priceIsManual mirrors the DB column — flips to true the moment the user
@@ -139,6 +239,23 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
     estimatedHours: '',
     fee: '',
     priceIsManual: false,
+    containerJobId: '',
+    truckSize: 'standard' as TruckSize,
+    labourers: '',
+    warehouseService: 'storage' as WarehouseService,
+    storageTier: 'Standard' as StorageTier,
+    storageTerm: 'Long term' as StorageTerm,
+    storageDays: '',
+    containerSize: '20 ft' as '20 ft' | '40 ft',
+    whLabourType: 'outbound' as 'outbound' | 'qc' | 'unload',
+    legsHours: '',
+    extraLabourOn: false,
+    disposalOn: false,
+    disposalLoad: 'van' as DisposalLoad,
+    disposalAmount: '',
+    packagingOn: false,
+    packagingAmount: '',
+    fuelLevyMode: 'rate_book' as FuelLevyMode,
     notes: '',
     sendDayPrior: true,
     sendEnRoute: true,
@@ -315,29 +432,90 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
   //   2. Read-mode footer — to show Subtotal / GST / Total breakdown using
   //      the saved fee, falling back to a recompute for legacy quotes that
   //      were created before Phase 1 stored gst_amount.
+  // V7: the zone follows the delivery postcode here too. A job saved before
+  // the postcode list became binding keeps its stored location until someone
+  // edits a pricing input — see the guard on the auto-track effect below.
+  const draftPostcode = extractPostcode(draft.deliveryAddress);
+
   const draftBreakdown = useMemo(() => {
     if (!rates) return null;
-    return calculateQuote({
+    return priceJob({
       type: draft.type,
-      location: draft.location,
+      rates,
+      postcode: draftPostcode,
+      metroPostcodes: metroList,
       cubicMetres: parseFloat(draft.cubicMetres) || 0,
       estimatedHours: parseFloat(draft.estimatedHours) || 0,
-      rates,
+      truckSize: draft.truckSize,
+      labourers: parseFloat(draft.labourers) || 0,
+      warehouseService: draft.warehouseService,
+      storageTier: draft.storageTier,
+      storageTerm: draft.storageTerm,
+      storageDays: parseFloat(draft.storageDays) || 0,
+      containerSize: draft.containerSize,
+      whLabourType: draft.whLabourType,
+      legsHours: parseFloat(draft.legsHours) || 0,
+      extraLabourOn: draft.extraLabourOn,
+      disposalLoad: draft.disposalOn ? draft.disposalLoad : undefined,
+      disposalAmount: parseFloat(draft.disposalAmount) || 0,
+      packagingAmount: draft.packagingOn ? parseFloat(draft.packagingAmount) || 0 : undefined,
+      fuelLevyMode: draft.fuelLevyMode,
       overrideMetroRate: repeatInfo.overrideMetroRate,
       overrideHourlyRate: repeatInfo.overrideHourlyRate,
     });
-  }, [draft, rates, repeatInfo]);
+  }, [draft, rates, repeatInfo, draftPostcode, metroList, job]);
+
+  /**
+   * Has anyone actually touched something that changes the price?
+   *
+   * Opening a job for edit must not reprice it. These jobs were quoted under
+   * whatever rate book and rules applied at the time, and V7 moved both --
+   * the zone now comes from the postcode rather than a stored toggle, so a
+   * job whose saved location disagrees with its address would silently jump
+   * bands just from being opened. The recompute only takes over once a
+   * pricing input has genuinely been edited.
+   */
+  const pricingInputsTouched = useMemo(() => {
+    if (!job) return false;
+    const was = {
+      type: job.type ?? 'Standard',
+      cubicMetres: job.cubicMetres != null ? String(job.cubicMetres) : '',
+      estimatedHours: job.hoursEstimated != null ? String(job.hoursEstimated) : '',
+      deliveryAddress: job.deliveryAddress ?? '',
+    };
+    return (
+      draft.type !== was.type ||
+      draft.cubicMetres !== was.cubicMetres ||
+      draft.estimatedHours !== was.estimatedHours ||
+      draft.deliveryAddress !== was.deliveryAddress ||
+      draft.truckSize !== (job.truckSize ?? 'standard') ||
+      draft.labourers !== (job.labourers != null ? String(job.labourers) : '') ||
+      draft.warehouseService !== (job.warehouseService ?? 'storage') ||
+      draft.storageTier !== (job.storageTier ?? 'Standard') ||
+      draft.storageTerm !== (job.storageTerm ?? 'Long term') ||
+      draft.storageDays !== (job.storageDays != null ? String(job.storageDays) : '') ||
+      draft.containerSize !== (job.containerSize ?? '20 ft') ||
+      draft.legsHours !== (job.legsHours != null ? String(job.legsHours) : '') ||
+      draft.extraLabourOn !== (job.whLabourType != null && job.warehouseService !== 'labour_work') ||
+      draft.disposalOn !== (job.disposalLoad != null) ||
+      draft.packagingOn !== (job.packagingAmount != null) ||
+      draft.fuelLevyMode !== (job.fuelLevyMode ?? 'rate_book')
+    );
+  }, [job, draft]);
 
   // Auto-track the recomputed price when the user edits inputs and hasn't
   // manually overridden the fee. The check on `editing` keeps this from
   // running in read mode.
   useEffect(() => {
     if (!editing || !draftBreakdown || draft.priceIsManual) return;
-    const next = draftBreakdown.subtotal.toFixed(2);
+    // Only once a pricing input has actually been edited. Without this,
+    // merely opening an old job would restate its price.
+    if (!pricingInputsTouched) return;
+    const next = draftBreakdown.chargeable.toFixed(2);
     if (next !== draft.fee) {
       setDraft((prev) => ({ ...prev, fee: next }));
     }
-  }, [editing, draftBreakdown, draft.priceIsManual, draft.fee]);
+  }, [editing, draftBreakdown, draft.priceIsManual, draft.fee, pricingInputsTouched]);
 
   if (!job) return null;
 
@@ -347,8 +525,35 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
   const savedTotal = job.fee + (job.fuelLevy ?? 0) + (job.gstAmount ?? 0);
 
   const isHouseMove = draft.type === 'Hourly rate';
-  const isMetro = !isHouseMove && draft.location === 'Metro';
-  const isRegional = !isHouseMove && draft.location === 'Regional';
+  const isDeliveryType = draft.type === 'Standard' || draft.type === 'White Glove';
+  // Until a pricing input is touched, the job keeps the zone it was quoted
+  // under; after that the postcode decides, as it does on a new quote.
+  const draftZone: JobLocation | null = pricingInputsTouched
+    ? draftPostcode === null
+      ? null
+      : locationForPostcode(draftPostcode, metroList)
+    : ((job?.location as JobLocation | undefined) ?? null);
+  const isMetro = isDeliveryType && draftZone !== 'Regional';
+  const isRegional = isDeliveryType && draftZone === 'Regional';
+
+  const isWarehousing = draft.type === 'Storage';
+  const whStoring = isWarehousing && draft.warehouseService === 'storage';
+  const whContainer = isWarehousing && draft.warehouseService === 'container_unload';
+  const whLabourService = isWarehousing && draft.warehouseService === 'labour_work';
+  const needsCrewEdit =
+    draft.type === 'Labour' || whLabourService || ((whStoring || whContainer) && draft.extraLabourOn);
+  const canDisposeEdit =
+    !!rates &&
+    disposalAllowed({
+      type: draft.type,
+      rates,
+      cubicMetres: parseFloat(draft.cubicMetres) || 0,
+      warehouseService: draft.warehouseService,
+    });
+  const canPackageEdit = packagingAllowed(draft.type);
+  // The levy only matters where something on the job can carry it.
+  const levyCouldApply =
+    isDeliveryType || isHouseMove || (parseFloat(draft.legsHours) || 0) > 0;
 
   const startEdit = () => {
     setDraft(buildDraftFromJob(job));
@@ -364,7 +569,7 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
     if (!draftBreakdown) return;
     setDraft((prev) => ({
       ...prev,
-      fee: draftBreakdown.subtotal.toFixed(2),
+      fee: draftBreakdown.chargeable.toFixed(2),
       priceIsManual: false,
     }));
   };
@@ -496,8 +701,67 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
     pushChange('type', draft.type as JobType, 'type');
 
     // Location is null on Hourly rate jobs.
-    const nextLocation: JobLocation | null = isHouseMove ? null : draft.location;
+    // The zone is derived, not picked. Until a pricing input is touched this
+    // is the job's saved location, so opening and closing cannot move it.
+    const nextLocation: JobLocation | null = isDeliveryType ? draftZone : null;
     pushChange('location', nextLocation as Job['location'], 'location');
+
+    // V7 pricing inputs. Each is cleared when its job shape no longer uses
+    // it, so a job switched from a container unload to storage does not keep
+    // a stale container size on the row.
+    // The container a delivery came out of. Never set on the unload itself.
+    pushChange(
+      'containerJobId',
+      !isContainerUnload && draft.containerJobId ? draft.containerJobId : null,
+      'container',
+    );
+    pushChange('truckSize', isHouseMove ? draft.truckSize : null, 'truck');
+    pushChange(
+      'labourers',
+      needsCrewEdit && draft.labourers ? parseFloat(draft.labourers) : null,
+      'crew',
+    );
+    pushChange('warehouseService', isWarehousing ? draft.warehouseService : null, 'service');
+    pushChange('storageTier', whStoring ? draft.storageTier : null, 'storage tier');
+    pushChange('storageTerm', whStoring ? draft.storageTerm : null, 'storage term');
+    pushChange(
+      'storageDays',
+      whStoring && draft.storageDays ? parseFloat(draft.storageDays) : null,
+      'days held',
+    );
+    pushChange('containerSize', whContainer ? draft.containerSize : null, 'container size');
+    pushChange(
+      'whLabourType',
+      whLabourService || ((whStoring || whContainer) && draft.extraLabourOn)
+        ? draft.whLabourType
+        : null,
+      'warehouse work',
+    );
+    pushChange(
+      'legsHours',
+      (whStoring || whContainer) && draft.legsHours ? parseFloat(draft.legsHours) : null,
+      'pick-up & delivery hours',
+    );
+
+    // Extras save as the amounts actually priced, not as a rate to look up
+    // again, so a later rate change cannot restate this job.
+    const disposalLine = draftBreakdown?.lines.find((l) => l.label === 'Rubbish disposal');
+    const transportLine = draftBreakdown?.lines.find((l) => l.label === 'Transport fee');
+    pushChange('disposalLoad', draft.disposalOn && canDisposeEdit ? draft.disposalLoad : null, 'rubbish disposal');
+    pushChange('disposalAmount', draft.disposalOn && canDisposeEdit ? disposalLine?.amount ?? 0 : null, 'disposal charge');
+    pushChange('disposalTransportAmount', draft.disposalOn && canDisposeEdit ? transportLine?.amount ?? 0 : null, 'disposal transport');
+    pushChange(
+      'packagingAmount',
+      draft.packagingOn && canPackageEdit ? parseFloat(draft.packagingAmount) || 0 : null,
+      'packaging materials',
+    );
+
+    // The levy as this job now stands, frozen with it.
+    pushChange('fuelLevyMode', draft.fuelLevyMode, 'fuel levy');
+    if (draftBreakdown) {
+      pushChange('fuelLevy', draftBreakdown.levy, 'fuel levy amount');
+      pushChange('fuelLevyPctApplied', draftBreakdown.levyPct, 'fuel levy percent');
+    }
 
     // Cubic metres only applies to Metro Standard / White Glove.
     const nextCubicMetres: number | null = isMetro && draft.cubicMetres
@@ -536,7 +800,10 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
     // Hourly rate snapshot tracks the live rate when not manual; otherwise
     // we leave job.hourlyRate alone.
     if (isHouseMove && draftBreakdown && !draft.priceIsManual) {
-      const nextHourlyRate = draftBreakdown.hourlyRate;
+      const nextHourlyRate =
+        repeatInfo.overrideHourlyRate ??
+        (job.truckSize === 'large' ? rates?.hourlyRateLargeAud : rates?.hourlyRateAud) ??
+        0;
       if ((job.hourlyRate ?? 0) !== nextHourlyRate) {
         changes.hourlyRate = nextHourlyRate;
       }
@@ -857,6 +1124,17 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
             </DetailRow>
           </section>
 
+          {/* Read mode: the invoice split, without having to open the editor. */}
+          {isContainerUnload && job && (
+            <section className="px-4 pb-4">
+              <ContainerJobsPanel
+                      container={job}
+                      linked={linkedToThisContainer}
+                      onAddJob={() => setBookOutOpen(true)}
+                    />
+            </section>
+          )}
+
           {/* Edit-only: type / location / cubes-or-hours selectors. Mirrors
               the New Quote dialog's morphing form so the price recompute
               logic stays consistent. */}
@@ -896,34 +1174,40 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                   </select>
                 </div>
 
-                {!isHouseMove && (
+                {isDeliveryType && (
                   <div className="space-y-1">
                     <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                      Location
+                      Zone
                     </label>
-                    <div className="flex gap-2">
-                      {(['Metro', 'Regional'] as JobLocation[]).map((loc) => (
-                        <button
-                          key={loc}
-                          type="button"
-                          onClick={() => setDraft((d) => ({ ...d, location: loc }))}
-                          className={cn(
-                            'flex-1 h-9 rounded-lg border text-xs font-semibold transition-colors',
-                            draft.location === loc
-                              ? 'bg-rebel-accent border-rebel-accent text-white'
-                              : 'bg-card border-input text-muted-foreground hover:bg-muted',
-                          )}
-                        >
-                          {loc}
-                        </button>
-                      ))}
+                    <div
+                      className={cn(
+                        'rounded-lg border px-3 py-2 text-xs',
+                        draftZone === 'Metro'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                          : draftZone === 'Regional'
+                            ? 'border-input bg-muted text-foreground'
+                            : 'border-amber-200 bg-amber-50 text-amber-900',
+                      )}
+                    >
+                      {!pricingInputsTouched ? (
+                        <>
+                          <span className="font-semibold">{draftZone ?? 'Not set'}</span> — as this
+                          job was quoted. Edit the address, type or volume and the postcode takes
+                          over.
+                        </>
+                      ) : draftZone === null ? (
+                        <>
+                          No postcode in the delivery address — priced as{' '}
+                          <span className="font-semibold">Metro</span>, per m³.
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-mono font-semibold">{draftPostcode}</span>{' '}
+                          {draftZone === 'Metro' ? 'is on' : 'is not on'} the metro list →{' '}
+                          <span className="font-semibold">{draftZone}</span>
+                        </>
+                      )}
                     </div>
-                    <ZoneHint
-                      address={draft.deliveryAddress}
-                      selected={draft.location}
-                      onApply={(loc) => setDraft((d) => ({ ...d, location: loc }))}
-                      className="mt-2"
-                    />
                   </div>
                 )}
 
@@ -943,6 +1227,291 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                       placeholder="e.g. 2"
                       className="h-9"
                     />
+                  </div>
+                )}
+
+                {isHouseMove && (
+                  <div className="space-y-1">
+                    <EditLabel>Truck</EditLabel>
+                    <Pills
+                      options={[
+                        { value: 'standard' as TruckSize, label: 'Standard' },
+                        { value: 'large' as TruckSize, label: 'Large' },
+                      ]}
+                      value={draft.truckSize}
+                      onChange={(v) => setDraft((d) => ({ ...d, truckSize: v }))}
+                    />
+                  </div>
+                )}
+
+                {isContainerUnload && job && (
+                  <div className="space-y-1">
+                    <EditLabel>Container</EditLabel>
+                    <ContainerJobsPanel
+                container={job}
+                linked={linkedToThisContainer}
+                onAddJob={() => setBookOutOpen(true)}
+              />
+                  </div>
+                )}
+
+                {/* Scenario 1: the unload was invoiced weeks ago and the
+                    client has only now confirmed where things are going. */}
+                {!isContainerUnload && availableContainers.length > 0 && (
+                  <div className="space-y-1">
+                    <EditLabel>Out of a container</EditLabel>
+                    <select
+                      value={draft.containerJobId}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, containerJobId: e.target.value }))
+                      }
+                      className="h-9 w-full rounded-lg border border-input bg-card px-2 text-xs"
+                    >
+                      <option value="">Not out of a container</option>
+                      {availableContainers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.containerSize ?? 'Container'} · {c.customerName}
+                          {c.date ? ` · ${c.date}` : ''}
+                          {c.quoteNumber ? ` · ${c.quoteNumber}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-muted-foreground">
+                      Groups this delivery onto one invoice with the others off that container. The
+                      unload itself always invoices separately.
+                    </p>
+                  </div>
+                )}
+
+                {isWarehousing && (
+                  <div className="space-y-1">
+                    <EditLabel>Service</EditLabel>
+                    <Pills
+                      options={[
+                        { value: 'storage' as WarehouseService, label: 'Storage' },
+                        { value: 'container_unload' as WarehouseService, label: 'Container unload' },
+                        { value: 'labour_work' as WarehouseService, label: 'Labour work' },
+                      ]}
+                      value={draft.warehouseService}
+                      onChange={(v) => setDraft((d) => ({ ...d, warehouseService: v }))}
+                    />
+                  </div>
+                )}
+
+                {whStoring && (
+                  <>
+                    <div className="space-y-1">
+                      <EditLabel>Tier</EditLabel>
+                      <Pills
+                        options={[
+                          { value: 'Standard' as StorageTier, label: 'Standard' },
+                          { value: 'High end' as StorageTier, label: 'High end' },
+                          { value: 'Insurance added' as StorageTier, label: 'Insured' },
+                        ]}
+                        value={draft.storageTier}
+                        onChange={(v) => setDraft((d) => ({ ...d, storageTier: v }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <EditLabel>Term</EditLabel>
+                      <Pills
+                        options={[
+                          { value: 'Long term' as StorageTerm, label: 'Long term' },
+                          { value: 'Short term' as StorageTerm, label: 'Short term' },
+                        ]}
+                        value={draft.storageTerm}
+                        onChange={(v) => setDraft((d) => ({ ...d, storageTerm: v }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <EditLabel>Days held</EditLabel>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        value={draft.storageDays}
+                        onChange={(e) =>
+                          setDraft((d) => ({ ...d, storageDays: sanitiseDecimal(e.target.value) }))
+                        }
+                        className="h-9"
+                        placeholder="e.g. 45"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {whContainer && (
+                  <div className="space-y-1">
+                    <EditLabel>Container size</EditLabel>
+                    <Pills
+                      options={[
+                        { value: '20 ft' as const, label: '20 ft' },
+                        { value: '40 ft' as const, label: '40 ft' },
+                      ]}
+                      value={draft.containerSize}
+                      onChange={(v) => setDraft((d) => ({ ...d, containerSize: v }))}
+                    />
+                  </div>
+                )}
+
+                {(whLabourService || draft.extraLabourOn) && (whLabourService || whStoring || whContainer) && (
+                  <div className="space-y-1">
+                    <EditLabel>Work</EditLabel>
+                    <Pills
+                      options={[
+                        { value: 'outbound' as const, label: 'Outbound' },
+                        { value: 'qc' as const, label: 'Quality check' },
+                        { value: 'unload' as const, label: 'Extra unload' },
+                      ]}
+                      value={draft.whLabourType}
+                      onChange={(v) => setDraft((d) => ({ ...d, whLabourType: v }))}
+                    />
+                  </div>
+                )}
+
+                {needsCrewEdit && (
+                  <div className="space-y-1">
+                    <EditLabel>Crew on site</EditLabel>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      value={draft.labourers}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, labourers: sanitiseDecimal(e.target.value) }))
+                      }
+                      className="h-9"
+                      placeholder="pax"
+                    />
+                  </div>
+                )}
+
+                {(whStoring || whContainer) && (
+                  <div className="space-y-1">
+                    <EditLabel>Pick-up &amp; delivery (hours)</EditLabel>
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      value={draft.legsHours}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, legsHours: sanitiseDecimal(e.target.value) }))
+                      }
+                      className="h-9"
+                      placeholder="Blank if we are not collecting"
+                    />
+                  </div>
+                )}
+
+                {(canDisposeEdit || canPackageEdit || whStoring || whContainer) && (
+                  <div className="space-y-1">
+                    <EditLabel>Extras</EditLabel>
+                    <div className="space-y-2 rounded-lg border border-input bg-muted/30 p-3">
+                      {(whStoring || whContainer) && (
+                        <label className="flex items-center gap-2 text-xs cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="h-3.5 w-3.5 accent-rebel-accent"
+                            checked={draft.extraLabourOn}
+                            onChange={(e) =>
+                              setDraft((d) => ({ ...d, extraLabourOn: e.target.checked }))
+                            }
+                          />
+                          Additional labour
+                        </label>
+                      )}
+                      {canDisposeEdit && (
+                        <>
+                          <label className="flex items-center gap-2 text-xs cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="h-3.5 w-3.5 accent-rebel-accent"
+                              checked={draft.disposalOn}
+                              onChange={(e) =>
+                                setDraft((d) => ({ ...d, disposalOn: e.target.checked }))
+                              }
+                            />
+                            Rubbish disposal
+                          </label>
+                          {draft.disposalOn && (
+                            <div className="pl-5 space-y-2">
+                              <Pills
+                                options={[
+                                  { value: 'van' as DisposalLoad, label: 'Van load' },
+                                  { value: 'trailer' as DisposalLoad, label: 'Trailer load' },
+                                  { value: 'larger' as DisposalLoad, label: 'Larger' },
+                                ]}
+                                value={draft.disposalLoad}
+                                onChange={(v) => setDraft((d) => ({ ...d, disposalLoad: v }))}
+                              />
+                              {draft.disposalLoad === 'larger' && (
+                                <Input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={draft.disposalAmount}
+                                  onChange={(e) =>
+                                    setDraft((d) => ({
+                                      ...d,
+                                      disposalAmount: sanitiseDecimal(e.target.value),
+                                    }))
+                                  }
+                                  className="h-9"
+                                  placeholder="Measured at the end of the job"
+                                />
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {canPackageEdit && (
+                        <>
+                          <label className="flex items-center gap-2 text-xs cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="h-3.5 w-3.5 accent-rebel-accent"
+                              checked={draft.packagingOn}
+                              onChange={(e) =>
+                                setDraft((d) => ({ ...d, packagingOn: e.target.checked }))
+                              }
+                            />
+                            Packaging materials
+                          </label>
+                          {draft.packagingOn && (
+                            <div className="pl-5">
+                              <Input
+                                type="text"
+                                inputMode="decimal"
+                                value={draft.packagingAmount}
+                                onChange={(e) =>
+                                  setDraft((d) => ({
+                                    ...d,
+                                    packagingAmount: sanitiseDecimal(e.target.value),
+                                  }))
+                                }
+                                className="h-9"
+                                placeholder="What was supplied"
+                              />
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {levyCouldApply && rates && (
+                  <div className="space-y-1">
+                    <EditLabel>Fuel levy on this quote</EditLabel>
+                    <Pills
+                      options={[
+                        { value: 'rate_book' as FuelLevyMode, label: 'As quoted' },
+                        { value: 'on' as FuelLevyMode, label: 'Add' },
+                        { value: 'off' as FuelLevyMode, label: 'Remove' },
+                      ]}
+                      value={draft.fuelLevyMode}
+                      onChange={(v) => setDraft((d) => ({ ...d, fuelLevyMode: v }))}
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Frozen onto the job when saved. Changing the rate book later will not restate
+                      it.
+                    </p>
                   </div>
                 )}
 
@@ -1004,7 +1573,7 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                 {draftBreakdown && draft.priceIsManual && (
                   <div className="flex flex-col gap-1 text-right">
                     <span className="text-[10px] text-muted-foreground">
-                      Rate book: {formatAud(draftBreakdown.subtotal)}
+                      Rate book: {formatAud(draftBreakdown.chargeable)}
                     </span>
                     <Button
                       type="button"
@@ -1019,7 +1588,7 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                 )}
                 {draftBreakdown && !draft.priceIsManual && (
                   <span className="text-[10px] text-muted-foreground sm:pb-2">
-                    {draftBreakdown.explainer}
+                    {draftBreakdown.lines.map((l) => l.note).join(' · ')}
                   </span>
                 )}
               </div>
@@ -1038,7 +1607,7 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">
                     {editing && draftBreakdown
-                      ? draftBreakdown.explainer
+                      ? draftBreakdown.lines.map((l) => l.label).join(' + ')
                       : 'Subtotal'}
                   </span>
                   <span className="font-semibold">
@@ -1372,6 +1941,12 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
         onClose={() => setSendSmsOpen(false)}
         job={job}
       />
+      <NewQuoteDialog
+        open={bookOutOpen}
+        onOpenChange={setBookOutOpen}
+        prefillContainerId={bookOutOpen && job ? job.id : null}
+      />
+
       <NewQuoteDialog
         open={rebookOpen}
         onOpenChange={(open) => {

@@ -283,7 +283,13 @@ function MonthlyReview({ jobs }: { jobs: Job[] }) {
   );
 
   const revenueByType = useMemo(() => {
-    const sums: Record<JobType, number> = { Standard: 0, 'White Glove': 0, 'Hourly rate': 0, Storage: 0 };
+    const sums: Record<JobType, number> = {
+      Standard: 0,
+      'White Glove': 0,
+      'Hourly rate': 0,
+      Storage: 0,
+      Labour: 0,
+    };
     for (const job of billable) {
       sums[job.type] = (sums[job.type] ?? 0) + job.fee + (job.fuelLevy ?? 0);
     }

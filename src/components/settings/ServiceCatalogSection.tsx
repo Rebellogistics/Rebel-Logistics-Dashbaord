@@ -27,7 +27,7 @@ import { toast } from 'sonner';
  * V5 Phase 10 — service catalog editor.
  *
  * Lives next to PricingPanel in Settings → Pricing. The 4 builtins
- * (Standard / White Glove / Hourly rate / Storage) are rendered as locked rows
+ * (Standard / White Glove / Hourly rate / Labour / Storage) are rendered as locked rows
  * since the pricing calculator still hardcodes their behaviour. Custom
  * services Yamin adds become picker options on the CustomerDialog's
  * Default pricing preset (V5 P3).
@@ -74,8 +74,8 @@ export function ServiceCatalogSection() {
               </h3>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 Custom services appear in the customer pricing preset dropdown. Builtins
-                (Standard, White Glove, Hourly rate, Storage) are locked — their pricing rules live
-                in the calculator and need a code change to alter.
+                (Standard, White Glove, Hourly rate, Labour, Storage) are locked — their rates are
+                set in Pricing above; only how they are calculated needs a code change.
               </p>
             </div>
             <Button
@@ -247,7 +247,7 @@ function ServiceDialog({
           <DialogTitle>{isEditing ? `Edit ${service?.name}` : 'New service'}</DialogTitle>
           <DialogDescription>
             {isBuiltin
-              ? 'Builtin services have hardcoded pricing in the calculator. You can tweak the description, default rate, and active flag — name is locked.'
+              ? 'A builtin is priced from the rate book in Pricing above, not from this row. You can tweak the description, default rate and active flag — the name is locked.'
               : 'Custom services appear as a Default pricing preset option on the customer dialog. Set an ex-GST rate so the Pre-fill button surfaces it.'}
           </DialogDescription>
         </DialogHeader>
