@@ -20,9 +20,19 @@ import { CustomerCombobox } from '@/components/customers/CustomerCombobox';
 import { useCustomers } from '@/hooks/useSupabaseData';
 import type { Customer } from '@/lib/types';
 import { isNearDuplicate } from '@/lib/utils';
-import { Job, JobLocation, JobType, StorageRecord } from '@/lib/types';
+import {
+  Job,
+  JobLocation,
+  JobType,
+  StorageRecord,
+  DisposalLoad,
+  StorageTerm,
+  StorageTier,
+  TruckSize,
+  WarehouseService,
+} from '@/lib/types';
 import { formatAud } from '@/lib/pricing';
-import { priceJob } from '@/lib/jobPricing';
+import { priceJob, disposalAllowed, packagingAllowed } from '@/lib/jobPricing';
 import { extractPostcode, locationForPostcode } from '@/lib/metroPostcodes';
 import { useMetroPostcodes } from '@/hooks/useMetroPostcodes';
 import { sanitiseDecimal } from '@/lib/utils';
@@ -58,6 +68,7 @@ const completeDefaultFor = (type: JobType) => type === 'Standard' || type === 'W
 
 function formFromJob(job: Job): typeof initial {
   return {
+    ...initial,
     customerName: job.customerName ?? '',
     customerCompanyName: job.customerCompanyName ?? '',
     customerPhone: job.customerPhone ?? '',
@@ -85,6 +96,7 @@ function formFromJob(job: Job): typeof initial {
 // notes so the driver knows what they're loading.
 function formFromStorage(record: StorageRecord): typeof initial {
   return {
+    ...initial,
     customerName: record.customerName,
     customerCompanyName: '',
     customerPhone: '',
@@ -135,6 +147,26 @@ const initial = {
   estimatedHours: '',
   notes: '',
   validUntil: defaultValidUntil(),
+
+  // V7. Hourly work picks a truck; Labour and warehouse work pick a crew.
+  truckSize: 'standard' as TruckSize,
+  labourers: '',
+
+  // Warehousing is three services, never combined on one quote.
+  warehouseService: 'storage' as WarehouseService,
+  storageTier: 'Standard' as StorageTier,
+  storageTerm: 'Long term' as StorageTerm,
+  storageDays: '',
+  containerSize: '20 ft' as '20 ft' | '40 ft',
+  whLabourType: 'outbound' as 'outbound' | 'qc' | 'unload',
+  legsHours: '',
+
+  // Extras tick onto the job that created them.
+  disposalOn: false,
+  disposalLoad: 'van' as DisposalLoad,
+  disposalAmount: '',
+  packagingOn: false,
+  packagingAmount: '',
 };
 
 export function NewQuoteDialog({
@@ -345,16 +377,43 @@ export function NewQuoteDialog({
       metroPostcodes: metroList,
       cubicMetres: parseFloat(form.cubicMetres) || 0,
       estimatedHours: parseFloat(form.estimatedHours) || 0,
+      truckSize: form.truckSize,
+      labourers: parseFloat(form.labourers) || 0,
+      warehouseService: form.warehouseService,
+      storageTier: form.storageTier,
+      storageTerm: form.storageTerm,
+      storageDays: parseFloat(form.storageDays) || 0,
+      containerSize: form.containerSize,
+      whLabourType: form.whLabourType,
+      legsHours: parseFloat(form.legsHours) || 0,
+      disposalLoad: form.disposalOn ? form.disposalLoad : undefined,
+      disposalAmount: parseFloat(form.disposalAmount) || 0,
+      packagingAmount: form.packagingOn ? parseFloat(form.packagingAmount) || 0 : undefined,
       overrideMetroRate: repeatInfo.overrideMetroRate,
       overrideHourlyRate: repeatInfo.overrideHourlyRate,
     });
   }, [form, rates, repeatInfo, deliveryPostcode, metroList]);
 
   const isHouseMove = form.type === 'Hourly rate';
+  const isLabour = form.type === 'Labour';
+  const isWarehousing = form.type === 'Storage';
+  const whStoring = isWarehousing && form.warehouseService === 'storage';
+  const whContainer = isWarehousing && form.warehouseService === 'container_unload';
+  const whLabour = isWarehousing && form.warehouseService === 'labour_work';
+  // Crew size is asked for wherever labour is actually priced.
+  const needsCrew = isLabour || whLabour;
+  const isDelivery = form.type === 'Standard' || form.type === 'White Glove';
+  const canDispose = !!rates && disposalAllowed({
+    type: form.type,
+    rates,
+    cubicMetres: parseFloat(form.cubicMetres) || 0,
+    warehouseService: form.warehouseService,
+  });
+  const canPackage = packagingAllowed(form.type);
   // A job with no readable postcode yet prices per m³, so it needs the
   // volume field — see the note priceJob puts on the line.
-  const isMetro = !isHouseMove && zone !== 'Regional';
-  const isRegional = !isHouseMove && zone === 'Regional';
+  const isMetro = isDelivery && zone !== 'Regional';
+  const isRegional = isDelivery && zone === 'Regional';
   const usingOverride =
     (isHouseMove && repeatInfo.overrideHourlyRate != null) ||
     (isMetro && repeatInfo.overrideMetroRate != null);
@@ -368,10 +427,11 @@ export function NewQuoteDialog({
 
   const pricingValid = (() => {
     if (!breakdown) return false;
-    if (isHouseMove) return breakdown.chargeable > 0;
+    // A regional delivery is the flat minimum and needs no volume; every
+    // other type has to price to something before it can be quoted.
     if (isRegional) return true;
-    // Metro
-    return (parseFloat(form.cubicMetres) || 0) > 0;
+    if (isDelivery) return (parseFloat(form.cubicMetres) || 0) > 0;
+    return breakdown.chargeable > 0;
   })();
 
   const canSubmit = !!baseValid && pricingValid && !createJob.isPending;
@@ -411,6 +471,33 @@ export function NewQuoteDialog({
           ? parseFloat(form.cubicMetres) || 0
           : undefined,
       itemWeightKg: form.itemWeightKg ? parseFloat(form.itemWeightKg) : undefined,
+
+      // V7 inputs, stored so the quote can be reread and re-explained later.
+      truckSize: isHouseMove ? form.truckSize : undefined,
+      labourers: needsCrew ? parseFloat(form.labourers) || 0 : undefined,
+      warehouseService: isWarehousing ? form.warehouseService : undefined,
+      storageTier: whStoring ? form.storageTier : undefined,
+      storageTerm: whStoring ? form.storageTerm : undefined,
+      storageDays: whStoring ? parseFloat(form.storageDays) || 0 : undefined,
+      containerSize: whContainer ? form.containerSize : undefined,
+      whLabourType: whLabour ? form.whLabourType : undefined,
+      legsHours: (whStoring || whContainer) && form.legsHours
+        ? parseFloat(form.legsHours) || 0
+        : undefined,
+
+      // Extras are stored as resolved amounts, not as a rate to look up
+      // again, so a later rate change cannot restate a quoted job.
+      disposalLoad: form.disposalOn && canDispose ? form.disposalLoad : undefined,
+      disposalAmount: form.disposalOn && canDispose
+        ? breakdown.lines.find((l) => l.label === 'Rubbish disposal')?.amount
+        : undefined,
+      disposalTransportAmount: form.disposalOn && canDispose
+        ? breakdown.lines.find((l) => l.label === 'Transport fee')?.amount
+        : undefined,
+      packagingAmount: form.packagingOn && canPackage
+        ? parseFloat(form.packagingAmount) || 0
+        : undefined,
+
       pricingType: isHouseMove ? ('hourly' as const) : ('fixed' as const),
       hourlyRate: isHouseMove ? (repeatInfo.overrideHourlyRate ?? rates?.hourlyRateAud) : undefined,
       hoursEstimated: isHouseMove ? parseFloat(form.estimatedHours) || 0 : undefined,
@@ -616,16 +703,16 @@ export function NewQuoteDialog({
 
           <Field
             label="Job type"
-            hint="Standard = regular delivery. White Glove = careful handling / inside placement. Hourly rate = charged by the hour, typically whole-home relocations. Storage = held in the warehouse; fee set by hand."
+            hint="Standard = regular delivery. White Glove = careful handling / inside placement. Hourly rate = charged by the hour, by truck. Labour = crew time on site, no truck. Storage = warehousing: storage by tier and term, a container unload, or labour work."
           >
             <NativeSelect
               value={form.type}
               onChange={(v) => handleTypeChange(v as JobType)}
-              options={['Standard', 'White Glove', 'Hourly rate', 'Storage']}
+              options={['Standard', 'White Glove', 'Hourly rate', 'Labour', 'Storage']}
             />
           </Field>
 
-          {!isHouseMove && (
+          {isDelivery && (
             <>
               <Field label="Zone">
                 <div
@@ -729,6 +816,250 @@ export function NewQuoteDialog({
                   }}
                 />
               </Field>
+            </div>
+          )}
+
+          {isHouseMove && (
+            <Field label="Truck" hint="Which truck runs the job. Each has its own hourly rate.">
+              <ToggleGroup
+                options={[
+                  { value: 'standard', label: 'Standard' },
+                  { value: 'large', label: 'Large' },
+                ]}
+                value={form.truckSize}
+                onChange={(v) => update('truckSize', v as TruckSize)}
+              />
+            </Field>
+          )}
+
+          {isWarehousing && (
+            <Field
+              label="Service"
+              hint="Three separate services. Storage and a container unload are never combined on one quote — they are billed apart."
+            >
+              <ToggleGroup
+                options={[
+                  { value: 'storage', label: 'Storage' },
+                  { value: 'container_unload', label: 'Container unload' },
+                  { value: 'labour_work', label: 'Labour work' },
+                ]}
+                value={form.warehouseService}
+                onChange={(v) => update('warehouseService', v as WarehouseService)}
+              />
+            </Field>
+          )}
+
+          {whStoring && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Tier">
+                  <ToggleGroup
+                    options={[
+                      { value: 'Standard', label: 'Standard' },
+                      { value: 'High end', label: 'High end' },
+                      { value: 'Insurance added', label: 'Insured' },
+                    ]}
+                    value={form.storageTier}
+                    onChange={(v) => update('storageTier', v as StorageTier)}
+                  />
+                </Field>
+                <Field label="Term" hint="Short term adds the uplift on top of the tier rate.">
+                  <ToggleGroup
+                    options={[
+                      { value: 'Long term', label: 'Long term' },
+                      { value: 'Short term', label: 'Short term' },
+                    ]}
+                    value={form.storageTerm}
+                    onChange={(v) => update('storageTerm', v as StorageTerm)}
+                  />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Cubic metres (m³)" hint="Rounded up to the next whole m³.">
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={form.cubicMetres}
+                    onChange={(e) => update('cubicMetres', sanitiseDecimal(e.target.value))}
+                    placeholder="e.g. 12"
+                  />
+                </Field>
+                <Field
+                  label="Days held"
+                  hint={
+                    rates
+                      ? `First ${rates.storageGraceDays} days are free; the rest rounds up to whole months.`
+                      : undefined
+                  }
+                >
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={form.storageDays}
+                    onChange={(e) => update('storageDays', sanitiseDecimal(e.target.value))}
+                    placeholder="e.g. 45"
+                  />
+                </Field>
+              </div>
+            </>
+          )}
+
+          {whContainer && (
+            <Field
+              label="Container size"
+              hint={
+                rates
+                  ? `Flat per container, whatever the volume. Covers ${rates.containerIncludedHours} h of unload time — beyond that, add labour work as its own job.`
+                  : undefined
+              }
+            >
+              <ToggleGroup
+                options={[
+                  { value: '20 ft', label: '20 ft' },
+                  { value: '40 ft', label: '40 ft' },
+                ]}
+                value={form.containerSize}
+                onChange={(v) => update('containerSize', v as '20 ft' | '40 ft')}
+              />
+            </Field>
+          )}
+
+          {whLabour && (
+            <Field label="Work" hint="Each carries its own rate, and names itself on the invoice line.">
+              <ToggleGroup
+                options={[
+                  { value: 'outbound', label: 'Outbound' },
+                  { value: 'qc', label: 'Quality check' },
+                  { value: 'unload', label: 'Extra unload' },
+                ]}
+                value={form.whLabourType}
+                onChange={(v) => update('whLabourType', v as 'outbound' | 'qc' | 'unload')}
+              />
+            </Field>
+          )}
+
+          {needsCrew && rates && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field
+                label="Crew"
+                hint={
+                  isLabour
+                    ? `Minimum ${rates.labourMinLabourers} on a Labour job.`
+                    : 'No minimum on warehouse work — one labourer bills one.'
+                }
+              >
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={form.labourers}
+                  onChange={(e) => update('labourers', sanitiseDecimal(e.target.value))}
+                  placeholder={isLabour ? String(rates.labourMinLabourers) : '1'}
+                />
+              </Field>
+              <Field
+                label="Hours"
+                hint={
+                  isLabour
+                    ? `Minimum ${rates.labourMinHours} h, rounded up to the nearest ${rates.billingIncrementHours * 60} min.`
+                    : `No minimum. Rounded up to the nearest ${rates.billingIncrementHours * 60} min.`
+                }
+              >
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={form.estimatedHours}
+                  onChange={(e) => update('estimatedHours', sanitiseDecimal(e.target.value))}
+                  placeholder="e.g. 3"
+                />
+              </Field>
+            </div>
+          )}
+
+          {(whStoring || whContainer) && (
+            <Field
+              label="Pick-up & delivery (hours)"
+              hint="Optional. Collection and return at the truck's hourly rate, with no minimum — and the only part of a warehousing job the fuel levy touches."
+            >
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={form.legsHours}
+                onChange={(e) => update('legsHours', sanitiseDecimal(e.target.value))}
+                placeholder="Leave blank if we are not collecting"
+              />
+            </Field>
+          )}
+
+          {(canDispose || canPackage || form.type === 'White Glove') && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground font-medium">Extras</Label>
+              <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+                {canDispose && (
+                  <>
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5 accent-rebel-accent"
+                        checked={form.disposalOn}
+                        onChange={(e) => update('disposalOn', e.target.checked)}
+                      />
+                      Rubbish disposal
+                    </label>
+                    {form.disposalOn && (
+                      <div className="pl-5 space-y-2">
+                        <ToggleGroup
+                          options={[
+                            { value: 'van', label: 'Van load' },
+                            { value: 'trailer', label: 'Trailer load' },
+                            { value: 'larger', label: 'Larger' },
+                          ]}
+                          value={form.disposalLoad}
+                          onChange={(v) => update('disposalLoad', v as DisposalLoad)}
+                        />
+                        {form.disposalLoad === 'larger' && (
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            value={form.disposalAmount}
+                            onChange={(e) => update('disposalAmount', sanitiseDecimal(e.target.value))}
+                            placeholder="Disposal charge, measured at the end of the job"
+                          />
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+                {canPackage && (
+                  <>
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5 accent-rebel-accent"
+                        checked={form.packagingOn}
+                        onChange={(e) => update('packagingOn', e.target.checked)}
+                      />
+                      Packaging materials
+                    </label>
+                    {form.packagingOn && (
+                      <div className="pl-5">
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={form.packagingAmount}
+                          onChange={(e) => update('packagingAmount', sanitiseDecimal(e.target.value))}
+                          placeholder="What was supplied — entered at the end of the job"
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+                {form.type === 'White Glove' && !canDispose && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Rubbish removal is already in the White Glove rate up to{' '}
+                    {rates?.wgDisposalThresholdM3 ?? 10} m³. Past that it can be charged.
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
