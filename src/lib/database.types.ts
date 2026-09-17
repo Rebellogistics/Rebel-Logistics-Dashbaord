@@ -452,6 +452,27 @@ export type Database = {
         }
         Relationships: []
       }
+      metro_postcodes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          note: string | null
+          postcode: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          note?: string | null
+          postcode: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          note?: string | null
+          postcode?: number
+        }
+        Relationships: []
+      }
       quote_number_counter: {
         Row: {
           next_number: number
