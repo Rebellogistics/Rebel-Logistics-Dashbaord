@@ -84,6 +84,8 @@ interface JobDetailDialogProps {
   /** V5 P5: shell-level callback that opens the StorageDialog seeded
    *  from this job. Optional — nothing happens if not provided. */
   onConvertToStorage?: (job: Job) => void;
+  /** Open another job from inside this one — used by the container panel. */
+  onOpenJob?: (job: Job) => void;
 }
 
 function looksLikeSignaturePath(jobId: string, value: string | null | undefined): boolean {
@@ -185,7 +187,12 @@ function EditLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailDialogProps) {
+export function JobDetailDialog({
+  job,
+  onClose,
+  onConvertToStorage,
+  onOpenJob,
+}: JobDetailDialogProps) {
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
   const [signatureError, setSignatureError] = useState(false);
   const [sendSmsOpen, setSendSmsOpen] = useState(false);
@@ -1124,14 +1131,47 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
             </DetailRow>
           </section>
 
+          {/* The other direction: a delivery says where it came from, and
+              opens that container. Without this the link is only visible from
+              the container side, which is the side you are less often on. */}
+          {job?.containerJobId && (
+            <section className="px-4 pb-2">
+              {(() => {
+                const parent = allJobs.find((j) => j.id === job.containerJobId);
+                if (!parent) return null;
+                return (
+                  <button
+                    type="button"
+                    onClick={() => onOpenJob?.(parent)}
+                    disabled={!onOpenJob}
+                    className="w-full flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-left hover:bg-muted disabled:hover:bg-muted/30 disabled:cursor-default"
+                  >
+                    <span className="text-[11px] text-muted-foreground">
+                      Out of{' '}
+                      <span className="font-medium text-foreground">
+                        {parent.containerSize ?? 'a container'} unload
+                      </span>
+                      {parent.quoteNumber ? ` · ${parent.quoteNumber}` : ''}
+                      {parent.date ? ` · ${parent.date}` : ''}
+                    </span>
+                    {onOpenJob && (
+                      <span className="text-[11px] text-rebel-accent shrink-0">Open container</span>
+                    )}
+                  </button>
+                );
+              })()}
+            </section>
+          )}
+
           {/* Read mode: the invoice split, without having to open the editor. */}
           {isContainerUnload && job && (
             <section className="px-4 pb-4">
               <ContainerJobsPanel
-                      container={job}
-                      linked={linkedToThisContainer}
-                      onAddJob={() => setBookOutOpen(true)}
-                    />
+                container={job}
+                linked={linkedToThisContainer}
+                onAddJob={() => setBookOutOpen(true)}
+                onOpenJob={onOpenJob}
+              />
             </section>
           )}
 
@@ -1248,10 +1288,11 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                   <div className="space-y-1">
                     <EditLabel>Container</EditLabel>
                     <ContainerJobsPanel
-                container={job}
-                linked={linkedToThisContainer}
-                onAddJob={() => setBookOutOpen(true)}
-              />
+                      container={job}
+                      linked={linkedToThisContainer}
+                      onAddJob={() => setBookOutOpen(true)}
+                      onOpenJob={onOpenJob}
+                    />
                   </div>
                 )}
 

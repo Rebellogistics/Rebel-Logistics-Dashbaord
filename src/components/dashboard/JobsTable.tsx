@@ -44,11 +44,15 @@ interface JobsTableProps {
   showStatusFilters?: boolean;
 }
 
-type StatusFilter = 'all' | 'open' | JobStatus;
+// 'containers' is not a status. It is here because a container unload is
+// otherwise unfindable in this table: it looks like any other Storage job,
+// and it is the thing a delivery gets linked to.
+type StatusFilter = 'all' | 'open' | 'containers' | JobStatus;
 
 const FILTER_LABELS: { id: StatusFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'open', label: 'Open' },
+  { id: 'containers', label: 'Containers' },
   { id: 'Quote', label: 'Quotes' },
   { id: 'Accepted', label: 'Accepted' },
   { id: 'Scheduled', label: 'Scheduled' },
@@ -58,6 +62,27 @@ const FILTER_LABELS: { id: StatusFilter; label: string }[] = [
 ];
 
 const OPEN_STATUSES: JobStatus[] = ['Quote', 'Accepted', 'Scheduled', 'Notified', 'In Delivery'];
+
+/**
+ * Containers that are actually happening.
+ *
+ * Yamin's rule: a container that is only quoted does not belong in this list
+ * — nothing has been unloaded, so there is nothing to book deliveries out of.
+ * He named Accepted and Completed; the states between and after them are the
+ * same job further along, so they are included too. Quote and Declined are
+ * the ones left out.
+ */
+const CONFIRMED_STATUSES: JobStatus[] = [
+  'Accepted',
+  'Scheduled',
+  'Notified',
+  'In Delivery',
+  'Completed',
+  'Invoiced',
+];
+
+const isConfirmedContainer = (j: Job) =>
+  j.warehouseService === 'container_unload' && CONFIRMED_STATUSES.includes(j.status);
 
 export function JobsTable({
   jobs,
@@ -84,10 +109,11 @@ export function JobsTable({
   }, [customers]);
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: jobs.length, open: 0 };
+    const c: Record<string, number> = { all: jobs.length, open: 0, containers: 0 };
     for (const job of jobs) {
       c[job.status] = (c[job.status] ?? 0) + 1;
       if (OPEN_STATUSES.includes(job.status)) c.open += 1;
+      if (isConfirmedContainer(job)) c.containers += 1;
     }
     return c;
   }, [jobs]);
@@ -95,6 +121,7 @@ export function JobsTable({
   const visibleJobs = useMemo(() => {
     if (filter === 'all') return jobs;
     if (filter === 'open') return jobs.filter((j) => OPEN_STATUSES.includes(j.status));
+    if (filter === 'containers') return jobs.filter(isConfirmedContainer);
     return jobs.filter((j) => j.status === filter);
   }, [jobs, filter]);
 
@@ -410,7 +437,11 @@ export function JobsTable({
         onOpenChange={closeNewQuote}
         prefillJob={duplicateSource}
       />
-      <JobDetailDialog job={viewTarget} onClose={() => setViewTarget(null)} />
+      <JobDetailDialog
+        job={viewTarget}
+        onClose={() => setViewTarget(null)}
+        onOpenJob={(j) => setViewTarget(j)}
+      />
       <AcceptDialog job={acceptTarget} onClose={() => setAcceptTarget(null)} />
       <AssignTruckDialog job={assignTarget} onClose={() => setAssignTarget(null)} />
       <DeclineDialog job={declineTarget} onClose={() => setDeclineTarget(null)} />
