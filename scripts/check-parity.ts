@@ -134,6 +134,13 @@ const CONTROLS: Control[] = [
     needs: { engine: /levyApplies\(/, quoteDialog: /fuelLevyMode/, jobDialog: /fuelLevyMode/ },
   },
   {
+    name: 'Container multi-invoice — unload, deliveries, storage',
+    needs: {
+      jobDialog: /ContainerJobsPanel/,
+      quoteDialog: /containerJobId/,
+    },
+  },
+  {
     name: 'Zone bound to the delivery postcode',
     needs: {
       engine: /locationForPostcode/,

@@ -69,6 +69,8 @@ import { usePricingRates } from '@/hooks/usePricingRates';
 import { useRepeatCustomerLookup } from '@/hooks/useRepeatCustomer';
 import { formatAud } from '@/lib/pricing';
 import { priceJob, disposalAllowed, packagingAllowed } from '@/lib/jobPricing';
+import { ContainerJobsPanel } from './ContainerJobsPanel';
+import { useJobs } from '@/hooks/useSupabaseData';
 import { extractPostcode, locationForPostcode } from '@/lib/metroPostcodes';
 import { useMetroPostcodes } from '@/hooks/useMetroPostcodes';
 import { customerDisplay } from '@/lib/jobDisplay';
@@ -115,6 +117,7 @@ function buildDraftFromJob(job: Job) {
     priceIsManual: job.priceIsManual ?? false,
 
     // V7 pricing inputs, so they can be edited rather than only created.
+    containerJobId: job.containerJobId ?? '',
     truckSize: (job.truckSize ?? 'standard') as TruckSize,
     labourers: job.labourers != null ? String(job.labourers) : '',
     warehouseService: (job.warehouseService ?? 'storage') as WarehouseService,
@@ -191,6 +194,30 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
   const [exporting, setExporting] = useState(false);
   const [editing, setEditing] = useState(false);
   const { data: metroList } = useMetroPostcodes();
+  const { data: allJobs = [] } = useJobs();
+
+  // A container unload, and whatever has been booked out of it. The link is
+  // set on the delivery, so this reads the other way round.
+  const isContainerUnload =
+    job?.type === 'Storage' && job?.warehouseService === 'container_unload';
+  const linkedToThisContainer = useMemo(
+    () => (job ? allJobs.filter((j) => j.containerJobId === job.id) : []),
+    [allJobs, job],
+  );
+  // Containers a delivery could be attached to. Yamin's first scenario: the
+  // container was unloaded and invoiced weeks ago and the client has only
+  // now said where things are going, so this is not limited to recent ones.
+  const availableContainers = useMemo(
+    () =>
+      allJobs.filter(
+        (j) =>
+          j.type === 'Storage' &&
+          j.warehouseService === 'container_unload' &&
+          j.id !== job?.id &&
+          !j.deletedAt,
+      ),
+    [allJobs, job],
+  );
   // Expanded edit draft (Phase 10): every field on the form except customerName,
   // status, and audit-trail data is editable until the job is Completed/Invoiced.
   // priceIsManual mirrors the DB column — flips to true the moment the user
@@ -211,6 +238,7 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
     estimatedHours: '',
     fee: '',
     priceIsManual: false,
+    containerJobId: '',
     truckSize: 'standard' as TruckSize,
     labourers: '',
     warehouseService: 'storage' as WarehouseService,
@@ -680,6 +708,12 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
     // V7 pricing inputs. Each is cleared when its job shape no longer uses
     // it, so a job switched from a container unload to storage does not keep
     // a stale container size on the row.
+    // The container a delivery came out of. Never set on the unload itself.
+    pushChange(
+      'containerJobId',
+      !isContainerUnload && draft.containerJobId ? draft.containerJobId : null,
+      'container',
+    );
     pushChange('truckSize', isHouseMove ? draft.truckSize : null, 'truck');
     pushChange(
       'labourers',
@@ -1089,6 +1123,13 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
             </DetailRow>
           </section>
 
+          {/* Read mode: the invoice split, without having to open the editor. */}
+          {isContainerUnload && job && (
+            <section className="px-4 pb-4">
+              <ContainerJobsPanel container={job} linked={linkedToThisContainer} />
+            </section>
+          )}
+
           {/* Edit-only: type / location / cubes-or-hours selectors. Mirrors
               the New Quote dialog's morphing form so the price recompute
               logic stays consistent. */}
@@ -1195,6 +1236,41 @@ export function JobDetailDialog({ job, onClose, onConvertToStorage }: JobDetailD
                       value={draft.truckSize}
                       onChange={(v) => setDraft((d) => ({ ...d, truckSize: v }))}
                     />
+                  </div>
+                )}
+
+                {isContainerUnload && job && (
+                  <div className="space-y-1">
+                    <EditLabel>Container</EditLabel>
+                    <ContainerJobsPanel container={job} linked={linkedToThisContainer} />
+                  </div>
+                )}
+
+                {/* Scenario 1: the unload was invoiced weeks ago and the
+                    client has only now confirmed where things are going. */}
+                {!isContainerUnload && availableContainers.length > 0 && (
+                  <div className="space-y-1">
+                    <EditLabel>Out of a container</EditLabel>
+                    <select
+                      value={draft.containerJobId}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, containerJobId: e.target.value }))
+                      }
+                      className="h-9 w-full rounded-lg border border-input bg-card px-2 text-xs"
+                    >
+                      <option value="">Not out of a container</option>
+                      {availableContainers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.containerSize ?? 'Container'} · {c.customerName}
+                          {c.date ? ` · ${c.date}` : ''}
+                          {c.quoteNumber ? ` · ${c.quoteNumber}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-muted-foreground">
+                      Groups this delivery onto one invoice with the others off that container. The
+                      unload itself always invoices separately.
+                    </p>
                   </div>
                 )}
 

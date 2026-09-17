@@ -197,6 +197,7 @@ export type Database = {
       }
       jobs: {
         Row: {
+          container_job_id: string | null
           container_size: string | null
           disposal_amount: number | null
           disposal_load: string | null
@@ -260,6 +261,7 @@ export type Database = {
           valid_until: string | null
         }
         Insert: {
+          container_job_id?: string | null
           container_size?: string | null
           disposal_amount?: number | null
           disposal_load?: string | null
@@ -323,6 +325,7 @@ export type Database = {
           valid_until?: string | null
         }
         Update: {
+          container_job_id?: string | null
           container_size?: string | null
           disposal_amount?: number | null
           disposal_load?: string | null

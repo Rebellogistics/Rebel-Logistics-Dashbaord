@@ -207,6 +207,11 @@ export interface Job {
    *  rate with no minimum, and the only part of such a job the levy touches. */
   legsHours?: number;
   containerSize?: '20 ft' | '40 ft';
+  /** V7: the container-unload job this delivery came out of, if it did.
+   *  Groups deliveries onto one invoice; the unload always invoices alone.
+   *  Settable at any time — a container is often unloaded and invoiced weeks
+   *  before the client confirms what is going where. */
+  containerJobId?: string;
   whLabourType?: 'outbound' | 'qc' | 'unload';
 
   /** V7: extras. Amounts are stored resolved rather than recomputed, so a

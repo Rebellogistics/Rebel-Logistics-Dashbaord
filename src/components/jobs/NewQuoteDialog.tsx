@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
-import { useCreateJob } from '@/hooks/useSupabaseData';
+import { useCreateJob, useJobs } from '@/hooks/useSupabaseData';
 import { usePricingRates } from '@/hooks/usePricingRates';
 import { useRepeatCustomerLookup, type RepeatCustomerInfo } from '@/hooks/useRepeatCustomer';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
@@ -166,6 +166,11 @@ const initial = {
   // one month and carried out in another.
   fuelLevyMode: 'rate_book' as FuelLevyMode,
 
+  // The container this delivery is coming out of, when it is. Groups it onto
+  // one invoice with the container's other deliveries; the unload itself
+  // always invoices separately.
+  containerJobId: '',
+
   // Extras tick onto the job that created them.
   extraLabourOn: false,
   disposalOn: false,
@@ -183,6 +188,18 @@ export function NewQuoteDialog({
 }: NewQuoteDialogProps) {
   const [form, setForm] = useState(initial);
   const { data: metroList } = useMetroPostcodes();
+  const { data: allJobs = [] } = useJobs();
+
+  // Containers something can be booked out of. Not limited to recent ones: a
+  // container is often unloaded and invoiced well before the client says
+  // where its contents are going.
+  const availableContainers = useMemo(
+    () =>
+      allJobs.filter(
+        (j) => j.type === 'Storage' && j.warehouseService === 'container_unload' && !j.deletedAt,
+      ),
+    [allJobs],
+  );
   const [nameTouched, setNameTouched] = useState(false);
   // Once Job complete is ticked or unticked by hand, stop re-deriving it from
   // the job type — an explicit choice outranks the default.
@@ -490,6 +507,7 @@ export function NewQuoteDialog({
       storageDays: whStoring ? parseFloat(form.storageDays) || 0 : undefined,
       containerSize: whContainer ? form.containerSize : undefined,
       whLabourType: whLabour || extraLabour ? form.whLabourType : undefined,
+      containerJobId: !isWarehousing && form.containerJobId ? form.containerJobId : undefined,
       legsHours: (whStoring || whContainer) && form.legsHours
         ? parseFloat(form.legsHours) || 0
         : undefined,
@@ -720,6 +738,28 @@ export function NewQuoteDialog({
               options={['Standard', 'White Glove', 'Hourly rate', 'Labour', 'Storage']}
             />
           </Field>
+
+          {!isWarehousing && availableContainers.length > 0 && (
+            <Field
+              label="Out of a container"
+              hint="Groups this job onto one invoice with the container's other deliveries. The unload itself always invoices on its own."
+            >
+              <select
+                value={form.containerJobId}
+                onChange={(e) => update('containerJobId', e.target.value)}
+                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+              >
+                <option value="">Not out of a container</option>
+                {availableContainers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.containerSize ?? 'Container'} · {c.customerName}
+                    {c.date ? ` · ${c.date}` : ''}
+                    {c.quoteNumber ? ` · ${c.quoteNumber}` : ''}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
 
           {isDelivery && (
             <>
