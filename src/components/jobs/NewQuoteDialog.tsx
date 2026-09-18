@@ -718,7 +718,7 @@ export function NewQuoteDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-3 py-2 max-h-[60vh] overflow-y-auto pr-1">
+        <div className="grid gap-3 py-2 max-h-[52vh] overflow-y-auto pr-1">
           <Field
             label="Customer"
             hint="Pick an existing customer to auto-fill, or type a new name to create one. Search by name, company, or phone."
@@ -1552,15 +1552,28 @@ export function NewQuoteDialog({
             />
           </Field>
 
-          {breakdown && (
-            <div className="rounded-lg bg-muted p-3 text-xs space-y-1">
+        </div>
+
+        {/* The price sits OUTSIDE the scrolling form, between it and the
+            buttons, so it stays in view while the form is filled in. It used
+            to be the last thing in the scroll area, which meant that on a
+            longer quote — storage, or a container with extras — the total was
+            below the fold exactly when it mattered most (Yamin, 2026-09-17).
+
+            The lines scroll within their own box when a quote has many of
+            them; the total never does. */}
+        {breakdown && (
+          <div className="rounded-lg bg-muted px-3 py-2 text-xs shrink-0">
+            <div className="max-h-[16vh] overflow-y-auto space-y-1 pr-1">
               {breakdown.lines.map((line, i) => (
                 <div key={i} className="flex justify-between gap-3">
                   <span className="text-muted-foreground">
                     {line.label}
                     <span className="block text-[10px] opacity-75">{line.note}</span>
                   </span>
-                  <span className="font-semibold shrink-0">{formatAud(line.amount)}</span>
+                  <span className="font-semibold shrink-0 tabular-nums">
+                    {formatAud(line.amount)}
+                  </span>
                 </div>
               ))}
               {breakdown.levy > 0 && (
@@ -1569,22 +1582,24 @@ export function NewQuoteDialog({
                     Fuel levy
                     <span className="block text-[10px] opacity-75">{breakdown.levyNote}</span>
                   </span>
-                  <span className="font-semibold shrink-0">{formatAud(breakdown.levy)}</span>
+                  <span className="font-semibold shrink-0 tabular-nums">
+                    {formatAud(breakdown.levy)}
+                  </span>
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-muted-foreground">
-                  GST ({rates?.gstPercent ?? 10}%)
-                </span>
-                <span className="font-semibold">{formatAud(breakdown.gst)}</span>
-              </div>
-              <div className="flex justify-between pt-1 border-t border-border">
-                <span className="font-semibold">Total inc. GST</span>
-                <span className="font-bold text-base">{formatAud(breakdown.total)}</span>
+                <span className="text-muted-foreground">GST ({rates?.gstPercent ?? 10}%)</span>
+                <span className="font-semibold tabular-nums">{formatAud(breakdown.gst)}</span>
               </div>
             </div>
-          )}
-        </div>
+            <div className="flex justify-between items-baseline pt-1.5 mt-1.5 border-t border-border">
+              <span className="font-semibold">Total inc. GST</span>
+              <span className="font-bold text-base tabular-nums">
+                {formatAud(breakdown.total)}
+              </span>
+            </div>
+          </div>
+        )}
 
         <DialogFooter className="flex-wrap gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
