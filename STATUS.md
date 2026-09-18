@@ -5,7 +5,7 @@ cycles append at the bottom of the **Phase index**. Per-phase detail
 lives in `docs/archive/phases/<phase>.md`. In-flight phases stay
 inline at the bottom of this file until they ship.
 
-_Last refreshed: 2026-09-18 (V7 cycle merged: the rate book the calculator models — new job types, warehousing services, extras, captured fuel levy, postcode-bound zones). Prior: 2026-09-17 (V6 P6: pricing rate-book integrity)._
+_Last refreshed: 2026-09-18 (recap pass — two working sessions were deleted from the app sidebar on 2026-09-18; their transcripts survived and what they finished is folded in below: V6 P7 audience pages recorded, V7 real-data verification closed, V6 P6 push closed, item 13 closed). Prior: 2026-09-18 (V7 cycle merged: the rate book the calculator models). Prior: 2026-09-17 (V6 P6: pricing rate-book integrity)._
 _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRANSCRIPT_20260517.md`](docs/archive/transcripts/TRANSCRIPT_20260517.md)._
 
 ---
@@ -56,7 +56,7 @@ _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRA
 
 ### Recommended / scheduled
 
-13. **Marketing website V1 demo slipped to 2026-05-24 call.** Sumanyu started the build ~3 hours before the 2026-05-17 call (Nano Banana for image gen, layout in flight). Demo originally targeted for 2026-05-17 but pushed because the platform work consumed the week. The Yamin asset pack (#6) is the unblocker — until it arrives, Sumanyu is using placeholder content. Uncommitted work-in-progress lives in `src/components/public/marketing/` plus edits to `LoginPage.tsx`, `index.css`, `main.tsx`.
+13. ✅ **RESOLVED — the marketing site is live.** ~~Marketing website V1 demo slipped to 2026-05-24 call.~~ The site shipped and has since been pre-rendered (V6 P1), canonicalised on www (V6 P2) and extended with four audience pages (V6 P7). 133 routes pre-render; `/`, `/logistics`, `/warehousing`, `/labour`, `/areas/*`, `/work`, `/contact`, `/quote` and all four `/for/*` pages are live and indexed. The work is committed, not the uncommitted WIP this item described. Item #6 (Yamin's asset pack) is a separate thread and **stays open** — the site runs on what was available.
 
 14. **Yamin actively uses the platform this week** (Yamin's own commitment on 2026-05-17): transfer storage records over, set per-customer default pricing on the rest of the customer list, add remaining customers, book more jobs through the dashboard. Goal: surface bugs we haven't hit yet — Sumanyu's framing was "the more you use, the more errors we'll hit and the more we can optimize."
 
@@ -152,6 +152,7 @@ Triggered by Yamin asking how the site compared to hcotransport.com.au and inbox
 | 4 | Rename House Move → Hourly rate | ✅ shipped 2026-09-16 | `d976780`, `aee3501` | [`phases/v6-phase-4.md`](docs/archive/phases/v6-phase-4.md) |
 | 5 | Public form services → internal job types (+ Storage type) | ✅ shipped 2026-09-16 | — | [`phases/v6-phase-5.md`](docs/archive/phases/v6-phase-5.md) |
 | 6 | Pricing rate-book integrity | ✅ shipped 2026-09-18 | `7e0fbd8` | inline below |
+| 7 | Audience pages (`/for/*`) | ✅ shipped 2026-09-17 | `af215c4`, `af026c8`, `205bebb` | [`phases/v6-phase-7.md`](docs/archive/phases/v6-phase-7.md) |
 
 **Search Console:** property `sc-domain:rebellogistics.com.au` verified; sitemap submitted (Success, 129 pages discovered); indexing requested on `/`, `/logistics`, `/warehousing`, `/labour`, `/areas`. Check **Indexing → Pages** around 2026-09-23 to see how many have moved across.
 
@@ -202,14 +203,38 @@ check exists because two controls shipped missing and only Yamin's screenshots
 caught them; it has since caught a third before he did.
 
 **What's left**
-- **Pinned:** the New Quote dialog has grown tall enough that the breakdown
-  sits below the fold — on a Storage quote the total needs scrolling to.
-  Revisit the layout now the model has stopped moving.
-- **Untested against real data:** there are no container unloads in the
-  database, so the link, the panel, the invoice split and the book-out button
-  are verified only at code level.
+- **Pinned, and now the only open V7 item:** the New Quote dialog has grown
+  tall enough that the breakdown sits below the fold — on a Storage quote the
+  total needs scrolling to. It has since gained the container section, the
+  extras, the levy control and the zone readout, so it sits further below the
+  fold than when Yamin first flagged it. The model has stopped moving, which
+  makes this the right time to take it.
+- ✅ **RESOLVED 2026-09-17 — verified against real data.** ~~there are no
+  container unloads in the database~~ Yamin created two 20 ft container unloads
+  and four linked deliveries through **both** creation paths (inline `-0`/`-1`
+  ids from the quote form, and created-then-linked), with mixed
+  Accepted/Completed statuses. Every stored fee, levy and GST matches what
+  `priceJob()` produces from the live rate book, and the invoice splits total
+  **$737.00** and **$1,067.00** — the second being a genuine mix of one White
+  Glove at $180/m³ and two Standard at $120/m³ grouped onto one invoice, which
+  is the thing the feature exists for. Three further results: the id collision
+  that the row-index suffix guards against didn't occur (the inline jobs got
+  different timestamp prefixes anyway, so the suffix was belt and braces);
+  status doesn't disturb the grouping; and the levy captured 0% on every job
+  because the rate book has it off, so switching it on later leaves these six
+  untouched. **The six jobs are deliberate fixtures — do not delete them**
+  (see the memory note; `RL-2026-0126`–`0131`, customers `yamin` and `test22`,
+  ~$1,804 inc GST counting toward production revenue until Yamin clears them).
 - **Open pricing decision:** metro stays $120. The calculator proposes $100
   under the corrected structure; Yamin has not applied it.
+
+**Containers filter rule (decided 2026-09-17).** The filter shows containers
+from **Accepted onward — Quote and Declined excluded**. Yamin's instruction was
+"stick to accepted or complete if it's only quoted don't include"; the states
+between and after (Scheduled, Notified, In Delivery, Invoiced) were included on
+the reading that a container mid-run is just as real and excluding it would hide
+live work. Its count badge previously always read 0 and now counts confirmed
+containers.
 
 #### V6 P6 — Pricing rate-book integrity (in-flight, detail inline until pushed)
 
@@ -277,9 +302,9 @@ the work is code plus documentation only, so there is no new migration row
 below. `src/lib/pricing.ts` `DEFAULT_RATES` was deliberately left alone rather
 than being edited to paper over the fallback.
 
-**What's left:** push the branch (3 files: `usePricingRates.ts`,
-`PricingPanel.tsx`, `SUPABASE-RUN-THIS.md`). Optional follow-up — port
-pricing into `LeadForm` and delete `PublicQuoteForm`, or formally retire it.
+**What's left:** ~~push the branch~~ — pushed and merged; `7e0fbd8` is in
+`main` and live. Optional follow-up remains: port pricing into `LeadForm` and
+delete `PublicQuoteForm`, or formally retire it.
 
 ### V3 cycle (archived)
 
