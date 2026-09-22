@@ -44,6 +44,14 @@ const cases: Array<[string, Parameters<typeof priceJob>[0], number]> = [
   ['WG 14 m³ + trailer disposal', { type: 'White Glove', rates, postcode: 3186, cubicMetres: 14, disposalLoad: 'trailer' }, 3533.20],
   ['WG 8 m³ disposal ignored (under 10 m³)', { type: 'White Glove', rates, postcode: 3186, cubicMetres: 8, disposalLoad: 'trailer' }, 1742.40],
   ['levy off by hand', { type: 'Hourly rate', rates, estimatedHours: 5, fuelLevyMode: 'off' }, 990],
+
+  // Zone comes off BOTH ends: either end regional makes the run regional.
+  ['Geelong pickup -> CBD delivery is regional', { type: 'Standard', rates, pickupPostcode: 3220, postcode: 3000, cubicMetres: 2 }, 580.80],
+  ['Heidelberg pickup -> Geelong delivery is regional', { type: 'Standard', rates, pickupPostcode: 3084, postcode: 3220, cubicMetres: 2 }, 580.80],
+  ['both ends metro prices per m³', { type: 'Standard', rates, pickupPostcode: 3121, postcode: 3000, cubicMetres: 2 }, 242],
+  ['unknown pickup leaves delivery to decide', { type: 'Standard', rates, postcode: 3000, cubicMetres: 2 }, 242],
+  ['regional pickup, unknown delivery is still regional', { type: 'Standard', rates, pickupPostcode: 3220, cubicMetres: 2 }, 580.80],
+  ['WG Geelong pickup -> metro delivery', { type: 'White Glove', rates, pickupPostcode: 3220, postcode: 3186, cubicMetres: 3 }, 677.60],
 ];
 
 let failed = 0;

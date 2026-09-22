@@ -423,12 +423,36 @@ export function NewQuoteDialog({
     return null;
   }, [linkedCustomer, form.customerCompanyName, form.customerName, existingCustomers]);
 
-  // V7: the delivery postcode decides the zone, and nothing else does. The
-  // old Metro/Regional toggle is gone — the list in Settings → Pricing is
-  // the only place a suburb moves between bands.
+  // V7: the postcodes decide the zone, and nothing else does. The old
+  // Metro/Regional toggle is gone — the list in Settings → Pricing is the
+  // only place a suburb moves between bands.
+  //
+  // Both ends count. A run is regional if EITHER end is regional: Geelong to
+  // the CBD is regional, and so is Heidelberg to Geelong (Yamin, 2026-09-22).
+  //
+  // A BLANK pickup is not an unknown one. It means the goods are already with
+  // us and the run loads out of our own warehouse — the items were collected
+  // on an earlier day, or came out of a container. Our warehouse is metro and
+  // always will be: "we will never move regional" (Yamin, 2026-09-22). So a
+  // load-out is priced by the delivery address on its own. A settled rule,
+  // not an assumption to re-derive.
+  //
+  // A pickup that was TYPED but carries no postcode — "Hallam", "Geelong" —
+  // is the genuinely unknown case. It gets no vote, and the readout says so,
+  // because silently treating it as metro is how a Geelong collection gets
+  // charged at metro rates.
   const deliveryPostcode = extractPostcode(form.deliveryAddress);
-  const zone: JobLocation | null =
+  const pickupPostcode = extractPostcode(form.pickupAddress);
+  const loadingFromOurWarehouse = form.pickupAddress.trim() === '';
+  const pickupUnreadable = !loadingFromOurWarehouse && pickupPostcode === null;
+  const deliveryZone: JobLocation | null =
     deliveryPostcode === null ? null : locationForPostcode(deliveryPostcode, metroList);
+  const pickupZone: JobLocation | null =
+    pickupPostcode === null ? null : locationForPostcode(pickupPostcode, metroList);
+  const zone: JobLocation | null =
+    deliveryZone === 'Regional' || pickupZone === 'Regional'
+      ? 'Regional'
+      : (deliveryZone ?? pickupZone);
 
   const breakdown = useMemo(() => {
     if (!rates) return null;
@@ -436,6 +460,7 @@ export function NewQuoteDialog({
       type: form.type,
       rates,
       postcode: deliveryPostcode,
+      pickupPostcode,
       metroPostcodes: metroList,
       cubicMetres: parseFloat(form.cubicMetres) || 0,
       estimatedHours: parseFloat(form.estimatedHours) || 0,
@@ -456,7 +481,7 @@ export function NewQuoteDialog({
       overrideMetroRate: repeatInfo.overrideMetroRate,
       overrideHourlyRate: repeatInfo.overrideHourlyRate,
     });
-  }, [form, rates, repeatInfo, deliveryPostcode, metroList]);
+  }, [form, rates, repeatInfo, deliveryPostcode, pickupPostcode, metroList]);
 
   /** Price one outbound row on its own terms, as its own job would be. */
   const priceOutbound = (o: OutboundDraft) =>
@@ -887,10 +912,35 @@ export function NewQuoteDialog({
                     </>
                   ) : (
                     <>
-                      <span className="font-mono font-semibold">{deliveryPostcode}</span>{' '}
-                      {zone === 'Metro' ? 'is on' : 'is not on'} the metro list →{' '}
-                      <span className="font-semibold">{zone}</span>
+                      {loadingFromOurWarehouse ? (
+                        <>Loading from our warehouse · </>
+                      ) : (
+                        pickupZone && (
+                          <>
+                            Pickup{' '}
+                            <span className="font-mono font-semibold">{pickupPostcode}</span> is{' '}
+                            {pickupZone === 'Metro' ? 'metro' : 'regional'} ·{' '}
+                          </>
+                        )
+                      )}
+                      {deliveryZone ? (
+                        <>
+                          Delivery{' '}
+                          <span className="font-mono font-semibold">{deliveryPostcode}</span> is{' '}
+                          {deliveryZone === 'Metro' ? 'metro' : 'regional'}
+                        </>
+                      ) : (
+                        <>No postcode in the delivery address</>
+                      )}{' '}
+                      → <span className="font-semibold">{zone}</span>
                       {zone === 'Metro' ? ', per m³.' : ', at the flat minimum.'}
+                      {zone === 'Metro' && pickupUnreadable && (
+                        <span className="block opacity-80">
+                          No postcode in “{form.pickupAddress.trim()}”, so the pickup isn't
+                          voting. Pick it from the dropdown — a regional collection makes the
+                          job regional.
+                        </span>
+                      )}
                     </>
                   )}
                 </div>

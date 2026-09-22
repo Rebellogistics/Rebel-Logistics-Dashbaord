@@ -19,7 +19,8 @@ import { MELBOURNE_METRO_POSTCODES, locationForPostcode } from './metroPostcodes
  * screen at a time. Both read the same rate book.
  *
  * What it does differently:
- *  - the delivery postcode decides the zone outright, with no override
+ *  - the postcodes at BOTH ends decide the zone outright, with no override:
+ *    either end regional makes the job regional
  *  - time bills in whole increments, rounded up, before any minimum
  *  - rubbish disposal and packaging are extras on the job that created
  *    them, never job types of their own
@@ -56,8 +57,25 @@ export interface JobPricingInput {
   type: JobType;
   rates: PricingRates;
 
-  /** Standard / White Glove. The zone comes from here and nowhere else. */
+  /**
+   * Standard / White Glove. The DELIVERY postcode.
+   *
+   * The zone comes from the postcodes alone, never from a manual choice --
+   * but from BOTH ends, not just this one. See pickupPostcode.
+   */
   postcode?: number | null;
+  /**
+   * The PICKUP postcode. A run is regional if EITHER end is regional:
+   * Geelong -> the CBD is regional, and so is Heidelberg -> Geelong. Only a
+   * run that is metro at both ends prices per m³ (Yamin, 2026-09-22).
+   *
+   * A BLANK pickup address is not an unknown one -- it means the load goes
+   * out of our own warehouse, which is metro and always will be, so the
+   * delivery end decides alone. A pickup that was TYPED but carries no
+   * postcode is the genuinely unknown case: it never makes a job regional on
+   * its own, it simply gets no vote.
+   */
+  pickupPostcode?: number | null;
   cubicMetres?: number;
 
   /** Hourly rate, and the truck for any warehousing collection legs. */
@@ -319,18 +337,30 @@ export function priceJob(input: JobPricingInput): JobPrice {
       levied: true,
     });
   } else {
-    // Standard / White Glove. The postcode decides the zone outright.
+    // Standard / White Glove. The postcodes decide the zone outright -- both
+    // of them. One regional end is enough to make the whole run regional.
     const wg = input.type === 'White Glove';
+    const set = input.metroPostcodes ?? MELBOURNE_METRO_POSTCODES;
+    const zoneOf = (pc: number | null | undefined) =>
+      pc === null || pc === undefined ? null : locationForPostcode(pc, set);
+    const deliveryZone = zoneOf(input.postcode);
+    const pickupZone = zoneOf(input.pickupPostcode);
     zone =
-      input.postcode === null || input.postcode === undefined
-        ? null
-        : locationForPostcode(input.postcode, input.metroPostcodes ?? MELBOURNE_METRO_POSTCODES);
+      deliveryZone === 'Regional' || pickupZone === 'Regional'
+        ? 'Regional'
+        : (deliveryZone ?? pickupZone);
 
     if (zone === 'Regional') {
+      const which =
+        deliveryZone === 'Regional' && pickupZone === 'Regional'
+          ? 'both ends regional'
+          : deliveryZone === 'Regional'
+            ? 'delivery is regional'
+            : 'pickup is regional';
       lines.push({
         label: 'Base charge',
         amount: wg ? r.wgRegionalMinimumAud : r.regionalMinimumAud,
-        note: `${wg ? 'White Glove regional' : 'Regional'} minimum — flat, volume does not move it`,
+        note: `${wg ? 'White Glove regional' : 'Regional'} minimum — ${which}; flat, volume does not move it`,
         levied: true,
       });
     } else {

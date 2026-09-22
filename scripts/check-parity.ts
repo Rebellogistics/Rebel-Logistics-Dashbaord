@@ -141,11 +141,11 @@ const CONTROLS: Control[] = [
     },
   },
   {
-    name: 'Zone bound to the delivery postcode',
+    name: 'Zone bound to the postcodes at BOTH ends',
     needs: {
-      engine: /locationForPostcode/,
-      quoteDialog: /locationForPostcode/,
-      jobDialog: /locationForPostcode/,
+      engine: /pickupPostcode/,
+      quoteDialog: /pickupPostcode/,
+      jobDialog: /draftPickupPostcode/,
     },
   },
 ];

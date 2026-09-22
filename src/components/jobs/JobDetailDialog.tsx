@@ -446,6 +446,7 @@ export function JobDetailDialog({
   // the postcode list became binding keeps its stored location until someone
   // edits a pricing input — see the guard on the auto-track effect below.
   const draftPostcode = extractPostcode(draft.deliveryAddress);
+  const draftPickupPostcode = extractPostcode(draft.pickupAddress);
 
   const draftBreakdown = useMemo(() => {
     if (!rates) return null;
@@ -453,6 +454,7 @@ export function JobDetailDialog({
       type: draft.type,
       rates,
       postcode: draftPostcode,
+      pickupPostcode: draftPickupPostcode,
       metroPostcodes: metroList,
       cubicMetres: parseFloat(draft.cubicMetres) || 0,
       estimatedHours: parseFloat(draft.estimatedHours) || 0,
@@ -492,12 +494,15 @@ export function JobDetailDialog({
       cubicMetres: job.cubicMetres != null ? String(job.cubicMetres) : '',
       estimatedHours: job.hoursEstimated != null ? String(job.hoursEstimated) : '',
       deliveryAddress: job.deliveryAddress ?? '',
+      // The pickup end votes on the zone now, so editing it moves the price.
+      pickupAddress: job.pickupAddress ?? '',
     };
     return (
       draft.type !== was.type ||
       draft.cubicMetres !== was.cubicMetres ||
       draft.estimatedHours !== was.estimatedHours ||
       draft.deliveryAddress !== was.deliveryAddress ||
+      draft.pickupAddress !== was.pickupAddress ||
       draft.truckSize !== (job.truckSize ?? 'standard') ||
       draft.labourers !== (job.labourers != null ? String(job.labourers) : '') ||
       draft.warehouseService !== (job.warehouseService ?? 'storage') ||
@@ -538,10 +543,14 @@ export function JobDetailDialog({
   const isDeliveryType = draft.type === 'Standard' || draft.type === 'White Glove';
   // Until a pricing input is touched, the job keeps the zone it was quoted
   // under; after that the postcode decides, as it does on a new quote.
+  const draftDeliveryZone: JobLocation | null =
+    draftPostcode === null ? null : locationForPostcode(draftPostcode, metroList);
+  const draftPickupZone: JobLocation | null =
+    draftPickupPostcode === null ? null : locationForPostcode(draftPickupPostcode, metroList);
   const draftZone: JobLocation | null = pricingInputsTouched
-    ? draftPostcode === null
-      ? null
-      : locationForPostcode(draftPostcode, metroList)
+    ? draftDeliveryZone === 'Regional' || draftPickupZone === 'Regional'
+      ? 'Regional'
+      : (draftDeliveryZone ?? draftPickupZone)
     : ((job?.location as JobLocation | undefined) ?? null);
   const isMetro = isDeliveryType && draftZone !== 'Regional';
   const isRegional = isDeliveryType && draftZone === 'Regional';
