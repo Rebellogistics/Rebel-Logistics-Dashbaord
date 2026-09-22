@@ -42,7 +42,13 @@ const FILES: Record<Where, string> = {
 const CONTROLS: Control[] = [
   {
     name: 'Job type — Labour',
-    needs: { engine: /'Labour'/, quoteDialog: /'Labour'/ },
+    // jobDialog was missing here, which is exactly how the job dialog came to
+    // offer four job types where the quote dialog offered five.
+    needs: {
+      engine: /'Labour'/,
+      quoteDialog: /'Labour'/,
+      jobDialog: /<option value="Labour">/,
+    },
   },
   {
     name: 'Hourly — truck choice',

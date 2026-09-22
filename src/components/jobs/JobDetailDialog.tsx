@@ -273,7 +273,9 @@ export function JobDetailDialog({
     sendEnRoute: true,
     sendComplete: true,
   });
-  const [activityTab, setActivityTab] = useState<'activity' | 'history'>('activity');
+  const [activityTab, setActivityTab] = useState<
+    'activity' | 'history' | 'photos' | 'signature'
+  >('activity');
   // V4 2.5: 3-dots menu inside the dialog header. Local mark-complete state
   // so the menu can trigger the proof flow without round-tripping to the
   // shell-level instance via a parent callback.
@@ -900,7 +902,7 @@ export function JobDetailDialog({
 
   return (
     <Dialog open={!!job} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-2xl max-h-[95dvh] w-[95vw] sm:w-auto p-4 sm:p-6">
+      <DialogContent className="sm:max-w-4xl max-h-[95dvh] w-[95vw] sm:w-full p-4 sm:p-6 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
         <DialogHeader>
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
             <div className="min-w-0 flex-1">
@@ -1058,7 +1060,7 @@ export function JobDetailDialog({
           </div>
         </DialogHeader>
 
-        <div className="grid gap-4 py-2 max-h-[60dvh] sm:max-h-[65vh] overflow-y-auto pr-1 -mr-1">
+        <div className="grid gap-4 py-2 min-h-0 overflow-y-auto pr-1 -mr-1">
           <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <DetailRow icon={MapPin} label="Pickup">
               {editing ? (
@@ -1243,11 +1245,17 @@ export function JobDetailDialog({
                         // Clear inputs that don't apply to the new type so
                         // recompute is honest. Keeps the saved DB null
                         // semantics correct on save.
-                        cubicMetres: next === 'Hourly rate' ? '' : d.cubicMetres,
+                        cubicMetres: next === 'Hourly rate' || next === 'Labour' ? '' : d.cubicMetres,
+                        // Hourly and Labour both bill by the hour, so the
+                        // hours survive a switch between them. Hourly floors
+                        // to its own minimum; Labour has its own and the
+                        // engine applies it, so don't prefill one here.
                         estimatedHours:
                           next === 'Hourly rate'
                             ? d.estimatedHours || String(rates?.minimumHours ?? 3)
-                            : '',
+                            : next === 'Labour'
+                              ? d.estimatedHours
+                              : '',
                       }));
                     }}
                     className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -1255,12 +1263,18 @@ export function JobDetailDialog({
                     <option value="Standard">Standard</option>
                     <option value="White Glove">White Glove</option>
                     <option value="Hourly rate">Hourly rate</option>
+                    {/* Labour was missing here while the quote dialog offered
+                        it, so a saved Labour job opened with no matching
+                        option and the first touch of this select silently
+                        converted the job to Standard. Keep this list in step
+                        with NewQuoteDialog's. */}
+                    <option value="Labour">Labour</option>
                     <option value="Storage">Storage</option>
                   </select>
                 </div>
 
                 {isDeliveryType && (
-                  <div className="space-y-1">
+                  <div className="space-y-1 sm:col-span-2">
                     <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                       Zone
                     </label>
@@ -1335,6 +1349,7 @@ export function JobDetailDialog({
                     <Input
                       type="text"
                       inputMode="decimal"
+                      className="h-9"
                       value={draft.travelHours}
                       onChange={(e) =>
                         setDraft((d) => ({ ...d, travelHours: sanitiseDecimal(e.target.value) }))
@@ -1345,7 +1360,7 @@ export function JobDetailDialog({
                 )}
 
                 {isContainerUnload && job && (
-                  <div className="space-y-1">
+                  <div className="space-y-1 sm:col-span-2">
                     <EditLabel>Container</EditLabel>
                     <ContainerJobsPanel
                       container={job}
@@ -1359,7 +1374,7 @@ export function JobDetailDialog({
                 {/* Scenario 1: the unload was invoiced weeks ago and the
                     client has only now confirmed where things are going. */}
                 {!isContainerUnload && availableContainers.length > 0 && (
-                  <div className="space-y-1">
+                  <div className="space-y-1 sm:col-span-2">
                     <EditLabel>Out of a container</EditLabel>
                     <select
                       value={draft.containerJobId}
@@ -1502,7 +1517,7 @@ export function JobDetailDialog({
                 )}
 
                 {(canDisposeEdit || canPackageEdit || whStoring || whContainer) && (
-                  <div className="space-y-1">
+                  <div className="space-y-1 sm:col-span-2">
                     <EditLabel>Extras</EditLabel>
                     <div className="space-y-2 rounded-lg border border-input bg-muted/30 p-3">
                       {(whStoring || whContainer) && (
@@ -1642,7 +1657,7 @@ export function JobDetailDialog({
                 )}
 
                 {isRegional && (
-                  <div className="rounded-lg bg-muted/40 p-2 text-[11px] text-muted-foreground">
+                  <div className="rounded-lg bg-muted/40 p-2 text-[11px] text-muted-foreground sm:col-span-2">
                     Regional jobs use a flat minimum charge of{' '}
                     {rates
                       ? formatAud(
@@ -1868,93 +1883,87 @@ export function JobDetailDialog({
             )}
           </section>
 
+          {/* Activity, History, Proof photos and the signature share one
+              panel rather than stacking. Stacked, they were three unbounded
+              blocks at the bottom of the dialog — a job with a dozen events
+              and six photos was taller than any laptop screen, and no amount
+              of widening fixes that (Yamin, 2026-09-23). One at a time keeps
+              each a single click away and stops the dialog's height
+              depending on how eventful the job was.
+
+              To go back to stacked: render the four bodies in sequence
+              instead of switching on activityTab. Nothing else is coupled. */}
           <section className="space-y-2">
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setActivityTab('activity')}
-                className={cn(
-                  'inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold uppercase tracking-wider transition-colors',
-                  activityTab === 'activity'
-                    ? 'bg-rebel-accent-surface text-rebel-accent'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                <Activity className="w-3 h-3" />
-                Activity
-              </button>
-              <button
-                type="button"
-                onClick={() => setActivityTab('history')}
-                className={cn(
-                  'inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold uppercase tracking-wider transition-colors',
-                  activityTab === 'history'
-                    ? 'bg-rebel-accent-surface text-rebel-accent'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                <HistoryIcon className="w-3 h-3" />
-                History
-              </button>
+            <div className="flex items-center gap-1 flex-wrap">
+              {(
+                [
+                  { key: 'activity', label: 'Activity', Icon: Activity },
+                  { key: 'history', label: 'History', Icon: HistoryIcon },
+                  { key: 'photos', label: 'Proof photos', Icon: Camera },
+                  { key: 'signature', label: 'Signature', Icon: PenLine },
+                ] as const
+              ).map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActivityTab(key)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold uppercase tracking-wider transition-colors',
+                    activityTab === key
+                      ? 'bg-rebel-accent-surface text-rebel-accent'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  <Icon className="w-3 h-3" />
+                  {label}
+                </button>
+              ))}
             </div>
-            <div className="rounded-xl border border-rebel-border bg-card p-3">
-              {activityTab === 'activity' ? (
-                <JobActivityTimeline job={job} />
-              ) : (
-                <JobHistoryList jobId={job.id} />
+            <div className="rounded-xl border border-rebel-border bg-card p-3 space-y-2">
+              {activityTab === 'activity' && <JobActivityTimeline job={job} />}
+              {activityTab === 'history' && <JobHistoryList jobId={job.id} />}
+              {activityTab === 'photos' && <JobPhotoGallery jobId={job.id} />}
+              {activityTab === 'signature' && (
+                <>
+                  {hasSignaturePath && signatureUrl && (
+                    <div className="border rounded-lg bg-muted p-2 flex items-center justify-center">
+                      <img
+                        src={signatureUrl}
+                        alt="Customer signature"
+                        className="max-h-32 w-auto object-contain"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  )}
+                  {hasSignaturePath && !signatureUrl && !signatureError && (
+                    <div className="flex items-center gap-2 py-3 text-xs text-muted-foreground justify-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-rebel-accent"></div>
+                      Loading signature…
+                    </div>
+                  )}
+                  {hasSignaturePath && signatureError && (
+                    <div className="border border-red-200 rounded-lg bg-red-50 p-3 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                      <p className="text-xs text-red-800">Couldn't load the signature preview.</p>
+                    </div>
+                  )}
+                  {legacySignatureText && (
+                    <div className="border rounded-lg bg-amber-50 border-amber-200 p-3">
+                      <p className="text-[10px] text-amber-900 font-semibold uppercase tracking-wider">
+                        Legacy typed signature
+                      </p>
+                      <p className="text-sm text-amber-900 mt-0.5">{legacySignatureText}</p>
+                    </div>
+                  )}
+                  {!job.signature && (
+                    <div className="flex flex-col items-center gap-2 py-4 text-xs text-muted-foreground">
+                      <ImageOff className="w-5 h-5 text-muted-foreground/40" />
+                      No signature on file.
+                    </div>
+                  )}
+                </>
               )}
             </div>
-          </section>
-
-          <section className="space-y-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-              <Camera className="w-3 h-3" />
-              Proof photos
-            </h3>
-            <JobPhotoGallery jobId={job.id} />
-          </section>
-
-          <section className="space-y-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-              <PenLine className="w-3 h-3" />
-              Customer signature
-            </h3>
-            {hasSignaturePath && signatureUrl && (
-              <div className="border rounded-lg bg-muted p-2 flex items-center justify-center">
-                <img
-                  src={signatureUrl}
-                  alt="Customer signature"
-                  className="max-h-32 w-auto object-contain"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-            )}
-            {hasSignaturePath && !signatureUrl && !signatureError && (
-              <div className="flex items-center gap-2 py-3 text-xs text-muted-foreground justify-center">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-rebel-accent"></div>
-                Loading signature…
-              </div>
-            )}
-            {hasSignaturePath && signatureError && (
-              <div className="border border-red-200 rounded-lg bg-red-50 p-3 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                <p className="text-xs text-red-800">Couldn't load the signature preview.</p>
-              </div>
-            )}
-            {legacySignatureText && (
-              <div className="border rounded-lg bg-amber-50 border-amber-200 p-3">
-                <p className="text-[10px] text-amber-900 font-semibold uppercase tracking-wider">
-                  Legacy typed signature
-                </p>
-                <p className="text-sm text-amber-900 mt-0.5">{legacySignatureText}</p>
-              </div>
-            )}
-            {!job.signature && (
-              <div className="flex flex-col items-center gap-2 py-4 text-xs text-muted-foreground">
-                <ImageOff className="w-5 h-5 text-muted-foreground/40" />
-                No signature on file.
-              </div>
-            )}
           </section>
         </div>
 
