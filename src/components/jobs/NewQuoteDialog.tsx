@@ -738,7 +738,7 @@ export function NewQuoteDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-4xl grid-rows-[auto_minmax(0,1fr)_auto_auto] overflow-hidden">
         <DialogHeader>
           <DialogTitle>{prefillJob ? 'Rebook customer' : 'New Quote'}</DialogTitle>
           <DialogDescription>
@@ -748,11 +748,10 @@ export function NewQuoteDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 py-2 max-h-[52vh] overflow-y-auto pr-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 py-2 min-h-0 overflow-y-auto pr-1">
           <Section label="Customer" />
 
             <Field
-              className="sm:col-span-2"
             label="Customer"
             hint="Pick an existing customer to auto-fill, or type a new name to create one. Search by name, company, or phone."
           >
@@ -1586,47 +1585,55 @@ export function NewQuoteDialog({
             />
           </Field>
 
+
+          {/* The charge lines sit in the scroll area with everything else;
+              only the total below is pinned. Pinning both cost about 100px
+              of permanent chrome — on a 13-inch laptop roughly a third of
+              what the form has to work with (Yamin, 2026-09-23). */}
+          {breakdown && (
+            <div className="sm:col-span-2 rounded-lg bg-muted px-3 py-2 text-xs space-y-1">
+                {breakdown.lines.map((line, i) => (
+                  <div key={i} className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">
+                      {line.label}
+                      <span className="block text-[10px] opacity-75">{line.note}</span>
+                    </span>
+                    <span className="font-semibold shrink-0 tabular-nums">
+                      {formatAud(line.amount)}
+                    </span>
+                  </div>
+                ))}
+                {breakdown.levy > 0 && (
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">
+                      Fuel levy
+                      <span className="block text-[10px] opacity-75">{breakdown.levyNote}</span>
+                    </span>
+                    <span className="font-semibold shrink-0 tabular-nums">
+                      {formatAud(breakdown.levy)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">GST ({rates?.gstPercent ?? 10}%)</span>
+                  <span className="font-semibold tabular-nums">{formatAud(breakdown.gst)}</span>
+                </div>
+            </div>
+          )}
         </div>
 
-        {/* The price sits OUTSIDE the scrolling form, between it and the
+        {/* The total sits OUTSIDE the scrolling form, between it and the
             buttons, so it stays in view while the form is filled in. It used
             to be the last thing in the scroll area, which meant that on a
             longer quote — storage, or a container with extras — the total was
             below the fold exactly when it mattered most (Yamin, 2026-09-17).
 
-            The lines scroll within their own box when a quote has many of
-            them; the total never does. */}
+            Only the total. The charge lines that explain it were pinned here
+            too until 2026-09-23, which cost about 100px of permanent chrome;
+            they now scroll with the rest of the quote. */}
         {breakdown && (
           <div className="rounded-lg bg-muted px-3 py-2 text-xs shrink-0">
-            <div className="max-h-[16vh] overflow-y-auto space-y-1 pr-1">
-              {breakdown.lines.map((line, i) => (
-                <div key={i} className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">
-                    {line.label}
-                    <span className="block text-[10px] opacity-75">{line.note}</span>
-                  </span>
-                  <span className="font-semibold shrink-0 tabular-nums">
-                    {formatAud(line.amount)}
-                  </span>
-                </div>
-              ))}
-              {breakdown.levy > 0 && (
-                <div className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">
-                    Fuel levy
-                    <span className="block text-[10px] opacity-75">{breakdown.levyNote}</span>
-                  </span>
-                  <span className="font-semibold shrink-0 tabular-nums">
-                    {formatAud(breakdown.levy)}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">GST ({rates?.gstPercent ?? 10}%)</span>
-                <span className="font-semibold tabular-nums">{formatAud(breakdown.gst)}</span>
-              </div>
-            </div>
-            <div className="flex justify-between items-baseline pt-1.5 mt-1.5 border-t border-border">
+            <div className="flex justify-between items-baseline">
               <span className="font-semibold">Total inc. GST</span>
               <span className="font-bold text-base tabular-nums">
                 {formatAud(breakdown.total)}
