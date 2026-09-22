@@ -169,13 +169,16 @@ export function useAlerts(jobs: Job[], smsLog: SmsLogEntry[]): UseAlertsResult {
         const jobDate = parseISO(job.date);
         // Skip if already covered by eta_overdue
         if (isAfter(today, jobDate)) continue;
-        const stops = job.recipientAddress ? ' + stops' : '';
         alerts.push({
           id: `run-started-${job.id}`,
           kind: 'run_started',
           severity: 'info',
           title: `${job.assignedTruck ?? 'Driver'} started run`,
-          description: `${job.customerName}${stops} — ${job.deliveryAddress?.split(',')[0] ?? 'destination'}`,
+          // No "+ stops" suffix: recipient_address was never a stop count.
+          // Nothing writes it, yet 43 live jobs carry a byte-identical copy of
+          // delivery_address, so every one of them claimed extra stops it did
+          // not have. Bring this back off job_stops when multi-stop ships.
+          description: `${job.customerName} — ${job.deliveryAddress?.split(',')[0] ?? 'destination'}`,
           jobId: job.id,
           action: 'view_job',
           actionLabel: 'View',

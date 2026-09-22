@@ -580,7 +580,10 @@ export function NewQuoteDialog({
       fuelLevyPctApplied: breakdown.levyPct,
       fuelLevyMode: form.fuelLevyMode,
       gstAmount: breakdown.gst,
-      location: isHouseMove ? undefined : (zone ?? undefined),
+      // Only a delivery job HAS a zone. priceJob ignores location for Hourly,
+      // Labour and Storage, so stamping one on those was meaningless data that
+      // later reads (the Accept suggestion, history matching) treat as real.
+      location: isDelivery ? (zone ?? undefined) : undefined,
       cubicMetres: isHouseMove
         ? undefined
         : isMetro
@@ -680,7 +683,11 @@ export function NewQuoteDialog({
               fuelLevyPctApplied: q.levyPct,
               fuelLevyMode: form.fuelLevyMode,
               gstAmount: q.gst,
-              location: zone ?? undefined,
+              // Same rule as the parent quote: only a delivery job has a zone.
+              location:
+                o.type === 'Standard' || o.type === 'White Glove'
+                  ? (q.zone ?? undefined)
+                  : undefined,
               cubicMetres: isHourly ? undefined : parseFloat(o.cubicMetres) || undefined,
               hoursEstimated: isHourly ? parseFloat(o.estimatedHours) || 0 : undefined,
               warehouseService: isStorage ? ('storage' as const) : undefined,

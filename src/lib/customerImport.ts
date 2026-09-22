@@ -207,6 +207,47 @@ export function buildPreview(rows: RawRow[], opts: AssembleOptions): PreviewRow[
   });
 }
 
+/**
+ * The subset of an import payload that is safe to PATCH onto an existing
+ * customer on a merge.
+ *
+ * useUpdateCustomer runs every key through normaliseUpdates, which turns
+ * `undefined` into NULL — "clear this field", by deliberate convention. An
+ * import payload always carries every key, `undefined` wherever the sheet had
+ * no column or a blank cell. Spreading it onto a matched record therefore
+ * WIPED phone, email, company name, ABN, source and notes, and reset
+ * totalJobs / totalSpent to zero — despite the call site's comment promising
+ * it patched "only the fields the import provides".
+ *
+ * 169 of 177 customers carry the same import_batch, and 40 of them keep their
+ * only stored address in `notes` as "Postal: ...". A re-import would have
+ * taken those with it.
+ *
+ * So: send only keys that actually carry a value, never the running totals,
+ * and never `vip` or `type` — a sheet with no company column would otherwise
+ * demote a company to an individual and clear a VIP flag it knows nothing
+ * about.
+ */
+export function mergePatchFrom(
+  payload: Omit<Customer, 'id' | 'createdAt'>,
+): Partial<Customer> {
+  const patch: Partial<Customer> = {};
+  const carryIfSet = <K extends keyof Customer>(key: K) => {
+    const value = payload[key as keyof typeof payload] as Customer[K] | undefined;
+    if (typeof value === 'string' ? value.trim() !== '' : value !== undefined) {
+      patch[key] = value;
+    }
+  };
+  carryIfSet('name');
+  carryIfSet('phone');
+  carryIfSet('email');
+  carryIfSet('companyName');
+  carryIfSet('abn');
+  carryIfSet('source');
+  carryIfSet('notes');
+  return patch;
+}
+
 /** Build the import_batch tag, e.g. "xero-2026-04-28-1". */
 export function makeBatchTag(prefix: string, isoDate: string, attempt: number): string {
   return `${prefix}-${isoDate}${attempt > 1 ? `-${attempt}` : ''}`;

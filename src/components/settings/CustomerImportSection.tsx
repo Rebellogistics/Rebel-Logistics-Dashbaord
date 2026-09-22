@@ -33,6 +33,7 @@ import {
   type PreviewRow,
   type RawRow,
   type RowDecision,
+  mergePatchFrom,
 } from '@/lib/customerImport';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -276,10 +277,11 @@ export function CustomerImportSection() {
       const d = decisions[row.rowNumber] ?? row.decision;
       try {
         if (d === 'merge' && row.matchedCustomerId) {
-          // Patch only the fields the import provides — don't blow away existing data.
+          // Patch only the fields the import actually provides. Spreading the
+          // raw payload used to null every blank column — see mergePatchFrom.
           const patch = {
             id: row.matchedCustomerId,
-            ...row.payload,
+            ...mergePatchFrom(row.payload),
             importBatch: batchTag,
           };
           await updateCustomer.mutateAsync(patch as any);
