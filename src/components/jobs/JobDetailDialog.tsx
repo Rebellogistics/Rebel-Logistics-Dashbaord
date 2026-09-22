@@ -201,6 +201,9 @@ export function JobDetailDialog({
   const [assignTruckOpen, setAssignTruckOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [editing, setEditing] = useState(false);
+  // Read off the SAVED job, not the draft, so the editor doesn't swap field
+  // sets underneath the cursor while the company box is being cleared.
+  const hasLegacyCompany = !!(job?.customerCompanyName ?? '').trim();
   const { data: metroList } = useMetroPostcodes();
   const { data: allJobs = [] } = useJobs();
 
@@ -547,6 +550,7 @@ export function JobDetailDialog({
   const whStoring = isWarehousing && draft.warehouseService === 'storage';
   const whContainer = isWarehousing && draft.warehouseService === 'container_unload';
   const whLabourService = isWarehousing && draft.warehouseService === 'labour_work';
+  const isLabour = draft.type === 'Labour';
   const needsCrewEdit =
     draft.type === 'Labour' || whLabourService || ((whStoring || whContainer) && draft.extraLabourOn);
   const canDisposeEdit =
@@ -882,24 +886,44 @@ export function JobDetailDialog({
               <DialogTitle className="flex items-center gap-2 flex-wrap">
                 {editing ? (
                   <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                    <Input
-                      value={draft.customerCompanyName}
-                      onChange={(e) =>
-                        setDraft((d) => ({ ...d, customerCompanyName: e.target.value }))
-                      }
-                      placeholder="Company name (optional)"
-                      className="h-9 text-base font-bold"
-                    />
-                    <Input
-                      value={draft.customerName}
-                      onChange={(e) =>
-                        setDraft((d) => ({ ...d, customerName: e.target.value }))
-                      }
-                      placeholder={
-                        draft.customerCompanyName.trim() ? 'Contact person (optional)' : 'Customer name'
-                      }
-                      className="h-8 text-sm"
-                    />
+                    {/* The customer IS the client — a company name where they
+                        trade as one, their own name where they don't. The
+                        person at the delivery end is the Recipient.
+
+                        Jobs raised before Phase 20 split that identity across
+                        two columns, so those keep both boxes: collapsing them
+                        here would throw away a contact person we can't get
+                        back. New jobs never set customerCompanyName, so they
+                        get the single field. */}
+                    {hasLegacyCompany ? (
+                      <>
+                        <Input
+                          value={draft.customerCompanyName}
+                          onChange={(e) =>
+                            setDraft((d) => ({ ...d, customerCompanyName: e.target.value }))
+                          }
+                          placeholder="Company name"
+                          className="h-9 text-base font-bold"
+                        />
+                        <Input
+                          value={draft.customerName}
+                          onChange={(e) =>
+                            setDraft((d) => ({ ...d, customerName: e.target.value }))
+                          }
+                          placeholder="Contact person (optional)"
+                          className="h-8 text-sm"
+                        />
+                      </>
+                    ) : (
+                      <Input
+                        value={draft.customerName}
+                        onChange={(e) =>
+                          setDraft((d) => ({ ...d, customerName: e.target.value }))
+                        }
+                        placeholder="Customer"
+                        className="h-9 text-base font-bold"
+                      />
+                    )}
                   </div>
                 ) : (
                   (() => {

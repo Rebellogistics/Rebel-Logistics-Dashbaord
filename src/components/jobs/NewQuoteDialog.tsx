@@ -99,7 +99,9 @@ const completeDefaultFor = (type: JobType) => type === 'Standard' || type === 'W
 function formFromJob(job: Job): typeof initial {
   return {
     ...initial,
-    customerName: job.customerName ?? '',
+    // Pre-Phase-20 jobs kept the company in its own column. It is the
+    // client's identity, so it becomes the customer name on a rebook.
+    customerName: (job.customerCompanyName ?? '').trim() || (job.customerName ?? ''),
     customerCompanyName: job.customerCompanyName ?? '',
     customerPhone: job.customerPhone ?? '',
     customerId: job.customerId ?? '',
@@ -271,7 +273,7 @@ export function NewQuoteDialog({
     if (open && prefillJob) {
       const next = formFromJob(prefillJob);
       setForm(next);
-      setSearchQuery(next.customerCompanyName || next.customerName);
+      setSearchQuery(next.customerName);
       setLinkedCustomer(null);
       setNameTouched(true);
       // Rebooking carries the original job's choice; don't re-derive it.
@@ -294,18 +296,20 @@ export function NewQuoteDialog({
 
   const handlePickCustomer = (c: Customer) => {
     setLinkedCustomer(c);
-    setSearchQuery(c.companyName ?? c.name);
-    // For B2B (company customers), the contact person, phone, and pickup
-    // change with every booking — leave them blank for Yamin to fill in
-    // per-job. Only the company identity carries across. For individuals,
-    // pre-fill name + phone from the customer record as before.
+    // The customer IS the client — a company name where they trade as one,
+    // their own name where they don't. There is no second identity field:
+    // the person receiving the goods is the Recipient, and the site the work
+    // happens at is the address.
+    const identity = (c.companyName ?? '').trim() || c.name;
+    setSearchQuery(identity);
     const isB2B = !!(c.companyName?.trim());
     setForm((prev) => ({
       ...prev,
       customerId: c.id,
-      customerCompanyName: c.companyName ?? '',
-      customerName: isB2B ? '' : c.name,
-      customerPhone: isB2B ? '' : (c.phone ?? ''),
+      customerName: identity,
+      // Their own number, which doesn't change between bookings.
+      customerPhone: c.phone ?? '',
+      // Pickup does change every booking on a trade account.
       pickupAddress: isB2B ? '' : prev.pickupAddress,
     }));
     // Mark touched so the phone-based repeat-lookup useEffect doesn't
@@ -365,20 +369,10 @@ export function NewQuoteDialog({
     // the visible combobox stay coherent. If the customer is currently
     // linked, detaching is handled by the combobox via onClearPick.
     setNameTouched(true);
-    setForm((prev) => {
-      const looksLikeCompany = next.trim().length > 0 && /[A-Z][a-z]+\s+[A-Z]/.test(next);
-      // We can't reliably tell "company vs person" from a single string —
-      // so on free-text typing we always store it as customerName. The
-      // user can move it to the Company field manually if needed.
-      return { ...prev, customerName: next };
-    });
+    setForm((prev) => ({ ...prev, customerName: next }));
   };
 
   useEffect(() => {
-    // Skip the auto-fill for B2B — the contact person and pickup change
-    // every booking, so reusing the previous values is the bug Yamin hit
-    // on the May 4 call.
-    if (form.customerCompanyName.trim()) return;
     if (repeatInfo.found && repeatInfo.customerName && !nameTouched && !form.customerName) {
       setForm((prev) => ({
         ...prev,
@@ -386,7 +380,7 @@ export function NewQuoteDialog({
         pickupAddress: prev.pickupAddress || repeatInfo.lastPickup || '',
       }));
     }
-  }, [repeatInfo, nameTouched, form.customerName, form.customerCompanyName]);
+  }, [repeatInfo, nameTouched, form.customerName]);
 
   // Default the estimated-hours field to the minimum once rates load.
   useEffect(() => {
@@ -517,8 +511,7 @@ export function NewQuoteDialog({
   // (B2B — Yamin's most common case) OR the customer/contact name (B2C).
   // Everything else stays optional per Yamin's "name only" rule. The
   // company-only case is what unlocks the B2B picker flow where the
-  // contact person is filled in later per booking.
-  const baseValid = !!(form.customerCompanyName.trim() || form.customerName.trim());
+  const baseValid = !!form.customerName.trim();
 
   const pricingValid = (() => {
     if (!breakdown) return false;
@@ -540,7 +533,6 @@ export function NewQuoteDialog({
       // was picked from the combobox.
       customerId: form.customerId || undefined,
       customerName: form.customerName.trim(),
-      customerCompanyName: form.customerCompanyName.trim() || undefined,
       customerPhone: form.customerPhone.trim() || undefined,
       pickupAddress: form.pickupAddress.trim(),
       deliveryAddress: form.deliveryAddress.trim(),
@@ -644,7 +636,6 @@ export function NewQuoteDialog({
               // each one is filled in on the job afterwards.
               customerId: form.customerId || undefined,
               customerName: form.customerName.trim(),
-              customerCompanyName: form.customerCompanyName.trim() || undefined,
               customerPhone: form.customerPhone.trim() || undefined,
               pickupAddress: form.pickupAddress.trim(),
               deliveryAddress: o.deliveryAddress.trim(),
@@ -708,7 +699,7 @@ export function NewQuoteDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{prefillJob ? 'Rebook customer' : 'New Quote'}</DialogTitle>
           <DialogDescription>
@@ -718,8 +709,11 @@ export function NewQuoteDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-3 py-2 max-h-[52vh] overflow-y-auto pr-1">
-          <Field
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 py-2 max-h-[52vh] overflow-y-auto pr-1">
+          <Section label="Customer" />
+
+            <Field
+              className="sm:col-span-2"
             label="Customer"
             hint="Pick an existing customer to auto-fill, or type a new name to create one. Search by name, company, or phone."
           >
@@ -775,70 +769,21 @@ export function NewQuoteDialog({
           </Field>
 
           <Field
-            label="Company name (optional)"
-            hint="For business customers — e.g. 'Bayliss Rugs'. Leave blank for individuals."
+            label="Customer phone (optional)"
+            hint="The client's own number. Where the job has a recipient, the driver rings the recipient instead."
           >
             <Input
-              value={form.customerCompanyName}
-              onChange={(e) => update('customerCompanyName', e.target.value)}
-              placeholder="Bayliss Rugs"
+              value={form.customerPhone}
+              onChange={(e) => update('customerPhone', e.target.value)}
+              placeholder="04xx xxx xxx"
             />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field
-              label={form.customerCompanyName.trim() ? 'Contact person' : 'Customer name'}
-              hint={
-                form.customerCompanyName.trim()
-                  ? 'Who at the company is making the booking. Optional.'
-                  : 'Required. For individuals, this is them.'
-              }
-            >
-              <Input
-                value={form.customerName}
-                onChange={(e) => {
-                  setNameTouched(true);
-                  update('customerName', e.target.value);
-                  // Keep the combobox query mirrored unless the user has
-                  // an active link (in which case they'd need to detach).
-                  if (!linkedCustomer) setSearchQuery(e.target.value);
-                }}
-                placeholder={form.customerCompanyName.trim() ? 'Jane Smith (optional)' : 'Jane Smith'}
-              />
-            </Field>
-            <Field label="Phone (optional)">
-              <Input
-                value={form.customerPhone}
-                onChange={(e) => update('customerPhone', e.target.value)}
-                placeholder="04xx xxx xxx"
-              />
-            </Field>
+
+          <div className="sm:col-span-2">
+            <RepeatCustomerBanner info={repeatInfo} />
           </div>
 
-          {/* V4 2.8: live identity preview. Catches the "I typed the
-              contact in the customer field" pattern at-a-glance — what
-              you see here is what the driver shell will show. */}
-          {(form.customerCompanyName.trim() || form.customerName.trim()) && (
-            <div className="rounded-lg border border-rebel-border/50 bg-muted/40 px-3 py-2 text-[11px] leading-snug">
-              <p className="text-[9.5px] uppercase tracking-wider font-bold text-muted-foreground mb-0.5">
-                Will save as
-              </p>
-              <p className="font-semibold text-rebel-text truncate">
-                {form.customerCompanyName.trim() || form.customerName.trim() || '—'}
-              </p>
-              {form.customerCompanyName.trim() && form.customerName.trim() && (
-                <p className="text-muted-foreground truncate">
-                  Contact: {form.customerName.trim()}
-                </p>
-              )}
-              {form.customerPhone.trim() && (
-                <p className="text-muted-foreground truncate">
-                  {form.customerPhone.trim()}
-                </p>
-              )}
-            </div>
-          )}
-
-          <RepeatCustomerBanner info={repeatInfo} />
+          <Section label="Addresses & recipient" />
 
           <Field label="Pickup address">
             <AddressAutocomplete
@@ -856,7 +801,7 @@ export function NewQuoteDialog({
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:col-span-2">
             <Field
               label="Recipient"
               hint="Who is at the delivery address. On trade jobs this is not the customer on the account."
@@ -876,6 +821,8 @@ export function NewQuoteDialog({
             </Field>
           </div>
 
+          <Section label="Job & pricing" />
+
           <Field
             label="Job type"
             hint="Standard = regular delivery. White Glove = careful handling / inside placement. Hourly rate = charged by the hour, by truck. Labour = crew time on site, no truck. Storage = warehousing: storage by tier and term, a container unload, or labour work."
@@ -889,6 +836,7 @@ export function NewQuoteDialog({
 
           {!isWarehousing && (
             <Field
+              className="sm:col-span-2"
               label="Out of a container"
               hint={
                 availableContainers.length
@@ -920,7 +868,7 @@ export function NewQuoteDialog({
 
           {isDelivery && (
             <>
-              <Field label="Zone">
+              <Field label="Zone" className="sm:col-span-2">
                 <div
                   className={
                     'rounded-md border px-3 py-2 text-xs ' +
@@ -933,7 +881,7 @@ export function NewQuoteDialog({
                 >
                   {zone === null ? (
                     <>
-                      No postcode in the delivery address yet — priced as{' '}
+                      No postcode at either end yet — priced as{' '}
                       <span className="font-semibold">Metro</span>, per m³. Add one and the zone
                       settles itself.
                     </>
@@ -949,7 +897,7 @@ export function NewQuoteDialog({
               </Field>
 
               {isMetro ? (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:col-span-2">
                   <Field
                     label="Cubic metres (m³)"
                     hint="Total volume of the items. Multiplied by the metro per-cube rate."
@@ -975,7 +923,7 @@ export function NewQuoteDialog({
                   </Field>
                 </div>
               ) : (
-                <div className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground inline-flex items-start gap-2">
+                <div className="sm:col-span-2 rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground inline-flex items-start gap-2">
                   <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                   Regional jobs use a flat minimum charge of{' '}
                   {rates
@@ -988,7 +936,7 @@ export function NewQuoteDialog({
           )}
 
           {isHouseMove && rates && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:col-span-2">
               <Field
                 label="Hourly rate"
                 hint={
@@ -1040,6 +988,7 @@ export function NewQuoteDialog({
 
           {isWarehousing && (
             <Field
+              className="sm:col-span-2"
               label="Service"
               hint="Three separate services. Storage and a container unload are never combined on one quote — they are billed apart."
             >
@@ -1057,7 +1006,7 @@ export function NewQuoteDialog({
 
           {whStoring && (
             <>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:col-span-2">
                 <Field label="Tier">
                   <ToggleGroup
                     options={[
@@ -1080,7 +1029,7 @@ export function NewQuoteDialog({
                   />
                 </Field>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:col-span-2">
                 <Field label="Cubic metres (m³)" hint="Rounded up to the next whole m³.">
                   <Input
                     type="text"
@@ -1148,7 +1097,7 @@ export function NewQuoteDialog({
           )}
 
           {needsCrew && rates && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:col-span-2">
               <Field
                 label="Crew"
                 hint={
@@ -1221,7 +1170,7 @@ export function NewQuoteDialog({
           )}
 
           {whContainer && (
-            <div className="space-y-1">
+            <div className="space-y-1 sm:col-span-2">
               <div className="flex items-center justify-between gap-2">
                 <Label className="text-xs text-muted-foreground font-medium">
                   Out of this container — delivered, or held
@@ -1370,7 +1319,7 @@ export function NewQuoteDialog({
           )}
 
           {(canDispose || canPackage || whStoring || whContainer || form.type === 'White Glove') && (
-            <div className="space-y-1">
+            <div className="space-y-1 sm:col-span-2">
               <Label className="text-xs text-muted-foreground font-medium">Extras</Label>
               <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
                 {(whStoring || whContainer) && (
@@ -1458,36 +1407,9 @@ export function NewQuoteDialog({
             </div>
           )}
 
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground font-medium">Customer SMS</Label>
-            <div className="space-y-1.5 rounded-lg border border-border bg-muted/30 p-3">
-              {(
-                [
-                  { key: 'sendDayPrior', label: 'Day-prior reminder', hint: 'sent the evening before' },
-                  { key: 'sendEnRoute', label: 'En-route notice', hint: 'driver still records en-route for dispatch' },
-                  { key: 'sendComplete', label: 'Job complete', hint: 'sent after sign-off' },
-                ] as const
-              ).map((row) => (
-                <label key={row.key} className="flex items-start gap-2 text-xs cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form[row.key]}
-                    onChange={(e) => {
-                      if (row.key === 'sendComplete') setCompleteTouched(true);
-                      update(row.key, e.target.checked);
-                    }}
-                    className="h-3.5 w-3.5 mt-0.5 rounded border-border"
-                  />
-                  <span>
-                    <span className="font-medium">{row.label}</span>
-                    <span className="text-muted-foreground"> — {row.hint}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
+          <Section label="Notes & admin" />
 
-          <div className="space-y-1">
+          <div className="space-y-1 sm:col-span-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs text-muted-foreground font-medium inline-flex items-center gap-1">
                 {isHouseMove ? 'Job description' : 'Notes'}
@@ -1542,6 +1464,35 @@ export function NewQuoteDialog({
                 Listening…
               </p>
             )}
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground font-medium">Customer SMS</Label>
+            <div className="space-y-1.5 rounded-lg border border-border bg-muted/30 p-3">
+              {(
+                [
+                  { key: 'sendDayPrior', label: 'Day-prior reminder', hint: 'sent the evening before' },
+                  { key: 'sendEnRoute', label: 'En-route notice', hint: 'driver still records en-route for dispatch' },
+                  { key: 'sendComplete', label: 'Job complete', hint: 'sent after sign-off' },
+                ] as const
+              ).map((row) => (
+                <label key={row.key} className="flex items-start gap-2 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form[row.key]}
+                    onChange={(e) => {
+                      if (row.key === 'sendComplete') setCompleteTouched(true);
+                      update(row.key, e.target.checked);
+                    }}
+                    className="h-3.5 w-3.5 mt-0.5 rounded border-border"
+                  />
+                  <span>
+                    <span className="font-medium">{row.label}</span>
+                    <span className="text-muted-foreground"> — {row.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
           </div>
 
           <Field label="Quote valid until" hint="Defaults to 30 days from today. Adjust if a shorter window applies.">
@@ -1625,9 +1576,23 @@ export function NewQuoteDialog({
   );
 }
 
-function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+// A hairline rule with a caption. The quote form runs to twenty-odd
+// controls; without these the two columns read as one undifferentiated
+// wall of inputs.
+function Section({ label }: { label: string }) {
   return (
-    <div className="space-y-1">
+    <div className="sm:col-span-2 flex items-center gap-2 pt-1">
+      <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground shrink-0">
+        {label}
+      </span>
+      <span className="h-px flex-1 bg-border" />
+    </div>
+  );
+}
+
+function Field({ label, children, hint, className }: { label: string; children: ReactNode; hint?: string; className?: string }) {
+  return (
+    <div className={'space-y-1' + (className ? ' ' + className : '')}>
       <Label className="text-xs text-muted-foreground font-medium inline-flex items-center gap-1">
         {label}
         {hint && (
