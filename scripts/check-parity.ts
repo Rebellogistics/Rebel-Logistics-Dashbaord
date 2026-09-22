@@ -105,6 +105,10 @@ const CONTROLS: Control[] = [
     needs: { engine: /legsHours/, quoteDialog: /legsHours/, jobDialog: /legsHours/ },
   },
   {
+    name: 'Travel time — truck rate on hourly, crew rate on labour',
+    needs: { engine: /travelHours/, quoteDialog: /travelHours/, jobDialog: /travelHours/ },
+  },
+  {
     name: 'Rubbish disposal — an extra, never a job type',
     needs: {
       engine: /disposalLines\(/,

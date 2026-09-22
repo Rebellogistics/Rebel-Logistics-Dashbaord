@@ -205,6 +205,7 @@ export type Database = {
           fuel_levy_pct_applied: number | null
           labourers: number | null
           legs_hours: number | null
+          travel_hours: number | null
           packaging_amount: number | null
           storage_days: number | null
           storage_term: string | null
@@ -269,6 +270,7 @@ export type Database = {
           fuel_levy_pct_applied?: number | null
           labourers?: number | null
           legs_hours?: number | null
+          travel_hours?: number | null
           packaging_amount?: number | null
           storage_days?: number | null
           storage_term?: string | null
@@ -333,6 +335,7 @@ export type Database = {
           fuel_levy_pct_applied?: number | null
           labourers?: number | null
           legs_hours?: number | null
+          travel_hours?: number | null
           packaging_amount?: number | null
           storage_days?: number | null
           storage_term?: string | null

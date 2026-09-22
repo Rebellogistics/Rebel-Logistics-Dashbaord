@@ -183,6 +183,9 @@ const initial = {
   // V7. Hourly work picks a truck; Labour and warehouse work pick a crew.
   truckSize: 'standard' as TruckSize,
   labourers: '',
+  /** Hourly and Labour jobs: time spent getting there, when the site is far
+   *  enough out to be worth charging for. No minimum. */
+  travelHours: '',
 
   // Warehousing is three services, never combined on one quote.
   warehouseService: 'storage' as WarehouseService,
@@ -473,6 +476,7 @@ export function NewQuoteDialog({
       containerSize: form.containerSize,
       whLabourType: form.whLabourType,
       legsHours: parseFloat(form.legsHours) || 0,
+      travelHours: parseFloat(form.travelHours) || 0,
       extraLabourOn: form.extraLabourOn,
       fuelLevyMode: form.fuelLevyMode,
       disposalLoad: form.disposalOn ? form.disposalLoad : undefined,
@@ -596,6 +600,9 @@ export function NewQuoteDialog({
       containerJobId: !isWarehousing && form.containerJobId ? form.containerJobId : undefined,
       legsHours: (whStoring || whContainer) && form.legsHours
         ? parseFloat(form.legsHours) || 0
+        : undefined,
+      travelHours: (isHouseMove || isLabour) && form.travelHours
+        ? parseFloat(form.travelHours) || 0
         : undefined,
 
       // Extras are stored as resolved amounts, not as a rate to look up
@@ -1032,6 +1039,25 @@ export function NewQuoteDialog({
                 ]}
                 value={form.truckSize}
                 onChange={(v) => update('truckSize', v as TruckSize)}
+              />
+            </Field>
+          )}
+
+          {(isHouseMove || isLabour) && (
+            <Field
+              label="Travel time (hours)"
+              hint={
+                isLabour
+                  ? "Optional. Time getting the crew to an out-of-the-way site, billed as the whole crew's time at the labour rate with no minimum. No fuel levy — the levy never touches labour."
+                  : 'Optional. Time spent getting to and from the job, billed at the same truck rate with no minimum — for a run far enough out to be worth charging for. Rounded up like every other hour.'
+              }
+            >
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={form.travelHours}
+                onChange={(e) => update('travelHours', sanitiseDecimal(e.target.value))}
+                placeholder="Leave blank if travel isn't charged"
               />
             </Field>
           )}

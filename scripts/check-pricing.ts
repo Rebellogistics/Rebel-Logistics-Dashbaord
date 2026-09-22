@@ -52,6 +52,18 @@ const cases: Array<[string, Parameters<typeof priceJob>[0], number]> = [
   ['unknown pickup leaves delivery to decide', { type: 'Standard', rates, postcode: 3000, cubicMetres: 2 }, 242],
   ['regional pickup, unknown delivery is still regional', { type: 'Standard', rates, pickupPostcode: 3220, cubicMetres: 2 }, 580.80],
   ['WG Geelong pickup -> metro delivery', { type: 'White Glove', rates, pickupPostcode: 3220, postcode: 3186, cubicMetres: 3 }, 677.60],
+
+  // Travel on an hourly job: the truck's rate, levied, no minimum.
+  ['5 h hourly + 1.5 h travel', { type: 'Hourly rate', rates, estimatedHours: 5, travelHours: 1.5 }, 1415.70],
+  ['travel rounds up to the next 30 min', { type: 'Hourly rate', rates, estimatedHours: 5, travelHours: 0.6 }, 1306.80],
+  ['8 h large truck + 2 h travel', { type: 'Hourly rate', rates, estimatedHours: 8, truckSize: 'large', travelHours: 2 }, 2420],
+  ['no travel entered charges none', { type: 'Hourly rate', rates, estimatedHours: 5, travelHours: 0 }, 1089],
+
+  // Travel on a labour job: the whole crew's time at their rate, never levied.
+  ['4 pax × 5 h labour + 1.5 h travel', { type: 'Labour', rates, labourers: 4, estimatedHours: 5, travelHours: 1.5 }, 1716],
+  ['labour travel rounds up to 30 min', { type: 'Labour', rates, labourers: 3, estimatedHours: 4, travelHours: 0.6 }, 990],
+  ['labour travel rides the crew minimum', { type: 'Labour', rates, labourers: 1, estimatedHours: 1, travelHours: 2 }, 660],
+  ['labour travel has no minimum of its own', { type: 'Labour', rates, labourers: 2, estimatedHours: 3, travelHours: 0.5 }, 462],
 ];
 
 let failed = 0;

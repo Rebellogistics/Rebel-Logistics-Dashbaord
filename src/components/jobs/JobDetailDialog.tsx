@@ -121,6 +121,7 @@ function buildDraftFromJob(job: Job) {
     // V7 pricing inputs, so they can be edited rather than only created.
     containerJobId: job.containerJobId ?? '',
     truckSize: (job.truckSize ?? 'standard') as TruckSize,
+    travelHours: job.travelHours != null ? String(job.travelHours) : '',
     labourers: job.labourers != null ? String(job.labourers) : '',
     warehouseService: (job.warehouseService ?? 'storage') as WarehouseService,
     storageTier: (job.storageTier ?? 'Standard') as StorageTier,
@@ -251,6 +252,7 @@ export function JobDetailDialog({
     priceIsManual: false,
     containerJobId: '',
     truckSize: 'standard' as TruckSize,
+    travelHours: '',
     labourers: '',
     warehouseService: 'storage' as WarehouseService,
     storageTier: 'Standard' as StorageTier,
@@ -459,6 +461,7 @@ export function JobDetailDialog({
       cubicMetres: parseFloat(draft.cubicMetres) || 0,
       estimatedHours: parseFloat(draft.estimatedHours) || 0,
       truckSize: draft.truckSize,
+      travelHours: parseFloat(draft.travelHours) || 0,
       labourers: parseFloat(draft.labourers) || 0,
       warehouseService: draft.warehouseService,
       storageTier: draft.storageTier,
@@ -504,6 +507,7 @@ export function JobDetailDialog({
       draft.deliveryAddress !== was.deliveryAddress ||
       draft.pickupAddress !== was.pickupAddress ||
       draft.truckSize !== (job.truckSize ?? 'standard') ||
+      draft.travelHours !== (job.travelHours != null ? String(job.travelHours) : '') ||
       draft.labourers !== (job.labourers != null ? String(job.labourers) : '') ||
       draft.warehouseService !== (job.warehouseService ?? 'storage') ||
       draft.storageTier !== (job.storageTier ?? 'Standard') ||
@@ -562,6 +566,9 @@ export function JobDetailDialog({
   const isLabour = draft.type === 'Labour';
   const needsCrewEdit =
     draft.type === 'Labour' || whLabourService || ((whStoring || whContainer) && draft.extraLabourOn);
+  // Travel is charged on the two job types that go to the customer's own
+  // ground: an hourly run at the truck rate, a labour crew at theirs.
+  const chargesTravel = isHouseMove || isLabour;
   const canDisposeEdit =
     !!rates &&
     disposalAllowed({
@@ -736,6 +743,11 @@ export function JobDetailDialog({
       'container',
     );
     pushChange('truckSize', isHouseMove ? draft.truckSize : null, 'truck');
+    pushChange(
+      'travelHours',
+      chargesTravel && draft.travelHours ? parseFloat(draft.travelHours) : null,
+      'travel time',
+    );
     pushChange(
       'labourers',
       needsCrewEdit && draft.labourers ? parseFloat(draft.labourers) : null,
@@ -1313,6 +1325,21 @@ export function JobDetailDialog({
                       ]}
                       value={draft.truckSize}
                       onChange={(v) => setDraft((d) => ({ ...d, truckSize: v }))}
+                    />
+                  </div>
+                )}
+
+                {chargesTravel && (
+                  <div className="space-y-1">
+                    <EditLabel>Travel time (hours)</EditLabel>
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      value={draft.travelHours}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, travelHours: sanitiseDecimal(e.target.value) }))
+                      }
+                      placeholder="Leave blank if travel isn't charged"
                     />
                   </div>
                 )}

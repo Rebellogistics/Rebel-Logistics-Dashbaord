@@ -94,6 +94,21 @@ export interface JobPricingInput {
   whLabourType?: 'outbound' | 'qc' | 'unload';
   legsHours?: number;
   /**
+   * Travel to the job, with NO minimum — the minimum is for a booked job,
+   * not for getting to it. Rounded up to the billing increment like any
+   * other hour.
+   *
+   * On an HOURLY job it bills at the same truck's rate, and the levy applies
+   * because it is transport. On a LABOUR job there is no truck, so it bills
+   * as the whole crew's time at the labour rate, and the levy never touches
+   * it (Yamin, 2026-09-22).
+   *
+   * Deliberately not a distance calculation: per-km mechanics were removed
+   * by decision on 2026-09-16, so whether a run is far enough out to charge
+   * travel on is a judgement made at quote time and typed in.
+   */
+  travelHours?: number;
+  /**
    * Crew work billed onto a storage or container-unload job rather than
    * quoted as its own labour-work job. This is how time beyond the
    * container's included hours gets onto the same invoice, and how a
@@ -322,6 +337,20 @@ export function priceJob(input: JobPricingInput): JobPrice {
       amount: round2(crew * hrs * r.labourPerHourAud),
       levied: false,
     });
+
+    // Travel to an out-of-the-way site. There is no truck on a labour job, so
+    // it bills as what it actually is: the whole crew's time, at their own
+    // rate (Yamin, 2026-09-22). No minimum, and not levied — the levy never
+    // touches labour.
+    if (input.travelHours) {
+      const travelHrs = billableHours(input.travelHours, inc);
+      lines.push({
+        label: 'Travel time',
+        note: `${crew} pax × ${travelHrs} h × $${r.labourPerHourAud} — no minimum`,
+        amount: round2(crew * travelHrs * r.labourPerHourAud),
+        levied: false,
+      });
+    }
   } else if (input.type === 'Hourly rate') {
     const large = input.truckSize === 'large';
     const rate = input.overrideHourlyRate ?? (large ? r.hourlyRateLargeAud : r.hourlyRateAud);
@@ -336,6 +365,19 @@ export function priceJob(input: JobPricingInput): JobPrice {
       amount: round2(hrs * rate),
       levied: true,
     });
+
+    // Travel, when the run is far enough out to be worth charging for. Same
+    // truck rate, same rounding, no minimum — and levied, because it is
+    // transport.
+    if (input.travelHours) {
+      const travelHrs = billableHours(input.travelHours, inc);
+      lines.push({
+        label: 'Travel time',
+        note: `${travelHrs} h × $${rate} (${large ? 'large' : 'standard'} truck) — no minimum`,
+        amount: round2(travelHrs * rate),
+        levied: true,
+      });
+    }
   } else {
     // Standard / White Glove. The postcodes decide the zone outright -- both
     // of them. One regional end is enough to make the whole run regional.

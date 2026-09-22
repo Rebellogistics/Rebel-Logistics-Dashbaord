@@ -206,6 +206,10 @@ export interface Job {
   /** V7: collection/return hours on a warehousing job. Billed at the truck
    *  rate with no minimum, and the only part of such a job the levy touches. */
   legsHours?: number;
+  /** V7: travel time. On an hourly job it bills at the truck rate and is
+   *  levied; on a labour job it bills as the whole crew's time and is not.
+   *  No minimum either way. */
+  travelHours?: number;
   containerSize?: '20 ft' | '40 ft';
   /** V7: the container-unload job this delivery came out of, if it did.
    *  Groups deliveries onto one invoice; the unload always invoices alone.
