@@ -5,8 +5,8 @@ cycles append at the bottom of the **Phase index**. Per-phase detail
 lives in `docs/archive/phases/<phase>.md`. In-flight phases stay
 inline at the bottom of this file until they ship.
 
-_Last refreshed: 2026-09-18 (recap pass — two working sessions were deleted from the app sidebar on 2026-09-18; their transcripts survived and what they finished is folded in below: V6 P7 audience pages recorded, V7 real-data verification closed, V6 P6 push closed, item 13 closed). Prior: 2026-09-18 (V7 cycle merged: the rate book the calculator models). Prior: 2026-09-17 (V6 P6: pricing rate-book integrity)._
-_Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRANSCRIPT_20260517.md`](docs/archive/transcripts/TRANSCRIPT_20260517.md)._
+_Last refreshed: 2026-09-23 (V7 P7 travel time shipped and applied to production; zone now reads BOTH postcodes; three silent wrongs fixed ahead of the client-profile rework; both job dialogs re-laid-out; the client-profile rework scoped and decided — see the new V8 section at the bottom). Prior: 2026-09-18 (recap pass — two working sessions were deleted from the app sidebar on 2026-09-18; their transcripts survived and what they finished is folded in below: V6 P7 audience pages recorded, V7 real-data verification closed, V6 P6 push closed, item 13 closed). Prior: 2026-09-18 (V7 cycle merged: the rate book the calculator models). Prior: 2026-09-17 (V6 P6: pricing rate-book integrity)._
+_Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRANSCRIPT_20260922.md`](docs/archive/transcripts/TRANSCRIPT_20260922.md) (the session that settled the both-ends zone rule, travel time, and the whole V8 client-profile scope)._
 
 ---
 
@@ -49,6 +49,25 @@ _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRA
 10. **Call accountant Malik → $1,000 Remitly transfer.** Yamin emailed Malik before 2026-05-15 call; no response yet. **Not addressed on 2026-05-17 call** — still following up.
 
 11. **Set `TWILIO_SENDER_ID="RBLogistics"` on Vercel** (Production scope). The AU sender registration **is approved** — confirmed by Yamin 2026-09-14. The approved string is `RBLogistics` — 11 characters, no space. This is **not** the `RBL Logistics` submitted on the 2026-05-15 call, which was 13 characters and over Twilio's hard 11-character limit; nor the `REBEL` / `RebelLGTCS` / `Rebel LGTCS` variants in `docs/archive/v4/V4_STATUS.md`. Set it verbatim — a mismatch fails every outbound send with a silent carrier rejection (the May 2026 test failure). No redeploy needed; Vercel hot-loads env on the next request. Verify on Settings → Integrations (the *Outbound from* tile flips to `RBLogistics` with the alphanumeric chip), then test-send to a handset. Reverting is instant: clear the var and outbound falls back to the AU number.
+
+### Blocking — found 2026-09-22, not yet fixed
+
+18. 🔴 **The Accept dialog under-quotes White Glove jobs that carry rubbish
+    disposal, by $440 on a 14 m³ job.** `AcceptDialog.tsx` builds its
+    "Rate book: … — tap to use" suggestion with `calculateQuote` from
+    `src/lib/pricing.ts` — the **retired** V6 engine — instead of `priceJob`.
+    The old engine has no concept of extras, so the suggested figure drops
+    them. Measured against the live rate book: WG 14 m³ + trailer disposal
+    quotes $2,960.00, Accept offers $2,520.00. Scope is exactly White Glove
+    with disposal ticked (Standard cannot carry extras, Hourly is priced
+    separately, Storage returns zero so no suggestion shows, and the levy is
+    stored outside `fee`). Deliberately left out of a layout-only change.
+    Fix: build the suggestion from `priceJob` fed by the job's stored V7
+    fields. See memory `accept-dialog-uses-retired-engine`.
+
+19. 🟡 **`AddressAutocomplete` renders a `<div>` inside `DetailRow`'s `<p>`**
+    in `JobDetailDialog` — invalid DOM, and the `absolute` suggestion list is
+    clipped by the `truncate`. Pre-existing, raised 2026-09-22, not actioned.
 
 ### Open thread (workaround in place)
 
@@ -176,6 +195,8 @@ is where the model was settled; this cycle is that model in the dashboard.
 | 4 | Quote dialog: types, services, extras, levy override | ✅ 2026-09-17 | `12850b5`, `6e364d5`, `d2db418` | inline |
 | 5 | Job dialog: prices and edits the model, without repricing history | ✅ 2026-09-17 | `270854a`, `2e8d60b` | inline |
 | 6 | Container multi-invoice | ✅ applied 2026-09-18 | `32ce96b`, `d715b08` | inline |
+| 7 | Travel time on Hourly and Labour jobs | ✅ applied 2026-09-22 | `6739e4e` | inline |
+| 8 | Zone reads BOTH postcodes, not just the delivery | ✅ 2026-09-22 | `c7bbe88` | inline |
 
 **The model.** Standard $120/m³ metro · $480 regional. White Glove $180/m³ ·
 $480 regional. Hourly $180 standard truck / $200 large, 3 h minimum. Labour
@@ -186,8 +207,21 @@ crew or hours floor). Rubbish disposal and packaging are **extras on the job
 that created them, never job types**. Fuel levy 10%, **currently off**,
 transport only.
 
+**Travel time** (P7, 2026-09-22): charged on Hourly and Labour jobs, 30-minute
+increments rounded up, **no minimum**. Hourly bills it at the same truck rate
+and the levy applies; Labour bills it as the whole crew's time at the labour
+rate and the levy never touches it. Not a distance calculation — typed in per
+job, because per-km mechanics were removed by decision on 2026-09-16.
+
 **Two rules that are easy to undo by accident:**
-- **The postcode is binding.** It sets a job's zone with no override, so
+- **The postcodes are binding — BOTH of them** (updated 2026-09-22). A run is
+  regional if EITHER end is regional: Geelong → the CBD is regional, and so is
+  Heidelberg → Geelong. A **blank pickup means our own warehouse**, which is
+  metro and always will be, so the delivery address decides alone. A pickup
+  TYPED without a postcode ("Hallam", "Geelong") gets no vote, and the quote
+  box says so — that is the one real exposure, since only 2 of 31 delivery
+  jobs have a postcode in the pickup address. It sets a job's zone with no
+  override, so
   `public.metro_postcodes` (Settings → Pricing) is the only lever for service
   area. It is anon-readable so the public form classifies identically;
   `pricing_rates` stays authenticated-only.
@@ -306,6 +340,63 @@ than being edited to paper over the fallback.
 `main` and live. Optional follow-up remains: port pricing into `LeadForm` and
 delete `PublicQuoteForm`, or formally retire it.
 
+### V8 — the client profile (scoped 2026-09-22, not started)
+
+Yamin's three booking scenarios, given verbatim across the 2026-09-22 session,
+and the rulings that came out of them. The full spec is in memory as
+`client-profile-rules`; this table is the schedule.
+
+**The three scenarios.** (1) **Trade** — the client is Bayliss Rugs; the
+Addresses & recipient fields hold the END CLIENT's details. (2) **Direct** — an
+individual or business booking for themselves, so no recipient, but possibly
+many pickups or many deliveries. (3) **On site** — Labour or container work at
+the client's own premises, so no pickup and no delivery at all, just one of
+their sites.
+
+**The rulings.** One identity field called **Client name** (merge
+`customers.name` and `company_name`; 153 of 154 company rows already hold the
+same string in both). **Sites and contacts are two sibling lists** on the
+profile — a client may have a showroom, a warehouse, and an office in charge of
+deliveries; a contact can exist without a site. **One booking shape per job**
+(*for their client* / *for themselves* / *at their own site*) decides which
+fields show, rather than per-field toggles. **A job's address follows the
+profile until the job hits `Completed`, then freezes** — the invoice and proof
+photos are filed against it. **SMS on a trade job goes to the recipient**, not
+the account. **Multi-stop is hourly install work only** — deliveries are each
+their own job, so ten drops off one Bayliss load are ten jobs. **Container
+unload stays a warehouse service**; on-site container work is booked as Labour.
+
+| Phase | Name | Status | What's left |
+|---|---|---|---|
+| 1 | Guardrails — no schema change | ✅ 2026-09-22 `60287ed` | — |
+| 2 | Sites + contacts on the profile, and the Client name merge | ⏳ not started | **NEXT.** Two child tables, a `useClientSites` hook, the Sites/Contacts repeaters on `CustomerDialog`, a read-only card on `CustomerDetailDialog`. Nothing about jobs changes. One company record has a blank company name and needs fixing if the merge blocks on it. |
+| 3 | Lift the 40 `Postal: …` addresses out of `customers.notes` | ⏳ not started | One-off reviewed SQL. **COPY, do not clear** — notes are driver-visible and searched. 25 of the 40 are on active clients. Safe to run now that the re-import can no longer null them (`60287ed`). |
+| 4 | Booking shape + on-site jobs end to end | ⏳ not started | `jobs.booking_shape` + `client_site_id` + `site_label`; the three-way toggle in BOTH dialogs in the same commit; the site picker with inline "+ add a site" and "save this address to <client>". The truck login currently shows an on-site job with **no location at all** — fix that here. |
+| 5 | Hide what doesn't apply | ⏳ not started | *for themselves* drops the Recipient fields. One predicate, no migration. |
+| 6 | `job_stops` — hourly install work only | ⏳ not started | Child table, not JSONB (`toSnakeCase` recurses into arrays). Needs a DRIVER select policy scoped through the parent job or multi-stop is a lie on the phone. Per-stop timestamps; collection photos only when the driver answers yes to "is there damage visible?"; final-delivery photos always; **ONE** invoice line listing every pickup and the delivery. |
+| 7 | Downstream truth pass | ⏳ not started | Xero line descriptions say "from A to B", false on a multi-stop job; export filenames name every stop's photo after stop 1; the driver's Maps link goes to stop 1 with no sign more exist; `PublicStatusPage` and `useJobPhotos` have hardcoded select lists. |
+| 8 | Parity + the freeze rule | ⏳ not started | Widen `check-parity.ts` to the driver and customer files. Then stop `sms.ts`, `xero.ts` and `SendSmsDialog` resolving the client's name from the **live** profile instead of the job snapshot — a rename currently rewrites what every historical job's SMS and invoice say. Build LAST, it is outward-facing. |
+| — | Duplicate-client merge tool | ⏳ wanted, unscheduled | None exists; the Bayliss merge was hand-written SQL and `CustomersView` offers only Delete / Move to Trash. Once sites live on the profile, a duplicate means a split address book. |
+
+**Open decisions Yamin has NOT made:** whether an on-site labour job in a
+regional suburb carries a travel loading beyond the travel-time charge; and
+whether client sites should be searchable (he said no — search is always by
+client, never by address, so this is settled unless he reopens it).
+
+### Dialog layout (2026-09-22 → 23)
+
+| What | Commit | Note |
+|---|---|---|
+| Quote card to two columns, client to one field | `c8b2706` | Four section rules; Company name + Contact person removed as a duplicate identity |
+| Job dialog fits the screen; **Labour job type restored** | `3377c28` | The select offered four types where the quote dialog offers five, so a saved Labour job would silently convert on first touch. No Labour job existed in production yet. Parity row for Labour now has a `jobDialog` key, verified to fail when removed. Three columns was **rejected** on arithmetic — at 4xl a third column is 267px, narrower than today's 294px. |
+| Quote form gets back the height the price block held | `0cda2d9` | Only the total is pinned now; the charge lines scroll with the rest |
+
+**What's left:** a full Storage quote still scrolls on Yamin's 13-inch (669px
+viewport) — 225px of the 635 is fixed chrome. Next levers, if he asks: drop the
+`DialogDescription` under the title (~20px) and tighten the row gap. Also: the
+job dialog is now the widest surface in the dashboard at `4xl` while every
+other dialog is `2xl` — if the asymmetry looks wrong, widen the others to match.
+
 ### V3 cycle (archived)
 
 Fully shipped 2026-04 to 2026-05. Per-phase detail lives in [`docs/archive/v3/`](docs/archive/v3/). Read only if a question references V3 specifically.
@@ -331,5 +422,11 @@ All applied to Yamin's Supabase project via the Supabase MCP — no manual SQL r
 | 17 | `20260916000002_drop_job_type_rename_backup.sql` | drops `_bak_job_type_rename`, the verified rename scaffolding |
 | 18 | `20260916000003_add_storage_job_type.sql` | widens `jobs_type_check` to allow `Storage` as a fourth job type |
 | 19 | `20260916000004_storage_service_builtin.sql` | locks the `Storage` services-catalog row as a builtin, mirroring the other three job types |
+| 20 | `20260917000001_v7_phase1_rate_book_v2.sql` | 25 rate columns + 16 job columns + `Labour` job type + `fuel_levy_mode` / `warehouse_service` / `truck_size` CHECKs |
+| 21 | `20260917000002_v7_phase2a_metro_postcodes_table.sql` | `metro_postcodes` table — the 192-postcode list becomes editable data |
+| 22 | `20260917000003_v7_phase2b_metro_postcodes_anon_read.sql` | anon read on `metro_postcodes` only (it says which postcodes are metro, nothing about price); `pricing_rates` stays authenticated-only |
+| 23 | `20260917000004_v7_phase3_labour_builtin_service.sql` | locks the `Labour` services-catalog row as a builtin |
+| 24 | `20260918000001_v7_phase6_container_link.sql` | `jobs.container_job_id` — a delivery points at the unload it came out of, for the three-way invoice split |
+| 25 | `20260922000001_v7_phase7_travel_time.sql` | `jobs.travel_hours` (NUMERIC, nullable). Additive — all 101 existing jobs price exactly as before |
 
 **Security advisor findings on the migrated project:** 14 warnings flagged post-V4 migration. **All pre-existing**, not caused by V4 / V5 (RLS-policy permissiveness on `job_history` / `truck_shifts` / `sms_templates`; SECURITY DEFINER functions exposed to anon / authenticated; missing RLS policy on `quote_number_counter`; leaked-password protection disabled). Listed in *Deferred* above for a future hardening pass.
