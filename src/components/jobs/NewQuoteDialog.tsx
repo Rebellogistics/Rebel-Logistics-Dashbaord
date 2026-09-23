@@ -738,7 +738,12 @@ export function NewQuoteDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl grid-rows-[auto_minmax(0,1fr)_auto_auto] overflow-hidden">
+      {/* max-h is load-bearing, not decoration: shadcn's DialogContent sets no
+          max-height of its own, so without one here the grid-rows template has
+          no container height to shrink minmax(0,1fr) against, the body never
+          scrolls, and the dialog grows past the bottom of the screen taking the
+          total and the buttons with it (regression, 2026-09-23). */}
+      <DialogContent className="sm:max-w-4xl max-h-[95dvh] grid-rows-[auto_minmax(0,1fr)_auto_auto] overflow-hidden">
         <DialogHeader>
           <DialogTitle>{prefillJob ? 'Rebook customer' : 'New Quote'}</DialogTitle>
           <DialogDescription>
@@ -874,7 +879,6 @@ export function NewQuoteDialog({
 
           {!isWarehousing && (
             <Field
-              className="sm:col-span-2"
               label="Out of a container"
               hint={
                 availableContainers.length
