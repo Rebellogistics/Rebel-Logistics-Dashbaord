@@ -18,7 +18,7 @@
 
 import { readFileSync } from 'node:fs';
 
-type Where = 'engine' | 'rateBook' | 'quoteDialog' | 'jobDialog';
+type Where = 'engine' | 'rateBook' | 'quoteDialog' | 'jobDialog' | 'acceptDialog';
 
 interface Control {
   /** What it is, in the words the model uses. */
@@ -37,9 +37,21 @@ const FILES: Record<Where, string> = {
   rateBook: 'src/components/settings/PricingPanel.tsx',
   quoteDialog: 'src/components/jobs/NewQuoteDialog.tsx',
   jobDialog: 'src/components/jobs/JobDetailDialog.tsx',
+  // Added 2026-09-23. It quotes a price too — its "tap to use" suggestion
+  // wrote jobs.fee — and because nothing here watched it, it went on doing so
+  // with the retired engine for six days after that engine was replaced.
+  acceptDialog: 'src/components/jobs/AcceptDialog.tsx',
 };
 
 const CONTROLS: Control[] = [
+  {
+    name: 'Accept suggestion priced by the live engine',
+    // The failure this catches: AcceptDialog offered a "tap to use" figure
+    // built by calculateQuote, the retired V6 engine, which has no concept of
+    // extras. A White Glove job with trailer disposal was offered $2,520
+    // against a quoted $2,960, and one tap wrote the short figure to the fee.
+    needs: { engine: /export function priceJob/, acceptDialog: /priceJob\(/ },
+  },
   {
     name: 'Job type — Labour',
     // jobDialog was missing here, which is exactly how the job dialog came to

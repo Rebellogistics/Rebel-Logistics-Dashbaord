@@ -12,7 +12,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useJobs, useUpdateJob } from '@/hooks/useSupabaseData';
 import { usePricingRates } from '@/hooks/usePricingRates';
-import { calculateQuote } from '@/lib/pricing';
+import { priceJob } from '@/lib/jobPricing';
+import { extractPostcode } from '@/lib/metroPostcodes';
+import { useMetroPostcodes } from '@/hooks/useMetroPostcodes';
 import { sanitiseDecimal } from '@/lib/utils';
 import { Job, JobLocation, PricingRates, PricingType } from '@/lib/types';
 import { format, parseISO, subDays, isAfter } from 'date-fns';
@@ -84,27 +86,56 @@ function buildSuggestion(
   job: Job,
   allJobs: Job[],
   rates: PricingRates | undefined,
+  metroPostcodes?: ReadonlySet<number>,
 ): PricingSuggestion | null {
   // 1. Rate-book answer — strongest signal when it applies.
+  //
+  // This used to run on calculateQuote, the RETIRED V6 engine, which knows
+  // nothing about extras. A White Glove job carrying rubbish disposal was
+  // therefore offered its base charge alone: $2,520 against a quoted $2,960 on
+  // 14 m³ with a trailer load, and one tap replaced the correct fee with the
+  // short one. It runs on priceJob now, like every other pricing surface, so
+  // the figure it offers is the figure the quote engine would produce.
   if (rates) {
-    const breakdown = calculateQuote({
+    const price = priceJob({
       type: job.type,
-      location: job.location as JobLocation | undefined,
+      rates,
+      metroPostcodes,
+      postcode: extractPostcode(job.deliveryAddress ?? ''),
+      pickupPostcode: extractPostcode(job.pickupAddress ?? ''),
       cubicMetres: job.cubicMetres ?? 0,
       estimatedHours: job.hoursEstimated ?? 0,
-      rates,
+      truckSize: job.truckSize as 'standard' | 'large' | undefined,
+      travelHours: job.travelHours ?? 0,
+      labourers: job.labourers ?? 0,
+      warehouseService: job.warehouseService,
+      storageTier: job.storageTier,
+      storageTerm: job.storageTerm,
+      storageDays: job.storageDays ?? 0,
+      containerSize: job.containerSize,
+      whLabourType: job.whLabourType,
+      legsHours: job.legsHours ?? 0,
+      disposalLoad: job.disposalLoad,
+      disposalAmount: job.disposalAmount ?? 0,
+      packagingAmount: job.packagingAmount ?? undefined,
+      fuelLevyMode: job.fuelLevyMode,
     });
-    // For Regional, breakdown.subtotal is the flat minimum (always positive).
-    // For Metro, it's only useful if cubic_metres is set (otherwise = 0).
-    const isRegional = job.type !== 'Hourly rate' && job.location === 'Regional';
+    // Unchanged gate: only delivery jobs with a zone get a rate-book
+    // suggestion. Hourly is priced from its own hours, and Storage has no
+    // per-cube answer to offer.
+    const isRegional = job.type !== 'Hourly rate' && price.zone === 'Regional';
     const isMetroWithCubes =
-      job.type !== 'Hourly rate' && job.location === 'Metro' && (job.cubicMetres ?? 0) > 0;
-    if (breakdown.subtotal > 0 && (isRegional || isMetroWithCubes)) {
+      job.type !== 'Hourly rate' && price.zone === 'Metro' && (job.cubicMetres ?? 0) > 0;
+    if (price.chargeable > 0 && (isRegional || isMetroWithCubes)) {
       const tag = job.type === 'White Glove' ? ' (White Glove rate)' : '';
+      // Name the extras, so a figure larger than m³ × rate is explained
+      // rather than looking like a miscalculation.
+      const extras = price.lines.slice(1).map((l) => l.label.toLowerCase());
+      const withExtras = extras.length ? ` incl. ${extras.join(' + ')}` : '';
       const label = isRegional
-        ? `Rate book: $${breakdown.subtotal.toFixed(0)} flat ${job.location} minimum${tag}`
-        : `Rate book: ${job.cubicMetres} m³ × $${breakdown.metroRate} = $${breakdown.subtotal.toFixed(0)}${tag}`;
-      return { value: breakdown.subtotal, label };
+        ? `Rate book: $${price.chargeable.toFixed(0)} flat ${price.zone} minimum${tag}${withExtras}`
+        : `Rate book: ${job.cubicMetres} m³${tag} = $${price.chargeable.toFixed(0)}${withExtras}`;
+      return { value: price.chargeable, label };
     }
   }
 
@@ -168,6 +199,7 @@ export function AcceptDialog({ job, onClose, onAccepted, mode = 'accept' }: Acce
   const updateJob = useUpdateJob();
   const { data: allJobs = [] } = useJobs();
   const { data: rates } = usePricingRates();
+  const { data: metroList } = useMetroPostcodes();
   const gstPercent = rates?.gstPercent ?? 10;
 
   useEffect(() => {
@@ -181,7 +213,7 @@ export function AcceptDialog({ job, onClose, onAccepted, mode = 'accept' }: Acce
 
   const suggestion = useMemo(() => {
     if (!job || form.pricingType !== 'fixed') return null;
-    return buildSuggestion(job, allJobs, rates);
+    return buildSuggestion(job, allJobs, rates, metroList);
   }, [job, allJobs, form.pricingType, rates]);
 
   const computedFee = useMemo(() => {
