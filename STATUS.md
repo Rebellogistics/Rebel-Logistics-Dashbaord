@@ -50,10 +50,12 @@ _Transcripts: [`transcripts/`](docs/archive/transcripts/) — most recent: [`TRA
 
 11. **Set `TWILIO_SENDER_ID="RBLogistics"` on Vercel** (Production scope). The AU sender registration **is approved** — confirmed by Yamin 2026-09-14. The approved string is `RBLogistics` — 11 characters, no space. This is **not** the `RBL Logistics` submitted on the 2026-05-15 call, which was 13 characters and over Twilio's hard 11-character limit; nor the `REBEL` / `RebelLGTCS` / `Rebel LGTCS` variants in `docs/archive/v4/V4_STATUS.md`. Set it verbatim — a mismatch fails every outbound send with a silent carrier rejection (the May 2026 test failure). No redeploy needed; Vercel hot-loads env on the next request. Verify on Settings → Integrations (the *Outbound from* tile flips to `RBLogistics` with the alphanumeric chip), then test-send to a handset. Reverting is instant: clear the var and outbound falls back to the AU number.
 
-### Blocking — found 2026-09-22, not yet fixed
+### Found 2026-09-22 while doing other work
 
-18. 🔴 **The Accept dialog under-quotes White Glove jobs that carry rubbish
-    disposal, by $440 on a 14 m³ job.** `AcceptDialog.tsx` builds its
+18. ✅ **RESOLVED 2026-09-23 (`f145545`).** ~~The Accept dialog under-quotes
+    White Glove jobs that carry rubbish disposal, by $440 on a 14 m³ job.~~
+    It runs on `priceJob` now, and `check-parity` gained a fifth file so any
+    surface that can write a price is watched. Original report: `AcceptDialog.tsx` builds its
     "Rate book: … — tap to use" suggestion with `calculateQuote` from
     `src/lib/pricing.ts` — the **retired** V6 engine — instead of `priceJob`.
     The old engine has no concept of extras, so the suggested figure drops
